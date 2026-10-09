@@ -111,7 +111,8 @@ with F5–F6 if a second person is available.
 
 - [ ] every task of the PBI is done;
 - [ ] every acceptance scenario of the PBI has a test tagged with its id, and **all tests pass**
-      locally and in CI on Linux, macOS and Windows;
+      locally and in CI on Linux, and on macOS and Windows (PR labels `full-ci-mac` and `full-ci-win`)
+      before the PBI is ticked;
 - [ ] **requirements check:** the implementation was compared with every section the PBI
       cites (its `refs:` line). It does what they say, nothing is missing, and nothing was added beyond them.
       Any difference was raised with the owner and approved (Rule 3) before merging;

@@ -1,3 +1,8 @@
 {
-  "files": ["catspec.yaml", "src/greeter.ts"]
+  "files": [
+    "catspec.yaml",
+    "src/greeter.ts",
+    "docs/spec/sample/spec.md",
+    "docs/architecture/adr/sample-adr.md"
+  ]
 }

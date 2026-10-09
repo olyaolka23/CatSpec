@@ -11,7 +11,7 @@
 
 ## Commands
 
-Requires Node 20 or 22.
+Requires Node 20.19+ or 22.12+.
 
 ```sh
 npm ci                      # install
@@ -20,6 +20,9 @@ npm run lint                # ESLint (warnings fail) and Prettier
 npm run typecheck           # TypeScript over every package, script and test
 npm run check:acceptance    # acceptance coverage; run after npm test
 ```
+
+CI runs these on Linux (Node 20 and 22) for every pull request. macOS and Windows run only when the
+pull request has the label `full-ci-mac` or `full-ci-win`.
 
 ## Tests
 
