@@ -854,6 +854,8 @@ Failing gates are reported as `CS07xx` diagnostics, plus the diagnostics of the 
    - One MCP prompt per stage (`stage-<id>`) is generated from the config.
 3. **Hooks (optional):** with `workflow.enforce_in_hook: warn|error` (default `warn`), the pre-commit
    hook re-checks that `implemented` specs still pass their final stage's exit gates (`CS0703`).
+   The hook only evaluates the built-in gates, using results the `check` already computed. It never
+   runs `command:` gates, so the hook's 1-second budget (§11.7) is unchanged.
    `catspec init --agents` can add a Claude Code `Stop` hook that runs `catspec stage exit` for the
    current stage. That makes "done" mean that the gates pass.
 
