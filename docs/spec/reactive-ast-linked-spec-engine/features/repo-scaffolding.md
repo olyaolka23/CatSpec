@@ -36,18 +36,18 @@ Feature: F0 repo-scaffolding
 ```
 
 ## Definition of Done (feature)
-- [ ] all PBIs meet the PBI checklist
-- [ ] `@AC-F0-1..2` are automated and pass in CI on 3 OSes
-- [ ] requirements review done; differences approved by the owner
-- [ ] owner approved closing the feature and ticking it in plan §1 Progress
+- [x] all PBIs meet the PBI checklist
+- [x] `@AC-F0-1..2` are automated and pass in CI on 3 OSes
+- [x] requirements review done; differences approved by the owner
+- [x] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `monorepo-setup`
 Creates the npm-workspaces monorepo with every package and the shared build, test and lint tooling.
 - depends on: —
-- [ ] npm workspaces: `packages/{core,lang,lang-typescript,lang-csharp,cli,mcp,catspec}`
-- [ ] TypeScript 5 strict, ESM, shared `tsconfig`; `tsup` builds per package
-- [ ] `vitest` with one placeholder test per package; `eslint` + `prettier`
-- [ ] `changesets` for versioning; `npm run build|test|lint|typecheck` at the root
+- [x] npm workspaces: `packages/{core,lang,lang-typescript,lang-csharp,cli,mcp,catspec}`
+- [x] TypeScript 5 strict, ESM, shared `tsconfig`; `tsup` builds per package
+- [x] `vitest` with one placeholder test per package; `eslint` + `prettier`
+- [x] `changesets` for versioning; `npm run build|test|lint|typecheck` at the root
 
 ```gherkin
   @AC-monorepo-setup-1
@@ -60,11 +60,11 @@ Creates the npm-workspaces monorepo with every package and the shared build, tes
 ## PBI `ci-pipeline`
 Runs every check on every pull request and enforces the Definition of Done automatically.
 - depends on: `monorepo-setup`
-- [ ] GitHub Actions: lint, typecheck, test on Linux × Node 20 / 22 for every PR; on macOS and Windows only when the PR has the label `full-ci-mac` or `full-ci-win`; npm cache; lint warnings fail
-- [ ] **acceptance-coverage script** (`scripts/check-acceptance.ts`): parses the `@AC-…` tags in `features/*.md`, finds which PBIs are fully ticked and which features are closed, and matches tags to test names (`[AC-…]`) and results
-- [ ] the script runs as a required CI step
-- [ ] PR template `.github/pull_request_template.md` with the PBI checklist (propose the text to the owner first; Rule 3)
-- [ ] ask the owner to enable branch protection on `main`: required CI, owner approval
+- [x] GitHub Actions: lint, typecheck, test on Linux × Node 20 / 22 for every PR; on macOS and Windows only when the PR has the label `full-ci-mac` or `full-ci-win`; npm cache; lint warnings fail
+- [x] **acceptance-coverage script** (`scripts/check-acceptance.ts`): parses the `@AC-…` tags in `features/*.md`, finds which PBIs are fully ticked and which features are closed, and matches tags to test names (`[AC-…]`) and results
+- [x] the script runs as a required CI step
+- [x] PR template `.github/pull_request_template.md` with the PBI checklist (propose the text to the owner first; Rule 3)
+- [x] ask the owner to enable branch protection on `main`: required CI, owner approval
 
 ```gherkin
   @AC-ci-pipeline-1
@@ -97,9 +97,9 @@ Runs every check on every pull request and enforces the Definition of Done autom
 ## PBI `fixture-conventions`
 Defines how test fixtures (small sample repositories) are laid out and loaded, so all later features test the same way.
 - depends on: `monorepo-setup`
-- [ ] `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, docs/architecture/adr/<name>-adr.md, expected.json}`
-- [ ] test helper `loadFixture(name)` that copies a fixture into a temporary directory
-- [ ] `CONTRIBUTING.md` pointing to `AGENTS.md`, the ADR log and `plan.md` (propose the text first; Rule 3)
+- [x] `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, docs/architecture/adr/<name>-adr.md, expected.json}`
+- [x] test helper `loadFixture(name)` that copies a fixture into a temporary directory
+- [x] `CONTRIBUTING.md` pointing to `AGENTS.md`, the ADR log and `plan.md` (propose the text first; Rule 3)
 
 ```gherkin
   @AC-fixture-conventions-1

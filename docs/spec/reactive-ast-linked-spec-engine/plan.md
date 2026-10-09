@@ -29,7 +29,7 @@ Tick a feature only when every item of its feature checklist (in its feature fil
 **and the owner approved ticking it** (`AGENTS.md` Rule 3). PBI and task progress is tracked
 in the feature files.
 
-- [ ] F0 [`repo-scaffolding`](./features/repo-scaffolding.md)
+- [x] F0 [`repo-scaffolding`](./features/repo-scaffolding.md)
 - [ ] F1 [`spec-model`](./features/spec-model.md)
 - [ ] F2 [`typescript-language-support`](./features/typescript-language-support.md)
 - [ ] F3 [`rule-engine-and-check`](./features/rule-engine-and-check.md)
