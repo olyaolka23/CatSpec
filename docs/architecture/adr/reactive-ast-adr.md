@@ -231,3 +231,26 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** Everything lives under `docs/`: `spec/` (features), `architecture/adr/`
   (decisions and global rules) and `guidelines/` (conventions). Existing links were updated.
 
+## ADR-018: Epic docs: business spec, technical plan with progress, one file per feature
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Amends:** ADR-012
+- **Context:** `tasks.md` had grown to about 1,900 lines and repeated the task lists in `plan.md`,
+  while `spec.md` mixed the business idea with the full technical design. Agents had to load
+  everything to work on one feature, and progress wasn't visible in one place.
+- **Decision:**
+  - `spec.md` holds only the **what and why**: problem, goals, users, capabilities, quality
+    requirements and acceptance scenarios.
+  - `plan.md` holds the **how**. Part I (delivery) has the principles, a **Progress** checklist
+    with one checkbox per feature (ticked only with the owner's approval), the feature order and
+    the working rules (Gherkin, Definition of Done, enforcement). Part II is the technical design.
+  - Each feature of an epic has its own file `features/<feature-id>.md` with its description,
+    requirements, Gherkin acceptance criteria, Definition of Done, PBIs and tasks.
+  - `tasks.md` remains only for small epics without `features/`.
+  - Section numbers of the technical design are kept with a `D` prefix. "spec §3–§14" and
+    "spec §17" in earlier ADRs now mean plan §D3–§D14 and §D17; spec §15 and §16 are now spec §4
+    and §5.
+  - CatSpec's product default layout (plan §D3) is unchanged by this decision.
+- **Consequences:** An agent working on one feature reads `spec.md`, the parts of `plan.md` it
+  needs, and one feature file. Progress is visible in `plan.md` §1. The acceptance-coverage
+  check reads tags from `features/*.md`.
+

@@ -8,7 +8,7 @@ checks them on every commit, and lets AI agents verify their own work before the
 > change. Design documents: [analysis](docs/spec/reactive-ast-linked-spec-engine/analysis.md) ·
 > [spec](docs/spec/reactive-ast-linked-spec-engine/spec.md) ·
 > [plan](docs/spec/reactive-ast-linked-spec-engine/plan.md) ·
-> [tasks](docs/spec/reactive-ast-linked-spec-engine/tasks.md) ·
+> [features](docs/spec/reactive-ast-linked-spec-engine/features/) ·
 > [ADR log](docs/architecture/adr/reactive-ast-adr.md).
 
 ---
