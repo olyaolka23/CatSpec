@@ -17,8 +17,8 @@ CatSpec makes specs **active**:
 3. a **local gate** (pre-commit hook) blocks commits that break satisfied contracts;
 4. AI agents get the spec, its rules and live compliance results through an **MCP server**,
    so "done" is decided by the rules, not by the agent;
-5. specs form a **dependency DAG**, and parallel agents **claim** specs with
-   atomic local locks.
+5. specs form a **dependency DAG**: work on a spec can't be promoted before its dependencies are done.
+   (Locks for parallel agents, *claims*, are designed in §9 but deferred to after the MVP, ADR-014.)
 
 ### 1.1 Goals (MVP)
 
@@ -27,12 +27,12 @@ CatSpec makes specs **active**:
 - G3. Block commits that break contracts, reading the **staged** tree.
 - G4. Detect symbol renames/moves and heal spec *locations* with a reviewed or automatic edit.
 - G5. Expose specs, verification and safe spec edits to LLM agents via **MCP (stdio)**.
-- G6. Local multi-agent coordination: claim/release specs, worktree per spec, lock enforcement in the hook.
+- G6. *(Deferred, ADR-014.)* Local multi-agent claims are post-MVP; see §9.
 - G7. Clear, stable, machine-readable diagnostics.
 
 ### 1.2 Non-goals (MVP)
 
-CI/CD integration, GitHub App, distributed locks, web graph UI, type-resolved
+CI/CD integration, GitHub App, local and distributed claims/locks (ADR-014), web graph UI, type-resolved
 semantics, IDE plugin, LLM-judged invariants (see analysis §3). The design keeps
 extension points for each.
 
@@ -42,7 +42,7 @@ extension points for each.
 |---|---|
 | Tech lead / architect | writes specs and the ADR log `guidelines/architecture/<name>-adr.md`, reviews DAG and coverage |
 | Developer | implements specs, gets fast hook feedback, heals renames |
-| AI coding agent (Claude Code, Cursor, Windsurf) | reads context, self-verifies, claims specs via MCP/CLI |
+| AI coding agent (Claude Code, Cursor, Windsurf) | reads context, self-verifies via MCP/CLI |
 
 ---
 
@@ -57,7 +57,7 @@ extension points for each.
 | **Symbol** | A normalised declaration extracted from the AST (class, interface, method, function…). |
 | **Diagnostic** | One check result with a stable code. |
 | **Lock file** | Generated, committed record of observed facts per spec (ratchet, fingerprints). |
-| **Claim** | A runtime lease giving one owner (agent/dev) exclusive right to change a spec's scope. |
+| **Claim** | *(Post-MVP.)* A runtime lease giving one owner (agent/dev) exclusive right to change a spec's scope. |
 | **Drift** | The code's shape changed without a matching spec change. |
 | **Violation** | The code fails a declared contract. |
 
@@ -83,9 +83,10 @@ that go with it, lives in a folder named after its feature (epic).
       tasks.md
       <spec-id>.spec.md                 # machine spec(s) of this feature (§5)
       <spec-id>.lock.json               # generated, committed, next to its spec (§7)
-  <git-common-dir>/catspec/             # runtime, NOT committed (§9)
-    claims/<spec-id>.json
+  <git-common-dir>/catspec/             # runtime, NOT committed
     cache/<blob-sha>.json
+    refactor/baseline.json              # active refactor baseline (§11.8)
+    claims/<spec-id>.json               # post-MVP (§9)
 ```
 
 - `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and an example feature folder
@@ -123,9 +124,6 @@ heal:
   threshold: 0.8
 hook:
   stage_generated: true  # re-stage lock files / auto-healed specs
-claims:
-  ttl: 4h
-  enforce_in_hook: true
 refactor:
   detect_threshold: 10   # broken bindings in one commit that count as a large refactor (§11.8)
   allow_wip: false
@@ -378,7 +376,13 @@ draft ──► ready ──► in-progress ──► implemented ──► depr
 
 ---
 
-## 9. Claims (runtime locks) — F-10
+## 9. Claims (runtime locks) — F-10 · **post-MVP**
+
+> **Deferred (ADR-014).** Claims are not part of the MVP. This section is kept as the design for
+> a later release. In the MVP, parallel work is coordinated by git branches and worktrees as
+> usual: conflicts surface at merge time, and `catspec check` after the merge catches any
+> contract that the combined result breaks. Diagnostics `CS0500`, `CS0501` and `CS0503` are reserved.
+> The specs' `scope` field is still parsed in the MVP, so the data claims need already exists.
 
 Store: `<git-common-dir>/catspec/claims/`, shared by all worktrees of the clone.
 
@@ -407,20 +411,18 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 |---|---|
 | `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec lint` | validate spec files only: schema, ids, DAG, references, queries |
-| `catspec check [paths…] [--staged] [--spec <id>…] [--run-tests]` | full validation (lint + contracts + drift + claims); `--staged` reads the index |
+| `catspec check [paths…] [--staged] [--spec <id>…] [--run-tests]` | full validation (lint + contracts + drift); `--staged` reads the index |
 | `catspec verify <spec-id>` | check one spec, print agent-friendly report; exit code = done/not-done |
-| `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied and unclaimed |
-| `catspec show <spec-id>` | normalised model + compliance + deps + claim |
+| `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
+| `catspec show <spec-id>` | normalised model + compliance + deps |
 | `catspec graph [--format mermaid\|dot\|json] [--focus id]` | DAG export |
 | `catspec sync [--apply] [--staged]` | detect renames/moves (§11.4) and propose / apply location edits |
 | `catspec accept <spec-id>` | record current shapes as accepted (drift baseline) |
 | `catspec status <spec-id> <status> [--force]` | lifecycle transition with rule checks (§8) |
 | `catspec bind <symbol> --spec <id> [--file f]` | scaffold a binding from existing code (shape copied as contract) |
 | `catspec lock [--rebuild]` | (re)generate lock files |
-| `catspec claim <spec-id> [--owner o] [--steal]` / `release <spec-id>` / `claims` | runtime locks |
-| `catspec refactor start [--scope g…] [--reason r] [--allow-wip] [--wait]` | begin a large refactor: exclusive claim + baseline (§11.8) |
+| `catspec refactor start [--scope g…] [--reason r] [--allow-wip]` | begin a large refactor: record a baseline (§11.8) |
 | `catspec refactor finish [--map f] [--apply] [--partial] [--update-mentions]` / `status` / `abort` | map old → new symbols in batch, update specs and lock files |
-| `catspec assign <spec-id> [--owner o] [--worktree path]` | check deps → claim → `git worktree add -b spec/<id>` → write `.catspec-context.md` into the worktree |
 | `catspec install-hooks [--manager auto\|git\|husky\|lefthook]` / `uninstall-hooks` | |
 | `catspec mcp` | start MCP server on stdio |
 | `catspec coverage` | contract satisfaction, enforcement coverage, reverse code coverage (F-3) |
@@ -444,7 +446,7 @@ Text output example:
 
 | Package | Responsibility | Depends on |
 |---|---|---|
-| `@catspec/core` | spec model, schema, parser, CST editor, DAG, config, rule engine, diagnostics, lock files, claims, git access; **defines** the `LanguageAdapter` / `FileFacts` types (§11.2) | `yaml`, `zod`, `remark-parse`, `picomatch` |
+| `@catspec/core` | spec model, schema, parser, CST editor, DAG, config, rule engine, diagnostics, lock files, git access; **defines** the `LanguageAdapter` / `FileFacts` types (§11.2) | `yaml`, `zod`, `remark-parse`, `picomatch` |
 | `@catspec/lang` | Tree-sitter (WASM) loader, query runner, symbol normaliser, parse cache | core, `web-tree-sitter` |
 | `@catspec/lang-typescript` | TS/TSX adapter + `.scm` queries + grammar WASM | `@catspec/lang` |
 | `@catspec/lang-csharp` | C# adapter | `@catspec/lang` |
@@ -502,7 +504,7 @@ load config ─► discover specs (index or disk) ─► parse frontmatter (yaml
    ─► compute file set: binding hints ∪ scope ∪ changed files (staged) ∪ arch-rule scope
    ─► FileFacts for each (cache by blob sha) ─► resolve bindings (§11.5)
    ─► evaluate contracts + rules ─► apply status matrix + ratchet + waivers
-   ─► drift vs lock fingerprints ─► claims enforcement ─► diagnostics ─► reporter / exit code
+   ─► drift vs lock fingerprints ─► diagnostics ─► reporter / exit code
    ─► (hook) update lock files (+ re-stage if configured)
 ```
 
@@ -547,7 +549,6 @@ The per-binding detection in §11.4 works for a handful of renames. A large refa
 
 - one commit produces dozens of `CS0201`/`CS0301` errors;
 - guessing by similarity gets ambiguous when many similar symbols change together;
-- the files belong to specs that other owners have claimed, so `CS0501` appears everywhere;
 - re-creating bindings by hand loses the ratchet history in the lock files.
 
 **Approach:** tell CatSpec a refactor is happening, prefer exact rename information over
@@ -561,16 +562,15 @@ git commit            # code + specs + lock files together
 ```
 
 1. **`refactor start`**
-   - Takes a **refactor claim** on the scope (whole repo if `--scope` is omitted). It is an
-     exclusive claim (§9): refused with `CS0503` if any live claim overlaps (holders are listed;
-     `--wait` waits until they are released). While it is active, new overlapping claims are refused.
-   - Records a **baseline** in the runtime store: for every binding of the affected specs, its
+   - Records the scope (whole repo if `--scope` is omitted), the current branch and a
+     **baseline** in the runtime store: for every binding of the affected specs, its
      resolved symbol id, file, shape fingerprint, *name-free* fingerprint (shape without the
      symbol's own name and namespace) and a body-token sketch. The baseline revision is `HEAD`.
 2. **During the refactor** the hook groups all binding, drift and ratchet errors in the scope
    into **one** summary `CS0215` ("refactor in progress: 37 bindings unresolved, run
    `catspec refactor finish`"). By default it still blocks. `start --allow-wip` lets
-   intermediate commits through, only on the refactor's branch and only for its owner.
+   intermediate commits through, only on the branch recorded at `start`.
+   *(Post-MVP, with claims: `start` also takes an exclusive refactor claim on the scope, ADR-014.)*
 3. **`refactor finish`** maps every baseline binding that no longer resolves to its new
    symbol, using the strongest evidence available:
 
@@ -599,8 +599,8 @@ git commit            # code + specs + lock files together
    - backticked mentions of old names in spec bodies are reported, and rewritten only with `--update-mentions`.
 
    `finish` succeeds only when nothing in the scope is ambiguous or lost. `--partial` applies the
-   mapped part and keeps the refactor open. On success it releases the claim and deletes the baseline.
-4. **`refactor abort`** releases the claim and drops the baseline. No edits are made.
+   mapped part and keeps the refactor open. On success it deletes the baseline.
+4. **`refactor abort`** drops the baseline. No edits are made.
 
 **Rename map** (written by hand, by the agent that did the refactor, or by a codemod):
 
@@ -618,8 +618,8 @@ The agent that performed a refactor knows exactly what it renamed, so asking it 
 **If nobody ran `refactor start`:** when one commit breaks more than
 `refactor.detect_threshold` bindings (default 10), or `git diff -M` shows many renames, the hook
 prints one grouped `CS0215` instead of N separate errors and suggests `catspec refactor finish`.
-`finish` also works without `start`: the baseline is then `HEAD` and no claim is taken. `start`
-is recommended for its claim and WIP mode, but it is not required.
+`finish` also works without `start`: the baseline is then `HEAD`. `start` is recommended for a
+refactor that spans several commits (baseline and WIP mode), but it is not required.
 
 **Moving specs themselves** is safe: a spec's identity is its `id`, not its path, and its lock
 file sits next to it, so it moves with it. A lock file without its spec gets `CS0108`.
@@ -648,7 +648,7 @@ interface Diagnostic {
 | CS02xx | bindings | 0201 not found, 0202 ambiguous, 0203 member missing, 0204 base missing, 0205 signature mismatch, 0206 attribute missing, 0207 ctor dependency missing, 0208 visibility/export, 0210 renamed (heal), 0215 large refactor summary, 0216 ambiguous refactor mapping, 0217 binding lost in refactor, 0220 unresolvable (syntactic limit) |
 | CS03xx | drift / ratchet | 0300 drift, 0301 regression of satisfied item |
 | CS04xx | waivers | 0400 waived, 0401 expired |
-| CS05xx | claims / DAG gate | 0500 claim conflict, 0501 commit touches foreign claim, 0502 deps not satisfied, 0503 refactor claim conflict |
+| CS05xx | DAG gate / claims | 0502 deps not satisfied; reserved for post-MVP claims: 0500 claim conflict, 0501 commit touches foreign claim, 0503 refactor claim conflict |
 | CS06xx | rules | 0601 forbidden call, 0602 required call missing, 0603 forbidden import, 0604 naming, 0605 must-not-exist, 0610 query match, 0620 test symbol missing, 0621 test failed |
 | CS09xx | engine | 0901 parse error in file (partial results), 0902 git unavailable |
 
@@ -680,12 +680,11 @@ root; anything outside → error.
 
 | Tool | Input | Output / behaviour |
 |---|---|---|
-| `list_specs` | `status?`, `ready_only?` | id, title, status, deps satisfied?, claim, progress |
-| `get_spec_context` | `spec_id` | Markdown body, normalised contract (bindings, members, rules by class), dependency status, infrastructure, claim, **current compliance** and resolved file paths, architecture rules that apply |
+| `list_specs` | `status?`, `ready_only?` | id, title, status, deps satisfied?, progress |
+| `get_spec_context` | `spec_id` | Markdown body, normalised contract (bindings, members, rules by class), dependency status, infrastructure, **current compliance** and resolved file paths, architecture rules that apply |
 | `verify_compliance` | `spec_id?`, `file_path?`, `staged?` | runs check for the spec, or for all specs bound to the file; diagnostics with expected/actual/suggestions; `done: boolean` |
 | `find_specs_for_file` | `file_path` | specs binding/scoping that file |
 | `check_dependencies` | `spec_id` | each dependency with status, satisfaction, failing items |
-| `claim_spec` / `release_spec` | `spec_id`, `owner?` | §9; returns scope or conflict holder |
 | `update_spec_bindings` | `spec_id`, `patch` (JSON-merge on bindings), `dry_run=true` | returns unified diff; location edits applied if allowed; contract edits applied only if `mcp.allow_contract_edits` else returned as proposal (F-13) |
 | `start_refactor` / `finish_refactor` | `scope?`, `reason?` / `map?`, `dry_run=true` | §11.8; `finish_refactor` returns the mapped / ambiguous / lost report and applies location edits when `dry_run=false` |
 | `set_spec_status` | `spec_id`, `status`, `links?` (`pr`, `commit`) | lifecycle rules (§8); `implemented` refused if contracts fail (replaces `mark_spec_resolved`) |
@@ -693,7 +692,7 @@ root; anything outside → error.
 ### 14.2 Resources & prompts
 
 - Resources: `catspec://spec/{id}` (raw file), `catspec://architecture`, `catspec://graph` (mermaid), `catspec://diagnostics` (last check).
-- Prompts: `implement-spec(spec_id)` — workflow: get context → claim → implement → verify until `done` → set status; `fix-drift(spec_id)`.
+- Prompts: `implement-spec(spec_id)` — workflow: get context → check dependencies → implement → verify until `done` → set status; `fix-drift(spec_id)`.
 
 ### 14.3 Agent "definition of done" (F-18)
 
@@ -724,10 +723,10 @@ when not done; plus the MCP server registered via `claude mcp add catspec -- npx
 4. **In-progress ratchet**: a missing method in an `in-progress` spec is a warning; after it is implemented and committed, deleting it is an error.
 5. **Partial staging**: a staged correct version + unstaged broken version passes; the reverse fails.
 6. **Architecture rule**: `src/Domain/**` importing `src/Infrastructure/**` fails with `CS0603`.
-7. **DAG**: `assign user-sync-handler` refuses while `cdc-core-events` is not `implemented`.
-8. **Claims**: two agents claiming overlapping specs — second gets `CS0500`; committing into a foreign claim's files fails with `CS0501`.
+7. **DAG**: `catspec status user-sync-handler in-progress` refuses (`CS0502`) while `cdc-core-events` is not `implemented`.
+8. *(Post-MVP, ADR-014.)* **Claims**: two agents claiming overlapping specs — second gets `CS0500`; committing into a foreign claim's files fails with `CS0501`.
 9. **MCP loop**: agent calls `get_spec_context`, writes code with `signIn`, `verify_compliance` returns `CS0203 expected login, found signIn`, agent fixes, verify returns `done: true`, `set_spec_status implemented` succeeds.
 10. **Agent can't weaken contract**: `update_spec_bindings` removing a member returns a proposal and does not write when `allow_contract_edits=false`.
 11. **Mass refactor**: renaming namespace `Identity` → `Accounts` (40 bound classes) and moving the folder in one commit. The hook shows one `CS0215`; `catspec refactor finish --apply` maps all 40 with no manual edits, ratchet entries are preserved, and the commit passes.
 12. **Ambiguous refactor**: two near-identical handlers renamed at once without a map. `finish` reports `CS0216` with candidates and changes nothing; with `--map` it succeeds.
-13. **Refactor vs claims**: `refactor start` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.
+13. *(Post-MVP, ADR-014.)* **Refactor vs claims**: `refactor start` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.

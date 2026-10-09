@@ -25,10 +25,10 @@
 | C11 | **GitHub orchestration** — GitHub App, issues/PR state, worktree per task (post-MVP) | Phase 4 |
 
 The final section of the source narrows the MVP to: CLI + pre-commit hook + MCP
-server, no CI/CD. This analysis keeps that MVP boundary but adds local locks
-(C6) because multi-agent work with git worktrees is a local scenario today
-(Claude Code, Cursor background agents), and the source names parallelism as a
-key differentiator.
+server, no CI/CD. This analysis keeps that MVP boundary. Local locks (C6) were
+first included, then deferred to after the MVP (ADR-014): they don't remove merge
+conflicts, they mainly help several agents working at once on one machine, and the
+core value (check, hook, MCP) doesn't depend on them. Their design (F-10) is kept for later.
 
 ---
 
@@ -204,7 +204,7 @@ respect `core.hooksPath`.
 A lock file cannot stop an agent from editing a file. The source implies
 "atomic locks on files" prevent conflicts but defines no enforcement point.
 
-**Decision.**
+**Decision.** *(Deferred to post-MVP by ADR-014; the design below is kept for that release.)*
 
 - **Acquire** is atomic: lock records are created with `O_EXCL` (or a
   transactional SQLite file) in the git common dir; leases have TTL + heartbeat;
@@ -231,7 +231,7 @@ task-level.
 - A dependency is **satisfied** when its status is `implemented` **and** its
   enforceable contracts pass on the current tree.
 - Cycles, unknown ids and self-dependencies are spec-lint errors.
-- `assign`/`claim` of a spec with unsatisfied dependencies is refused (`--force` to override, logged).
+- Moving a spec to `in-progress` with unsatisfied dependencies is refused (`--force` to override, logged).
 
 ### F-12. "Contradicts architecture-spec.md" is not checkable as stated
 
@@ -309,7 +309,7 @@ agent; (c) the pre-commit gate as the backstop.
 The source plans the MVP in 5 weeks including two languages, a hook, an MCP
 server, rename detection and (implicitly) locks. With the clarifications above
 (CST editing, staged reading, ratchet, C# partial classes, golden tests per
-grammar) a realistic estimate for one engineer is **~13 weeks** (~11.5 if the C# adapter is built in parallel, including large-refactor support, §11.8 of the spec); see the plan.
+grammar) a realistic estimate for one engineer is **~11.5 weeks** (~10 if the C# adapter is built in parallel; includes large-refactor support, spec §11.8; claims deferred by ADR-014); see the plan.
 
 ---
 
@@ -319,6 +319,7 @@ grammar) a realistic estimate for one engineer is **~13 weeks** (~11.5 if the C#
 |---|---|---|
 | CI linter, PR comments, SARIF upload | source's own MVP decision | `json` reporter, stable codes, `sarif` reporter slot |
 | GitHub App orchestrator, issue/PR state machine | needs hosted service | spec status model, DAG API |
+| Local claims / agent locks, `assign` with worktrees | don't prevent merge conflicts; value mainly for many parallel agents; ~1.5 weeks plus concurrency risk (ADR-014) | `scope` field parsed; design in F-10 and spec §9 |
 | Distributed locks | needs a shared medium | lock-store interface; git-refs design (F-10) |
 | `graph --ui` web server | nice-to-have | `graph --format mermaid|dot|json` in MVP |
 | Semantic backends (Roslyn, tsserver) | heavy | language adapter interface |

@@ -119,7 +119,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-010: Local claims with O_EXCL leases in the git common dir, enforced at commit
 
-- **Status:** Accepted · **Date:** 2026-10-09 · **Ref:** F-10
+- **Status:** Superseded by ADR-014 (deferred to post-MVP) · **Date:** 2026-10-09 · **Ref:** F-10
 - **Decision:** Claims are atomic lease files with TTL and heartbeat. Overlapping scopes
   are refused. The pre-commit hook rejects commits into another owner's claim. A
   `ClaimStore` interface allows a git-refs backend later.
@@ -146,7 +146,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-013: Large refactorings use an explicit refactor mode and batch rename mapping
 
-- **Status:** Accepted · **Date:** 2026-10-09 · **Ref:** spec §11.8
+- **Status:** Accepted; the refactor-claim part is deferred by ADR-014 · **Date:** 2026-10-09 · **Ref:** spec §11.8
 - **Context:** Per-binding rename guessing (ADR-008, spec §11.4) breaks down when a refactor
   renames or moves dozens of bound symbols at once: errors flood the hook, similar classes become
   ambiguous, claimed files block the commit, and re-binding by hand loses the ratchet history.
@@ -160,4 +160,22 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** Mass renames cost one command instead of dozens of manual spec edits, and the
   ratchet history survives. The CLI and MCP surface grow (`refactor start|finish|status|abort`,
   `start_refactor`/`finish_refactor`). A refactor claim can make other agents wait.
+
+## ADR-014: Defer claims (agent locks) to after the MVP
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Supersedes:** ADR-010 · **Amends:** ADR-013
+- **Context:** Claims (ADR-010) stop two owners working on the same files at the same time on one
+  machine. They don't prevent merge conflicts in general: branches still diverge and are merged
+  as usual. Their value shows up mainly when several agents run in parallel, which is not the
+  core MVP scenario. They would cost about 1.5 weeks, add concurrency and stale-lock edge cases,
+  and can block commits for reasons unrelated to the spec.
+- **Decision:** The MVP ships without claims, `assign`/worktree orchestration, claim enforcement
+  in the hook, and the MCP `claim_spec`/`release_spec` tools. `refactor start` records only a
+  baseline, scope and branch, without an exclusive claim. Codes `CS0500`, `CS0501` and `CS0503`
+  are reserved. The `scope` field is still parsed. The ADR-010 design (spec §9) is the plan for
+  roadmap 0.4.
+- **Consequences:** The MVP is about 1.5 weeks shorter and simpler, and the hook only blocks for
+  contract reasons. Parallel agents rely on git branches; conflicts appear at merge time, and
+  `catspec check` after the merge catches broken contracts. Coordination before work starts
+  arrives with claims later.
 

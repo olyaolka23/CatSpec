@@ -21,17 +21,17 @@
 | M0 | Repo scaffolding | 0.5 | 11.1 | CI green on empty packages |
 | M1 | Spec model, lint, DAG | 1.5 | 4, 5, 6 (parse), 8, 10 (`init/lint/list/show/graph`) | `catspec lint` on fixture specs, CST round-trip identity |
 | M2 | Language layer + TypeScript adapter | 1.5 | 11.2, 11.7 (cache) | golden facts for TS fixtures |
-| M3 | Rule engine & `check` (working tree) | 1.5 | 6, 11.3, 11.5, 12, 10 (`check/verify/coverage`) | acceptance 1, 6 on TS |
+| M3 | Rule engine & `check` (working tree) | 1.5 | 6, 11.3, 11.5, 12, 10 (`check/verify/coverage/status`) | acceptance 1, 6, 7 on TS |
 | M4 | C# adapter ⇄ | 1.5 | 5.3 partial classes, attributes, DI | acceptance 1, 6 on C# fixtures |
 | M5 | Git: staged reading, hook, lock file, ratchet, drift | 1.5 | 7, 8, 13, 11.3 IndexProvider | acceptance 4, 5 |
-| M6 | Rename/move detection, heal, batch refactor mapping | 1.5 | 11.4, 11.6, 11.8 (mapping), `sync/accept/bind/refactor finish` | acceptance 2, 3, 11, 12 |
+| M6 | Rename/move detection, heal, large refactors | 1.5 | 11.4, 11.6, 11.8, `sync/accept/bind/refactor` | acceptance 2, 3, 11, 12 |
 | M7 | MCP server | 1 | 14 | acceptance 9, 10; works in Claude Code |
-| M8 | Claims, assign, worktrees, refactor claims | 1.5 | 9, 11.8 (claims), `claim/assign/refactor start`, hook enforcement | acceptance 7, 8, 13 |
-| M9 | Hardening & 0.1.0 release | 1 | 15 | all 13 acceptance scenarios, perf budgets, docs |
-| | **Total** | **~13** (≈11.5 with M4 parallel) | | |
+| M9 | Hardening & 0.1.0 release | 1 | 15 | all MVP acceptance scenarios (1–7, 9–12), perf budgets, docs |
+| | **Total** | **~11.5** (≈10 with M4 parallel) | | |
 
 Critical path: M0 → M1 → M2 → M3 → M5 → M6 → M7 → M9. M4 can run in parallel
-with M5–M6 if a second person is available; M8 needs M5 (hook) only.
+with M5–M6 if a second person is available. There is no M8: claims, `assign` and worktree
+orchestration were deferred to post-MVP (ADR-014, roadmap 0.4).
 
 ---
 
@@ -107,7 +107,7 @@ Tasks
 
 Tests: rule engine unit tests on synthetic `FileFacts` (no grammar); end-to-end fixture repos for acceptance 1 & 6 (TS); message wording snapshot tests (diagnostics are UX).
 
-Done when: acceptance scenarios 1 and 6 pass on TS fixtures; dogfood check runs in CI.
+Done when: acceptance scenarios 1, 6 and 7 pass on TS fixtures; dogfood check runs in CI.
 
 ---
 
@@ -146,7 +146,7 @@ Done when: acceptance 4, 5 pass; hook run on fixture repo ≤ 1 s warm.
 
 ---
 
-## M6 — Rename/move detection, heal, batch refactor mapping (1.5 w)
+## M6 — Rename/move detection, heal, large refactors (1.5 w)
 
 Tasks
 1. Detection pipeline (§11.4): moved → file-renamed → symbol-renamed with scoring; `RevisionProvider` gives the previous facts (HEAD for staged mode, index for working-tree mode).
@@ -157,6 +157,7 @@ Tasks
 6. **Batch refactor mapping** (§11.8): baseline capture (from `HEAD` when no `refactor start`), name-free fingerprints, rename-map parser (`symbols`/`namespaces`/`paths`), prefix-rule detection, global one-to-one assignment, mapped/ambiguous/lost report.
 7. `refactor finish [--apply|--partial|--update-mentions]`: one CST batch per spec file; move lock entries (`resolved`, `satisfied`, fingerprints) to new ids; auto-accept name-only shape changes.
 8. Hook grouping: above `refactor.detect_threshold` broken bindings, emit one `CS0215` instead of N errors.
+9. `refactor start/status/abort`: baseline + scope + branch in the runtime store; `--allow-wip` relaxation in the hook on that branch only; MCP `start_refactor`/`finish_refactor`.
 
 Tests: rename fixtures (class rename, method rename, rename + move, two similar candidates → ambiguous, rename + heavy body change → below threshold); a generated "namespace rename + folder move of 40 classes" fixture; a swap-like rename of two near-identical classes; acceptance 2, 3, 11, 12.
 
@@ -180,21 +181,6 @@ Done when: acceptance 9, 10 pass in automated tests and once manually in Claude 
 
 ---
 
-## M8 — Claims, assign, worktrees, refactor claims (1.5 w)
-
-Tasks
-1. `ClaimStore` interface + `FsClaimStore` in git common dir: O_EXCL create, global mutex file for overlap check, heartbeat, TTL, stale reclaim, `--steal`.
-2. Scope computation: `scope` globs ∪ resolved binding files; overlap test (glob ∩ glob approximated by: literal paths matched against globs both ways + common-prefix test for glob-vs-glob, documented as conservative).
-3. Owner identity resolution (worktree → claim, `CATSPEC_AGENT_ID`, git email).
-4. Commands: `claim`, `release`, `claims`, `assign` (deps check → claim → `git worktree add -b spec/<id>` → write `.catspec-context.md` = rendered `get_spec_context` → print next steps).
-5. Hook enforcement CS0501; `list --ready` excludes claimed specs; MCP `claim_spec`/`release_spec` wired.
-6. Concurrency test: N processes racing to claim overlapping specs — exactly one wins (run 100× in CI).
-7. **Refactor claims** (§11.8): `refactor start/status/abort`, exclusive claim over a scope (default whole repo), `--wait`, block new overlapping claims, baseline stored in the runtime store, `--allow-wip` relaxation in the hook for the owner's branch only; MCP `start_refactor`/`finish_refactor`.
-
-Done when: acceptance 7, 8, 13 pass; race test stable (including refactor claim vs normal claims).
-
----
-
 ## M9 — Hardening & 0.1.0 release (1 w)
 
 Tasks
@@ -205,7 +191,7 @@ Tasks
 5. Example repos: `examples/ts-auth-service` (requirements' `AuthService` journey), `examples/dotnet-user-sync` (`UserUpdatedHandler`).
 6. Release 0.1.0 with changesets; announce limitations clearly.
 
-Done when: all 10 acceptance scenarios in CI on 3 OSes, budgets met, docs published.
+Done when: all MVP acceptance scenarios (1–7, 9–12) pass in CI on 3 OSes, budgets met, docs published.
 
 ---
 
@@ -215,7 +201,7 @@ Done when: all 10 acceptance scenarios in CI on 3 OSes, budgets met, docs publis
 |---|---|---|
 | 0.2 | CI gate | `check --format sarif` (GitHub code scanning), `--format github` annotations, `catspec ci --base origin/main` (diff-aware), reusable GitHub Action, PR comment bot with drift explanations (source "Phase 3") |
 | 0.3 | More languages & depth | Python adapter, Go adapter, `implements_transitive` via in-repo base resolution, optional semantic backend via LSP |
-| 0.4 | Distributed orchestration | `GitRefsClaimStore` (`refs/catspec/claims/*`, push = CAS), GitHub App: spec change / issue → DAG evaluation → create branch + issue + trigger agent workflow when unblocked; status sync with PR merge (source "Phase 4") |
+| 0.4 | Agent coordination | **Local claims** (spec §9: `FsClaimStore` with O_EXCL leases in the git common dir, `claim/release/assign` with worktrees, hook enforcement `CS0501`, exclusive refactor claims `CS0503`, MCP `claim_spec`/`release_spec`; acceptance 8, 13); then `GitRefsClaimStore` (`refs/catspec/claims/*`, push = CAS), GitHub App: spec change / issue → DAG evaluation → create branch + issue + trigger agent workflow when unblocked; status sync with PR merge (source "Phase 4") |
 | 0.5 | Visual & IDE | `graph --ui` local web server, VS Code extension consuming JSON diagnostics (inline spec ↔ code links) |
 | later | Semantic invariants | optional LLM-judged `manual` rules producing *advisory* findings, never gating |
 
