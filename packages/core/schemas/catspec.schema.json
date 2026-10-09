@@ -1,0 +1,143 @@
+{
+  "title": "catspec.yaml",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "default": 1,
+      "description": "Config format version.",
+      "type": "number",
+      "const": 1
+    },
+    "layout": {
+      "default": "feature-folders",
+      "description": "feature-folders: specs live in docs/spec/<feature>/ (CS0106 otherwise).",
+      "type": "string",
+      "enum": ["feature-folders", "free"]
+    },
+    "workflow": {
+      "description": "Workflow profile (plan §D17); validated by the workflow commands."
+    },
+    "specs": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "include": {
+          "default": ["docs/spec/*/*.spec.md"],
+          "description": "Machine spec files.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "architecture": {
+          "default": "docs/architecture/adr/*-adr.md",
+          "description": "The architecture spec (ADR log); exactly one file must match (CS0107).",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "languages": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "typescript": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "include": {
+              "default": ["src/**/*.{ts,tsx}"],
+              "description": "Source files of this language (globs).",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "exclude": {
+              "default": ["**/*.d.ts", "**/node_modules/**"],
+              "description": "Files to leave out (globs).",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          },
+          "additionalProperties": false
+        },
+        "csharp": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "include": {
+              "default": ["src/**/*.cs"],
+              "description": "Source files of this language (globs).",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "exclude": {
+              "default": ["**/obj/**", "**/bin/**", "**/*.g.cs"],
+              "description": "Files to leave out (globs).",
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "enforcement": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "drift": { "default": "warn", "type": "string", "enum": ["off", "warn", "strict"] },
+        "unresolvable": { "default": "warn", "type": "string", "enum": ["warn", "error"] },
+        "unenforced_prose": { "default": "warn", "type": "string", "enum": ["off", "warn"] }
+      },
+      "additionalProperties": false
+    },
+    "heal": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "mode": { "default": "suggest", "type": "string", "enum": ["off", "suggest", "auto"] },
+        "threshold": { "default": 0.8, "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "hook": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "stage_generated": {
+          "default": true,
+          "description": "Re-stage lock files and auto-healed specs.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "refactor": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "detect_threshold": {
+          "default": 10,
+          "description": "Broken bindings in one commit that count as a large refactor.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "allow_wip": { "default": false, "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "mcp": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "allow_location_edits": { "default": true, "type": "boolean" },
+        "allow_contract_edits": { "default": false, "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "description": "CatSpec configuration (catspec.yaml)."
+}

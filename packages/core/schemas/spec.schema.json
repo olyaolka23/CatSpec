@@ -1,0 +1,341 @@
+{
+  "title": "CatSpec spec frontmatter",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "catspec": { "type": "number", "const": 1, "description": "Spec format version." },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,63}$",
+      "description": "Unique across the repository."
+    },
+    "title": {
+      "description": "Defaults to the first # heading.",
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "enum": ["feature", "component", "contract", "architecture", "adr"],
+      "description": "architecture makes the rules global."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "ready", "in-progress", "implemented", "deprecated"]
+    },
+    "depends_on": {
+      "description": "Ids of the specs this one depends on.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "owners": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "scope": {
+      "description": "Extra paths (globs) that belong to this spec.",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "description": "Local id; defaults to the last segment of `symbol`.",
+            "type": "string",
+            "minLength": 1
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Qualified name, matched by suffix: Namespace.Type or path#Name."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "class",
+              "interface",
+              "struct",
+              "enum",
+              "record",
+              "function",
+              "method",
+              "type",
+              "module"
+            ]
+          },
+          "lang": { "type": "string", "minLength": 1 },
+          "file": {
+            "description": "Hint: a path, a glob, or a list of them.",
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "type": "array", "items": { "type": "string", "minLength": 1 } }
+            ]
+          },
+          "implements": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "extends": { "type": "string", "minLength": 1 },
+          "attributes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "constructor": {
+            "type": "object",
+            "properties": {
+              "requires": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+            },
+            "required": ["requires"],
+            "additionalProperties": false
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "minLength": 1 },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["method", "property", "field", "event", "constructor"]
+                    },
+                    "params": {
+                      "description": "Parameter types, positional; \"*\" matches any type.",
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    },
+                    "returns": { "type": "string", "minLength": 1 },
+                    "modifiers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "public",
+                          "private",
+                          "protected",
+                          "internal",
+                          "static",
+                          "async",
+                          "abstract",
+                          "override",
+                          "readonly"
+                        ]
+                      }
+                    },
+                    "attributes": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1 }
+                    },
+                    "optional": { "default": false, "type": "boolean" }
+                  },
+                  "required": ["name"],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "exported": { "type": "boolean" }
+        },
+        "required": ["symbol"],
+        "additionalProperties": false
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 },
+              "adr": { "type": "string", "pattern": "^ADR-\\d+$" },
+              "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "class": { "type": "string", "const": "structural" },
+              "within": {
+                "description": "A binding id, or binding.member.",
+                "type": "string",
+                "minLength": 1
+              },
+              "forbid_call": { "type": "string", "minLength": 1 },
+              "require_call": { "type": "string", "minLength": 1 },
+              "forbid_import": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1 },
+                      { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    ]
+                  },
+                  "to": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1 },
+                      { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    ]
+                  }
+                },
+                "required": ["from", "to"],
+                "additionalProperties": false
+              },
+              "allow_import_only": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1 },
+                      { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    ]
+                  },
+                  "to": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1 },
+                      { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    ]
+                  }
+                },
+                "required": ["from", "to"],
+                "additionalProperties": false
+              },
+              "naming": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "class",
+                      "interface",
+                      "struct",
+                      "enum",
+                      "record",
+                      "function",
+                      "method",
+                      "type",
+                      "module"
+                    ]
+                  },
+                  "name": { "type": "string", "minLength": 1 },
+                  "implements": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "extends": { "type": "string", "minLength": 1 },
+                  "attributes": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "in_path": {
+                    "anyOf": [
+                      { "type": "string", "minLength": 1 },
+                      { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                    ]
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              },
+              "must_not_exist": {
+                "type": "object",
+                "properties": {
+                  "symbol": { "type": "string", "minLength": 1 },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "class",
+                      "interface",
+                      "struct",
+                      "enum",
+                      "record",
+                      "function",
+                      "method",
+                      "type",
+                      "module"
+                    ]
+                  }
+                },
+                "required": ["symbol"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["id", "class"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 },
+              "adr": { "type": "string", "pattern": "^ADR-\\d+$" },
+              "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "class": { "type": "string", "const": "query" },
+              "lang": { "type": "string", "minLength": 1 },
+              "query": { "type": "string", "minLength": 1, "description": "A Tree-sitter query." },
+              "expect": { "default": "absent", "type": "string", "enum": ["absent", "present"] },
+              "within": { "type": "string", "minLength": 1 }
+            },
+            "required": ["id", "class", "lang", "query"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 },
+              "adr": { "type": "string", "pattern": "^ADR-\\d+$" },
+              "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "class": { "type": "string", "const": "test" },
+              "test": {
+                "type": "object",
+                "properties": {
+                  "symbol": { "type": "string", "minLength": 1 },
+                  "lang": { "type": "string", "minLength": 1 }
+                },
+                "required": ["symbol"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["id", "class", "test"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 },
+              "adr": { "type": "string", "pattern": "^ADR-\\d+$" },
+              "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "class": { "type": "string", "const": "manual" },
+              "text": { "type": "string", "minLength": 1 }
+            },
+            "required": ["id", "class", "text"],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "infrastructure": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "propertyNames": { "type": "string" },
+        "additionalProperties": {}
+      }
+    },
+    "waivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "until": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+          "paths": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        },
+        "required": ["rule", "reason"],
+        "additionalProperties": false
+      }
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "pr": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "number" }] },
+        "issue": { "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "number" }] },
+        "commit": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["catspec", "id", "type", "status"],
+  "additionalProperties": {},
+  "description": "Frontmatter of a CatSpec spec file (*.spec.md)."
+}

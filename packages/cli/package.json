@@ -16,6 +16,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "catspec": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],
@@ -24,7 +27,8 @@
   },
   "dependencies": {
     "@catspec/core": "0.0.0",
+    "@catspec/lang-csharp": "0.0.0",
     "@catspec/lang-typescript": "0.0.0",
-    "@catspec/lang-csharp": "0.0.0"
+    "commander": "^14.0.3"
   }
 }
