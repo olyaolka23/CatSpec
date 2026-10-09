@@ -4,7 +4,8 @@
 > This file is a critical re-analysis of that document. It lists what the source
 > gets right, where it is vague, contradictory or technically infeasible, and the
 > design decisions taken to resolve each point. The resulting product spec is in
-> [`spec.md`](./spec.md); the implementation plan is in [`plan.md`](./plan.md).
+> [`spec.md`](./spec.md) (business view); the technical design and delivery plan are in
+> [`plan.md`](./plan.md), with one file per feature in [`features/`](./features/).
 
 ---
 
@@ -309,7 +310,7 @@ agent; (c) the pre-commit gate as the backstop.
 The source plans the MVP in 5 weeks including two languages, a hook, an MCP
 server, rename detection and (implicitly) locks. With the clarifications above
 (CST editing, staged reading, ratchet, C# partial classes, golden tests per
-grammar) a realistic estimate for one engineer is **~12.5 weeks** (~11 if the C# adapter is built in parallel; includes large-refactor support, spec §11.8, and workflow profiles, spec §17; claims deferred by ADR-014); see the plan.
+grammar) a realistic estimate for one engineer is **~12.5 weeks** (~11 if the C# adapter is built in parallel; includes large-refactor support, plan §D11.8, and workflow profiles, plan §D17; claims deferred by ADR-014); see the plan.
 
 ### F-20. The source assumes CatSpec owns the whole workflow
 
@@ -321,7 +322,7 @@ tools to get enforcement.
 (presets `catspec`, `openspec`, `spec-kit`, or `custom` stages pointing at the team's skills)
 tells CatSpec what the steps are. CatSpec then attaches to each step with entry and exit
 **gates** and status transitions, and tells the agent what comes next. It never performs the
-creative work or calls an LLM itself (spec §17, ADR-015).
+creative work or calls an LLM itself (plan §D17, ADR-015).
 
 ---
 
@@ -331,7 +332,7 @@ creative work or calls an LLM itself (spec §17, ADR-015).
 |---|---|---|
 | CI linter, PR comments, SARIF upload | source's own MVP decision | `json` reporter, stable codes, `sarif` reporter slot |
 | GitHub App orchestrator, issue/PR state machine | needs hosted service | spec status model, DAG API |
-| Local claims / agent locks, `assign` with worktrees | don't prevent merge conflicts; value mainly for many parallel agents; ~1.5 weeks plus concurrency risk (ADR-014) | `scope` field parsed; design in F-10 and spec §9 |
+| Local claims / agent locks, `assign` with worktrees | don't prevent merge conflicts; value mainly for many parallel agents; ~1.5 weeks plus concurrency risk (ADR-014) | `scope` field parsed; design in F-10 and plan §D9 |
 | Distributed locks | needs a shared medium | lock-store interface; git-refs design (F-10) |
 | `graph --ui` web server | nice-to-have | `graph --format mermaid|dot|json` in MVP |
 | Semantic backends (Roslyn, tsserver) | heavy | language adapter interface |
