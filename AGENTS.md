@@ -3,6 +3,9 @@
 Instructions for AI coding agents (Claude Code, Codex, Cursor, Copilot, Windsurf…)
 and for humans working in this repository. `CLAUDE.md` imports this file.
 
+**Read Rule 3 (approvals) first.** It overrides every other rule: no merge into the default
+branch and no change to any `.md` file without the repository owner's explicit approval.
+
 ## Rule 1: Every feature's docs and specs live in its own feature folder
 
 All feature documentation and specifications live in
@@ -28,12 +31,15 @@ docs/spec/
    `tasks.md`. Not `01-spec.md`, `spec-v2.md` or `<feature>-plan.md`. The folder already
    says which feature it is.
 3. **Before starting work on a feature**, read `docs/spec/<feature>/spec.md` and `plan.md`.
-   If the folder doesn't exist and the change is more than a small fix, create it and
-   write `spec.md` (and `plan.md`) **before** writing code.
+   If the folder doesn't exist and the change is more than a small fix, propose the folder
+   and the content of `spec.md` (and `plan.md`), and write them only after approval (Rule 3),
+   **before** writing code.
 4. **One feature, one folder.** Extend the existing folder, don't create a sibling. Don't
    rename a folder without updating every link to it.
-5. **Spec and code change together.** If code changes behaviour that a spec describes,
-   update the spec in the same commit or PR.
+5. **Ask before deviating from the spec.** If the work needs behaviour, scope or order that
+   differs from `spec.md`, `plan.md` or `tasks.md`, stop and ask the owner. State the
+   difference and why, offer 2–3 proposals with your recommendation, and **wait for approval**.
+   Only after approval, update the document in the same commit or PR as the code.
 6. **Nowhere else.** The only documentation folders are `docs/spec/<feature>/` (features),
    `docs/architecture/adr/` (the ADR log, Rule 2) and `docs/guidelines/<topic>/` (project-wide
    guidelines). No design notes in the repo root, no loose `docs/<file>.md`, no `specs/`, `.specs/`,
@@ -48,10 +54,12 @@ CatSpec enforces (`type: architecture`); its body holds the decisions.
 
 1. **Read the ADR log before any non-trivial change.** Code must not contradict an
    `Accepted` ADR.
-2. **Record every architectural decision there**: package boundaries and dependency
-   direction, new runtime dependencies, data and file formats, public APIs and CLI
-   contracts, cross-feature patterns, and changes to this layout. Decisions that affect
-   only one feature's internals stay in that feature's `spec.md`.
+2. **Every architectural decision is recorded there, after approval**: package boundaries
+   and dependency direction, new runtime dependencies, data and file formats, public APIs
+   and CLI contracts, cross-feature patterns, and changes to this layout. Propose the ADR
+   entry (with alternatives) to the owner and add it only after approval (Rule 3). Decisions
+   that affect only one feature's internals belong in that feature's `spec.md`, with the
+   same approval.
 3. **Append-only.** Add `## ADR-NNN: <title>` with the next number, using the format
    *Status · Date · Context · Decision · Consequences*. Never renumber or delete an
    entry. To change a decision, add a new ADR that supersedes it and mark the old one
@@ -62,6 +70,25 @@ CatSpec enforces (`type: architecture`); its body holds the decisions.
    or more files in `docs/architecture/adr/`).
 6. Other project-wide guidelines (coding style, testing conventions…) go in
    `docs/guidelines/<topic>/` (e.g. `docs/guidelines/coding/`), never in `docs/spec/`.
+
+## Rule 3: Approvals (overrides all other rules)
+
+The repository owner (@olyaolka23) approves. Approval must be explicit, given for the
+specific change, and given by the owner. Silence, an earlier approval of something else,
+or a bot or review comment is not approval.
+
+1. **No merge into the default branch without approval.** Never merge a PR into `main`
+   (or `master`), push to it directly, or enable auto-merge without the owner's explicit
+   approval for that merge.
+2. **No `.md` change without approval.** Never create, edit, rename or delete any `.md`
+   file without the owner's explicit approval. This covers `spec.md`, `plan.md`, `tasks.md`,
+   `analysis.md`, `*.spec.md`, the ADR log, `README.md`, `AGENTS.md`, `CLAUDE.md`, and
+   ticking checkboxes in `tasks.md`.
+3. **How to ask.** Describe the question and the proposed change (a diff or a precise
+   summary), give 2–3 options with your recommendation, then wait. Don't make the change
+   while waiting; continue with other approved work or stop.
+4. Generated files that aren't Markdown (e.g. `*.lock.json` written by CatSpec) follow the
+   normal review process, not this rule.
 
 ## Exceptions
 

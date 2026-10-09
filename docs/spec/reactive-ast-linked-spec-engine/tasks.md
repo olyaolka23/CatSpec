@@ -14,8 +14,12 @@
   over their PBIs (spec §17.1).
 - **A PBI is done when** all of its tasks are ticked and it meets the plan's Definition of Done
   (plan §4): code + tests, diagnostics registered, CLI help and docs updated, CI green on 3 OSes.
-  If behaviour differs from `spec.md`, update the spec in the same PR. Record architectural
-  decisions in the ADR log (`AGENTS.md` Rule 2).
+  If the work needs behaviour, scope or order that differs from `spec.md`, `plan.md` or this
+  file, **ask first**: state the difference, give 2–3 proposals with a recommendation, and wait
+  for the owner's approval before changing any of these files (`AGENTS.md` Rules 1.5 and 3).
+  Architectural decisions go into the ADR log only after the same approval (`AGENTS.md` Rule 2).
+- **Approvals.** No merge into `main` and no change to any `.md` file (including ticking
+  boxes here) without the owner's explicit approval (`AGENTS.md` Rule 3).
 - **Bootstrapping.** Until PBI `dogfood-specs` (feature F3), CatSpec can't check itself yet, so tick
   the boxes by hand. After that, each new PBI gets its own `<id>.spec.md`, and agents follow the
   CatSpec workflow in `AGENTS.md` (`stage start` → `check --spec` → `stage finish`).
