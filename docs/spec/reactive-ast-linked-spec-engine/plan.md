@@ -26,12 +26,13 @@
 | M5 | Git: staged reading, hook, lock file, ratchet, drift | 1.5 | 7, 8, 13, 11.3 IndexProvider | acceptance 4, 5 |
 | M6 | Rename/move detection, heal, large refactors | 1.5 | 11.4, 11.6, 11.8, `sync/accept/bind/refactor` | acceptance 2, 3, 11, 12 |
 | M7 | MCP server | 1 | 14 | acceptance 9, 10; works in Claude Code |
-| M9 | Hardening & 0.1.0 release | 1 | 15 | all MVP acceptance scenarios (1–7, 9–12), perf budgets, docs |
-| | **Total** | **~11.5** (≈10 with M4 parallel) | | |
+| M8 | Workflow profiles (custom skills, OpenSpec, Spec Kit) | 1 | 17 | acceptance 14, 15, 16 |
+| M9 | Hardening & 0.1.0 release | 1 | 15 | all MVP acceptance scenarios (1–7, 9–12, 14–16), perf budgets, docs |
+| | **Total** | **~12.5** (≈11 with M4 parallel) | | |
 
-Critical path: M0 → M1 → M2 → M3 → M5 → M6 → M7 → M9. M4 can run in parallel
-with M5–M6 if a second person is available. There is no M8: claims, `assign` and worktree
-orchestration were deferred to post-MVP (ADR-014, roadmap 0.4).
+Critical path: M0 → M1 → M2 → M3 → M5 → M6 → M7 → M8 → M9. M4 can run in parallel
+with M5–M6 if a second person is available. M8 was previously claims, `assign` and worktree
+orchestration; those were deferred to post-MVP (ADR-014, roadmap 0.4), and M8 is now workflow profiles.
 
 ---
 
@@ -181,6 +182,24 @@ Done when: acceptance 9, 10 pass in automated tests and once manually in Claude 
 
 ---
 
+## M8 — Workflow profiles (1 w)
+
+Tasks
+1. `workflow:` config schema (§17.2): stages, drivers, `produces` templates, enter/exit gates, status transitions, placeholders; CS0700 validation; JSON Schema export.
+2. Stage resolution: derive a feature's current stage from spec status + artifacts + gate results (no stored state, ADR-004).
+3. Gate runner (§17.4): `lint`, `artifacts`, `contracts_declared`, `deps_known`, `deps_ready`, `verify`, `tasks_done`, `no_drift`, `adr_lint`, `command` (guarded by `allow_commands`, `execFile` per ADR-009).
+4. CLI: `next`, `stage enter|exit [--force]`, `workflow show|doctor|snippet`.
+5. MCP: `next_step`, `enter_stage`, `exit_stage`; `workflow` block in `get_spec_context`; generated `stage-<id>` prompts.
+6. Presets `catspec` and `custom`; presets `openspec` and `spec-kit` checked against fixture repos built from the tools' current releases (verify layouts and command names first; pin per preset version). Detection in `catspec init`.
+7. Hook: `workflow.enforce_in_hook` (CS0703). `init --agents`: optional Claude Code `Stop` hook running `catspec stage exit`.
+8. Docs: one page per preset, plus "connect your own skills" with the `snippet` output.
+
+Tests: config validation cases; gate unit tests; fixture repos for `custom` (with stub `sdd-*` skills), `openspec` and `spec-kit`; acceptance 14, 15, 16.
+
+Done when: acceptance 14, 15, 16 pass; `workflow doctor` is clean on all three fixture repos.
+
+---
+
 ## M9 — Hardening & 0.1.0 release (1 w)
 
 Tasks
@@ -191,7 +210,7 @@ Tasks
 5. Example repos: `examples/ts-auth-service` (requirements' `AuthService` journey), `examples/dotnet-user-sync` (`UserUpdatedHandler`).
 6. Release 0.1.0 with changesets; announce limitations clearly.
 
-Done when: all MVP acceptance scenarios (1–7, 9–12) pass in CI on 3 OSes, budgets met, docs published.
+Done when: all MVP acceptance scenarios (1–7, 9–12, 14–16) pass in CI on 3 OSes, budgets met, docs published.
 
 ---
 

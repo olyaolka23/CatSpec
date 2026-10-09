@@ -29,6 +29,7 @@ CatSpec makes specs **active**:
 - G5. Expose specs, verification and safe spec edits to LLM agents via **MCP (stdio)**.
 - G6. *(Deferred, ADR-014.)* Local multi-agent claims are post-MVP; see §9.
 - G7. Clear, stable, machine-readable diagnostics.
+- G8. Fit into the team's existing SDD workflow (OpenSpec, Spec Kit or custom skills) through a **workflow profile**, gating every step (§17).
 
 ### 1.2 Non-goals (MVP)
 
@@ -105,6 +106,10 @@ that go with it, lives in a folder named after its feature (epic).
 ```yaml
 version: 1
 layout: feature-folders  # feature-folders | free
+workflow:
+  preset: catspec        # catspec | openspec | spec-kit | custom; full schema in §17
+  allow_commands: false  # allow `command:` gates to run shell commands
+  enforce_in_hook: warn  # off | warn | error
 specs:
   include: ["docs/spec/*/*.spec.md"]
   architecture: "guidelines/architecture/*-adr.md"   # exactly one match, else CS0107
@@ -424,6 +429,9 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 | `catspec refactor start [--scope g…] [--reason r] [--allow-wip]` | begin a large refactor: record a baseline (§11.8) |
 | `catspec refactor finish [--map f] [--apply] [--partial] [--update-mentions]` / `status` / `abort` | map old → new symbols in batch, update specs and lock files |
 | `catspec install-hooks [--manager auto\|git\|husky\|lefthook]` / `uninstall-hooks` | |
+| `catspec next <feature>` | current workflow stage, its driver (skill / slash command / command), inputs, outputs and gates (§17) |
+| `catspec stage enter\|exit <stage> <feature> [--force]` | run the stage's entry / exit gates and apply its status transition (§17) |
+| `catspec workflow show\|doctor\|snippet <stage>` | inspect, validate, and get the text to paste into a skill (§17) |
 | `catspec mcp` | start MCP server on stdio |
 | `catspec coverage` | contract satisfaction, enforcement coverage, reverse code coverage (F-3) |
 
@@ -650,6 +658,7 @@ interface Diagnostic {
 | CS04xx | waivers | 0400 waived, 0401 expired |
 | CS05xx | DAG gate / claims | 0502 deps not satisfied; reserved for post-MVP claims: 0500 claim conflict, 0501 commit touches foreign claim, 0503 refactor claim conflict |
 | CS06xx | rules | 0601 forbidden call, 0602 required call missing, 0603 forbidden import, 0604 naming, 0605 must-not-exist, 0610 query match, 0620 test symbol missing, 0621 test failed |
+| CS07xx | workflow | 0700 invalid workflow config, 0701 entry gate failed, 0702 exit gate failed, 0703 implemented spec fails final gates, 0704 driver not found, 0705 stage out of order, 0706 command gate skipped (§17.6) |
 | CS09xx | engine | 0901 parse error in file (partial results), 0902 git unavailable |
 
 ---
@@ -687,6 +696,7 @@ root; anything outside → error.
 | `check_dependencies` | `spec_id` | each dependency with status, satisfaction, failing items |
 | `update_spec_bindings` | `spec_id`, `patch` (JSON-merge on bindings), `dry_run=true` | returns unified diff; location edits applied if allowed; contract edits applied only if `mcp.allow_contract_edits` else returned as proposal (F-13) |
 | `start_refactor` / `finish_refactor` | `scope?`, `reason?` / `map?`, `dry_run=true` | §11.8; `finish_refactor` returns the mapped / ambiguous / lost report and applies location edits when `dry_run=false` |
+| `next_step` / `enter_stage` / `exit_stage` | `feature`, `stage?`, `force?` | §17.5; the stage driver, inputs, outputs and gate results |
 | `set_spec_status` | `spec_id`, `status`, `links?` (`pr`, `commit`) | lifecycle rules (§8); `implemented` refused if contracts fail (replaces `mark_spec_resolved`) |
 
 ### 14.2 Resources & prompts
@@ -730,3 +740,134 @@ when not done; plus the MCP server registered via `claude mcp add catspec -- npx
 11. **Mass refactor**: renaming namespace `Identity` → `Accounts` (40 bound classes) and moving the folder in one commit. The hook shows one `CS0215`; `catspec refactor finish --apply` maps all 40 with no manual edits, ratchet entries are preserved, and the commit passes.
 12. **Ambiguous refactor**: two near-identical handlers renamed at once without a map. `finish` reports `CS0216` with candidates and changes nothing; with `--map` it succeeds.
 13. *(Post-MVP, ADR-014.)* **Refactor vs claims**: `refactor start` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.
+14. **Custom workflow**: with `preset: custom` and skills `sdd-spec/plan/task/close`, `catspec next login` names `sdd-plan` after `spec.md` exists, and `catspec stage exit close login` fails with `CS0702` (`verify`) while `login()` is missing. Once fixed, it sets `implemented`.
+15. **OpenSpec preset**: in a repo with `openspec/changes/add-login/`, `catspec stage enter archive add-login` is refused while contracts fail or tasks are unticked. After it passes, the archived change's `*.spec.md` stays enforced.
+16. **Doctor**: a config naming skill `sdd-plan` that doesn't exist under `skills_dir` gets `CS0704` from `catspec workflow doctor`.
+
+---
+
+## 17. Workflow profiles: plugging CatSpec into any SDD workflow (F-20, ADR-015)
+
+Teams already have a way of doing spec-driven development: OpenSpec, Spec Kit, or their own
+agent skills (for example `sdd-spec`, `sdd-plan`, `sdd-task`, `sdd-close`). CatSpec doesn't
+replace that workflow. The `workflow:` section of `catspec.yaml` describes it, and CatSpec then
+**attaches to every step**: it tells the agent what comes next and which skill or command to
+use, and it runs **gates** (deterministic checks) when a step starts and ends.
+
+Principle: **CatSpec never does the creative work itself.** It doesn't call an LLM and it doesn't
+run skills or slash commands. Those are for the agent. CatSpec only describes the step, checks
+the result and updates the spec status.
+
+### 17.1 Model
+
+| Concept | Meaning |
+|---|---|
+| **Feature** | the unit of work: a feature folder (`docs/spec/<feature>/`), an OpenSpec change, a Spec Kit feature folder |
+| **Stage** | one step of the workflow (`spec`, `plan`, `task`, `close`, …), ordered |
+| **Driver** | who performs the stage: `skill` (agent skill), `slash` (agent slash command), `command` (shell command CatSpec may run), or `manual` |
+| **Produces** | path templates of the artifacts the stage must leave behind |
+| **Gate** | a named check run on `enter` or `exit` of a stage; failing gates block the transition |
+| **Status transition** | the spec status (§8) set when a stage is entered or completed |
+
+The current stage of a feature is **derived**, not stored: it's the first stage whose exit gates
+don't pass yet, given the spec status and the artifacts that exist (ADR-004: no new state files).
+
+### 17.2 Configuration
+
+Your own skills (`preset: custom`):
+
+```yaml
+workflow:
+  preset: custom
+  feature_dir: "docs/spec/{feature}"
+  skills_dir: ".claude/skills"              # where `skill:` names are resolved (<dir>/<name>/SKILL.md)
+  stages:
+    - id: spec
+      driver: { skill: sdd-spec }
+      produces: ["{feature_dir}/spec.md", "{feature_dir}/*.spec.md"]
+      exit:  { gates: [lint, artifacts, contracts_declared] }
+    - id: plan
+      driver: { skill: sdd-plan }
+      produces: ["{feature_dir}/plan.md"]
+      exit:  { gates: [artifacts, deps_known], status: ready }
+    - id: task
+      driver: { skill: sdd-task }
+      produces: ["{feature_dir}/tasks.md"]
+      enter: { gates: [deps_ready], status: in-progress }
+      exit:  { gates: [artifacts, verify] }
+    - id: close
+      driver: { skill: sdd-close }
+      exit:  { gates: [verify, tasks_done, no_drift], status: implemented }
+```
+
+OpenSpec or Spec Kit (a preset fills in all of the above; any key can still be overridden):
+
+```yaml
+workflow:
+  preset: openspec        # catspec | openspec | spec-kit | custom
+```
+
+### 17.3 Presets
+
+| Preset | Feature dir | Stages → driver | CatSpec attaches |
+|---|---|---|---|
+| `catspec` (default) | `docs/spec/{feature}` | spec → plan → task → close, driven by CatSpec's MCP prompts | the gates in §17.2 |
+| `openspec` | `openspec/changes/{feature}` (machine specs: `openspec/changes/**/*.spec.md`, archived ones included) | proposal (`/openspec:proposal`) → apply (`/openspec:apply`) → archive (`/openspec:archive`) | proposal exit: `openspec validate {feature}` + `lint`; apply enter: `deps_ready` → `in-progress`; **archive enter: `verify`, `tasks_done`** → `implemented` |
+| `spec-kit` | `specs/{feature}` | specify → plan → tasks → implement (`/speckit.*` commands) | specify exit: `lint`; implement enter: `deps_ready`; implement exit: `verify`, `tasks_done` → `implemented`; `.specify/memory/constitution.md` is passed to agents as extra architecture context |
+| `custom` | from config | from config | from config |
+
+Preset paths and command names follow the tools' public layouts at the time of writing. They are
+pinned per preset version and checked against fixture repos (plan M8), because those tools change.
+
+`catspec init` detects an existing workflow (`openspec/` folder, `.specify/` folder, `sdd-*`
+skills in `skills_dir`) and proposes the matching preset.
+
+### 17.4 Gate catalogue
+
+| Gate | Passes when |
+|---|---|
+| `lint` | the feature's specs pass spec lint (§12, CS01xx) |
+| `artifacts` | every `produces` path of the stage exists and is not empty |
+| `contracts_declared` | every machine spec of the feature has at least one binding or enforceable rule |
+| `deps_known` | every `depends_on` id exists |
+| `deps_ready` | every dependency is `implemented` and passes (§8) |
+| `verify` | `catspec verify` is DONE for every spec of the feature |
+| `tasks_done` | every checkbox in the feature's tasks file is ticked |
+| `no_drift` | no `CS0300` for the feature's specs |
+| `adr_lint` | the architecture spec passes lint, and rules reference existing ADR ids |
+| `command: "<shell>"` | the command exits 0 (placeholders `{feature}`, `{feature_dir}`); runs only when `workflow.allow_commands: true` |
+
+Failing gates are reported as `CS07xx` diagnostics, plus the diagnostics of the underlying check.
+
+### 17.5 How CatSpec attaches to each step
+
+1. **CLI, called by the skill or the person:**
+   - `catspec next <feature>` names the current stage, its driver (e.g. "use skill `sdd-plan`"), the inputs to read, the files to produce and the exit gates.
+   - `catspec stage enter <stage> <feature>` runs the entry gates and applies the status. It prints the stage context and exits 1 if a gate fails.
+   - `catspec stage exit <stage> <feature>` runs the exit gates and applies the status on success.
+   - `catspec workflow show [feature]` lists the stages and where each feature currently is.
+   - `catspec workflow doctor` checks the config: skill files exist, `command` tools are installed, and the preset matches what's in the repo.
+   - `catspec workflow snippet <stage>` prints a short block to paste into a skill, e.g. "First run `catspec stage enter plan {feature}`. Finish with `catspec stage exit plan {feature}` and fix everything it reports."
+2. **MCP, for agents:**
+   - `next_step`, `enter_stage` and `exit_stage` work like the CLI commands.
+   - `get_spec_context` gains a `workflow` block with the current stage, its driver and its gates.
+   - One MCP prompt per stage (`stage-<id>`) is generated from the config.
+3. **Hooks (optional):** with `workflow.enforce_in_hook: warn|error` (default `warn`), the pre-commit
+   hook re-checks that `implemented` specs still pass their final stage's exit gates (`CS0703`).
+   `catspec init --agents` can add a Claude Code `Stop` hook that runs `catspec stage exit` for the
+   current stage. That makes "done" mean that the gates pass.
+
+CatSpec doesn't edit your skills. Integration means adding the two lines from
+`workflow snippet`, or having the agent call `next_step` / `exit_stage` over MCP.
+
+### 17.6 Diagnostics
+
+| Code | Meaning |
+|---|---|
+| CS0700 | invalid workflow config (unknown preset, stage, gate or placeholder) |
+| CS0701 | entry gate failed |
+| CS0702 | exit gate failed |
+| CS0703 | an `implemented` spec no longer passes its final stage's exit gates |
+| CS0704 | driver not found (missing skill file, command not on PATH) |
+| CS0705 | stage out of order (entering a stage before the previous one's exit gates pass; `--force` to override, logged) |
+| CS0706 | `command` gate skipped because `workflow.allow_commands` is false |

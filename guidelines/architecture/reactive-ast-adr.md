@@ -179,3 +179,21 @@ reasoning for ADR-002…ADR-012 is in
   `catspec check` after the merge catches broken contracts. Coordination before work starts
   arrives with claims later.
 
+
+## ADR-015: Workflow profiles: CatSpec gates an external SDD workflow instead of owning it
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Ref:** F-20, spec §17
+- **Context:** Teams already plan with OpenSpec, Spec Kit or their own agent skills
+  (e.g. `sdd-spec`, `sdd-plan`, `sdd-task`, `sdd-close`). Asking them to switch workflow
+  tools to get enforcement blocks adoption.
+- **Decision:** `catspec.yaml` gets a `workflow:` profile: a preset (`catspec`, `openspec`,
+  `spec-kit`) or `custom` stages, each with a driver (skill, slash command, shell command or
+  manual), the artifacts it must produce, entry/exit gates and status transitions. CatSpec
+  derives each feature's current stage, tells agents what comes next (`catspec next`, MCP
+  `next_step`) and runs the gates (`catspec stage enter|exit`, MCP `enter_stage`/`exit_stage`).
+  CatSpec never calls an LLM or runs skills itself. Shell `command` gates run only when
+  `workflow.allow_commands: true`, via `execFile` (ADR-009). The current stage is derived,
+  never stored (ADR-004).
+- **Consequences:** CatSpec works alongside existing SDD tools, and adding it to a custom
+  workflow means two lines per skill. Presets for third-party tools must follow their releases
+  (pinned preset versions, fixture tests). About one week is added to the MVP (plan M8).

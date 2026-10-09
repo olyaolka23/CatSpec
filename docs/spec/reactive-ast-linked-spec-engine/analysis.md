@@ -309,7 +309,19 @@ agent; (c) the pre-commit gate as the backstop.
 The source plans the MVP in 5 weeks including two languages, a hook, an MCP
 server, rename detection and (implicitly) locks. With the clarifications above
 (CST editing, staged reading, ratchet, C# partial classes, golden tests per
-grammar) a realistic estimate for one engineer is **~11.5 weeks** (~10 if the C# adapter is built in parallel; includes large-refactor support, spec §11.8; claims deferred by ADR-014); see the plan.
+grammar) a realistic estimate for one engineer is **~12.5 weeks** (~11 if the C# adapter is built in parallel; includes large-refactor support, spec §11.8, and workflow profiles, spec §17; claims deferred by ADR-014); see the plan.
+
+### F-20. The source assumes CatSpec owns the whole workflow
+
+The source describes its own commands for every step (`spec init`, `spec agent assign` …).
+Real teams already plan with OpenSpec, Spec Kit or their own agent skills, and won't switch
+tools to get enforcement.
+
+**Decision.** CatSpec is **workflow-agnostic**. A `workflow:` profile in `catspec.yaml`
+(presets `catspec`, `openspec`, `spec-kit`, or `custom` stages pointing at the team's skills)
+tells CatSpec what the steps are. CatSpec then attaches to each step with entry and exit
+**gates** and status transitions, and tells the agent what comes next. It never performs the
+creative work or calls an LLM itself (spec §17, ADR-015).
 
 ---
 
