@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -12,7 +12,7 @@ import {
   parseFeatureFile,
   parseVitestResults,
   type TaggedTest,
-} from "./check-acceptance.js";
+} from "./acceptance-coverage.js";
 
 const fence = "```";
 
@@ -95,6 +95,72 @@ describe("parseFeatureFile", () => {
   it("treats a feature as closed when its Definition of Done is ticked or the plan ticks it", () => {
     expect(parseFeatureFile(featureFile({ dod: [true, true] }), "demo.md").closed).toBe(true);
     expect(parseFeatureFile(featureFile(), "demo.md", true).closed).toBe(true);
+  });
+});
+
+describe("tagging rules", () => {
+  /** A feature file with one ticked PBI whose Gherkin block is `body`, fenced with `lang`. */
+  const pbiFile = (body: string[], lang = "gherkin"): string =>
+    ["## PBI `p`", "- [x] task", "", `${fence}${lang}`, ...body, fence, ""].join("\n");
+
+  it("has no problems for a well-formed feature file", () => {
+    expect(parseFeatureFile(featureFile(), "demo.md").problems).toEqual([]);
+  });
+
+  it("accepts every Gherkin scenario keyword and the cucumber and feature fences", () => {
+    for (const keyword of ["Scenario", "Scenario Outline", "Scenario Template", "Example"]) {
+      const feature = parseFeatureFile(pbiFile(["@AC-p-1", `${keyword}: works`]), "f.md");
+      expect(feature.pbis[0]?.scenarios, keyword).toEqual([{ tag: "AC-p-1", name: "works" }]);
+    }
+    for (const lang of ["cucumber", "feature"]) {
+      const feature = parseFeatureFile(pbiFile(["@AC-p-1", "Scenario: works"], lang), "f.md");
+      expect(feature.pbis[0]?.scenarios, lang).toEqual([{ tag: "AC-p-1", name: "works" }]);
+    }
+  });
+
+  it("reports a scenario without an @AC tag, or with two", () => {
+    const untagged = parseFeatureFile(pbiFile(["Scenario: no tag"]), "f.md");
+    expect(untagged.problems).toEqual(['f.md:5: scenario "no tag" has no @AC tag']);
+    const twice = parseFeatureFile(pbiFile(["@AC-p-1 @AC-p-2", "Scenario: two"]), "f.md");
+    expect(twice.problems).toEqual([
+      'f.md:6: scenario "two" has more than one @AC tag: AC-p-1, AC-p-2',
+    ]);
+  });
+
+  it("reports an @AC tag that isn't on a scenario", () => {
+    const onExamples = parseFeatureFile(
+      pbiFile(["@AC-p-1", "Scenario Outline: o", "  Given <x>", "@AC-p-2", "Examples:", "| x |"]),
+      "f.md",
+    );
+    expect(onExamples.problems).toEqual([
+      'f.md:8: AC-p-2 is on a "Examples:" line, not on a scenario',
+    ]);
+    expect(onExamples.pbis[0]?.scenarios).toEqual([{ tag: "AC-p-1", name: "o" }]);
+
+    const dangling = parseFeatureFile(pbiFile(["@AC-p-1"]), "f.md");
+    expect(dangling.problems).toEqual(["f.md:5: AC-p-1 is not followed by a scenario"]);
+  });
+
+  it("reports an @AC tag outside a Gherkin block, and a scenario outside the PBIs", () => {
+    const unlabelled = parseFeatureFile(pbiFile(["@AC-p-1", "Scenario: s"], "text"), "f.md");
+    expect(unlabelled.problems).toEqual([
+      "f.md:5: acceptance tag outside a ```gherkin block: @AC-p-1",
+    ]);
+
+    const orphan = parseFeatureFile(
+      ["## Description", `${fence}gherkin`, "@AC-x-1", "Scenario: s", fence].join("\n"),
+      "f.md",
+    );
+    expect(orphan.problems).toEqual([
+      'f.md:4: scenario AC-x-1 is not under "Acceptance criteria" or a PBI',
+    ]);
+  });
+
+  it("fails the check on any tagging problem, ticked or not", () => {
+    const feature = parseFeatureFile(pbiFile(["Scenario: no tag"]).replace("[x]", "[ ]"), "f.md");
+    expect(checkAcceptance([feature], []).errors).toEqual([
+      'f.md:5: scenario "no tag" has no @AC tag',
+    ]);
   });
 });
 
@@ -191,6 +257,17 @@ describe("checkAcceptance", () => {
     ]);
   });
 
+  it("fails a ticked PBI or a closed feature that has no scenarios", () => {
+    const empty = parseFeatureFile(
+      ["## Definition of Done (feature)", "- [x] done", "", "## PBI `p`", "- [x] task"].join("\n"),
+      "empty.md",
+    );
+    expect(checkAcceptance([empty], []).errors).toEqual([
+      "feature empty (empty.md) is closed: it has no acceptance scenarios",
+      "PBI p (empty.md) is ticked: it has no acceptance scenarios",
+    ]);
+  });
+
   it("fails on a tag used twice in the feature files", () => {
     const a = parseFeatureFile(featureFile(), "a.md");
     const b = parseFeatureFile(featureFile(), "b.md");
@@ -208,7 +285,7 @@ describe("acceptance-coverage CLI", () => {
     dir = undefined;
   });
 
-  async function runCli(feature: string, results: object) {
+  async function runCli(feature: string, results: object, scriptPath = script) {
     dir = await mkdtemp(join(tmpdir(), "catspec-acceptance-"));
     const featuresDir = join(dir, "docs", "spec", "demo-epic", "features");
     await mkdir(featuresDir, { recursive: true });
@@ -216,7 +293,7 @@ describe("acceptance-coverage CLI", () => {
     await writeFile(join(dir, "results.json"), JSON.stringify(results));
     return spawnSync(
       process.execPath,
-      ["--import", "tsx", script, "--root", dir, "--results", "results.json"],
+      ["--import", "tsx", scriptPath, "--root", dir, "--results", "results.json"],
       { encoding: "utf8" },
     );
   }
@@ -242,5 +319,25 @@ describe("acceptance-coverage CLI", () => {
     expect(run.stderr).toBe("");
     expect(run.status).toBe(0);
     expect(run.stdout).toContain("acceptance-coverage: OK");
+  });
+
+  it("runs the check when started through a symlinked path", async () => {
+    const link = await mkdtemp(join(tmpdir(), "catspec-link-"));
+    try {
+      // A junction needs no extra rights on Windows; on other systems the type is ignored.
+      await symlink(dirname(script), join(link, "scripts"), "junction");
+      const linked = join(link, "scripts", "check-acceptance.ts");
+      const run = await runCli(
+        featureFile({ pbiBoxes: [true, true] }),
+        { testResults: [] },
+        linked,
+      );
+      expect(run.status).toBe(1);
+      expect(run.stderr).toContain("AC-demo-pbi-1");
+    } finally {
+      // Remove the link itself first so the recursive delete never follows it into scripts/.
+      await unlink(join(link, "scripts")).catch(() => undefined);
+      await rm(link, { recursive: true, force: true });
+    }
   });
 });

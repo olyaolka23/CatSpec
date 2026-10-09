@@ -40,6 +40,17 @@ describe("loadFixture", () => {
     }
   });
 
+  it("loads a nested fixture name", async () => {
+    const fixture = await load("sample/src");
+    expect(await readFile(join(fixture.dir, "greeter.ts"), "utf8")).toContain("class Greeter");
+  });
+
+  it("rejects a name outside the fixtures folder", async () => {
+    for (const name of ["../docs", "", "."]) {
+      await expect(loadFixture(name), name).rejects.toThrow("must name a folder inside");
+    }
+  });
+
   it("rejects an unknown fixture", async () => {
     await expect(loadFixture("does-not-exist")).rejects.toThrow('unknown fixture "does-not-exist"');
   });

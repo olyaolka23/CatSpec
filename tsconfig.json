@@ -1,10 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "paths": {
-      "@catspec/*": ["./packages/*/src/index.ts"]
-    }
+    "noEmit": true
   },
   "include": [
     "packages/*/src",

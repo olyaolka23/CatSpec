@@ -1,7 +1,9 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
@@ -22,43 +24,103 @@ interface PackageJson {
   workspaces?: string[];
   scripts?: Record<string, string>;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   exports?: Record<string, { import?: string; types?: string }>;
 }
 
 const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, "utf8")) as T;
 const rootPackage = readJson<PackageJson>(join(root, "package.json"));
 
-describe("monorepo", () => {
-  it("[AC-monorepo-setup-1] root build, lint, typecheck and test scripts cover every package", () => {
-    expect(rootPackage.workspaces).toEqual(PACKAGES.map(([dir]) => `packages/${dir}`));
-    const scripts = rootPackage.scripts ?? {};
-    expect(scripts.build).toBe("npm run build --workspaces");
-    expect(scripts.lint).toMatch(/^eslint \. --max-warnings=0/);
-    expect(scripts.typecheck).toBe("tsc -p tsconfig.json");
-    expect(scripts.test).toBe("vitest run");
-    expect(scripts.pretest).toBe("npm run build");
+/** Runs an npm script the way a contributor would, without a shell where possible. */
+function npm(args: string[]): SpawnSyncReturns<string> {
+  const npmCli = process.env.npm_execpath;
+  const options = { cwd: root, encoding: "utf8" as const, maxBuffer: 64 * 1024 * 1024 };
+  return npmCli && /\.c?js$/.test(npmCli)
+    ? spawnSync(process.execPath, [npmCli, ...args], options)
+    : spawnSync("npm", args, { ...options, shell: process.platform === "win32" });
+}
 
-    const tsconfig = readJson<{ include: string[] }>(join(root, "tsconfig.json"));
-    expect(tsconfig.include).toEqual(expect.arrayContaining(["packages/*/src", "packages/*/test"]));
-
-    for (const [dir, name] of PACKAGES) {
-      const pkg = readJson<PackageJson>(join(root, "packages", dir, "package.json"));
-      expect(pkg.name).toBe(name);
-      expect(pkg.scripts?.build).toBe("tsup");
-      expect(existsSync(join(root, "packages", dir, "test", "index.test.ts"))).toBe(true);
-    }
+/** Runs a Node CLI from the root node_modules. */
+function node(script: string, args: string[]): SpawnSyncReturns<string> {
+  return spawnSync(process.execPath, [join(root, "node_modules", script), ...args], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 64 * 1024 * 1024,
   });
+}
+
+const expectSuccess = (run: SpawnSyncReturns<string>, what: string): void => {
+  expect(run.status, `${what} failed:\n${run.stdout}\n${run.stderr}`).toBe(0);
+};
+
+const toPosix = (path: string): string => path.replace(/\\/g, "/");
+
+describe("monorepo", () => {
+  it("[AC-monorepo-setup-1] root build, lint, typecheck and test commands succeed and cover every package", async () => {
+    expect(rootPackage.workspaces).toEqual(PACKAGES.map(([dir]) => `packages/${dir}`));
+    const sources = PACKAGES.map(([dir]) => `packages/${dir}/src/index.ts`);
+    const tests = PACKAGES.map(([dir]) => `packages/${dir}/test/index.test.ts`);
+
+    // build: every package's dist is rewritten.
+    const started = Date.now() - 1000;
+    expectSuccess(npm(["run", "build"]), "npm run build");
+    for (const [dir, name] of PACKAGES) {
+      const built = statSync(join(root, "packages", dir, "dist", "index.js")).mtimeMs;
+      expect(built, `${name} was not rebuilt`).toBeGreaterThanOrEqual(started);
+    }
+
+    // typecheck: succeeds, and the program contains every package's sources and tests.
+    expectSuccess(npm(["run", "typecheck"]), "npm run typecheck");
+    const typechecked = node("typescript/bin/tsc", ["-p", "tsconfig.json", "--listFilesOnly"]);
+    expectSuccess(typechecked, "tsc --listFilesOnly");
+    const programFiles = typechecked.stdout.split(/\r?\n/).map((f) => toPosix(relative(root, f)));
+    expect(programFiles).toEqual(expect.arrayContaining([...sources, ...tests]));
+
+    // lint: succeeds, and ESLint doesn't ignore any package.
+    expectSuccess(npm(["run", "lint"]), "npm run lint");
+    const eslint = new ESLint({ cwd: root });
+    for (const file of [...sources, ...tests]) {
+      expect(await eslint.isPathIgnored(join(root, file)), `${file} is ignored by ESLint`).toBe(
+        false,
+      );
+    }
+
+    // test: this run is `npm test`; check that Vitest collects every package's tests.
+    const listed = node("vitest/vitest.mjs", ["list", "--filesOnly"]);
+    expectSuccess(listed, "vitest list");
+    const testFiles = listed.stdout.split(/\r?\n/).map((f) => toPosix(f.trim()));
+    expect(testFiles).toEqual(expect.arrayContaining(tests));
+  }, 300_000);
 
   it("keeps the dependency direction core ← lang ← lang-* ← cli / mcp (ADR-003)", () => {
-    const deps = (dir: string): string[] =>
-      Object.keys(
-        readJson<PackageJson>(join(root, "packages", dir, "package.json")).dependencies ?? {},
-      );
-    expect(deps("core").filter((d) => d.startsWith("@catspec/"))).toEqual([]);
-    expect(deps("lang")).not.toContain("@catspec/cli");
-    expect(deps("lang")).not.toContain("@catspec/mcp");
-    for (const adapter of ["lang-typescript", "lang-csharp"]) {
-      expect(deps(adapter)).toEqual(["@catspec/lang"]);
+    // Which workspace packages each package may depend on, in any dependency field.
+    const allowed: Record<string, string[]> = {
+      core: [],
+      lang: ["@catspec/core"],
+      "lang-typescript": ["@catspec/core", "@catspec/lang"],
+      "lang-csharp": ["@catspec/core", "@catspec/lang"],
+      cli: ["@catspec/core", "@catspec/lang", "@catspec/lang-typescript", "@catspec/lang-csharp"],
+      mcp: ["@catspec/core", "@catspec/lang", "@catspec/lang-typescript", "@catspec/lang-csharp"],
+      catspec: PACKAGES.map(([, name]) => name).filter((name) => name !== "catspec"),
+    };
+    const workspaceNames = new Set<string>(PACKAGES.map(([, name]) => name));
+    const fields = [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies",
+    ] as const;
+
+    for (const [dir] of PACKAGES) {
+      const pkg = readJson<PackageJson>(join(root, "packages", dir, "package.json"));
+      const internal = fields
+        .flatMap((field) => Object.keys(pkg[field] ?? {}))
+        .filter((dep) => workspaceNames.has(dep));
+      for (const dep of internal) {
+        expect(allowed[dir], `${pkg.name} must not depend on ${dep}`).toContain(dep);
+      }
     }
   });
 
@@ -79,27 +141,60 @@ describe("monorepo", () => {
 
 describe("CI workflow", () => {
   interface Workflow {
-    on: Record<string, unknown>;
+    on: Record<string, { types?: string[] } | null>;
     jobs: Record<
       string,
       {
-        "runs-on": string;
-        strategy: { "fail-fast": boolean; matrix: { os: string[]; node: number[] } };
+        if: string;
+        strategy: { "fail-fast": boolean; matrix: { os: string; node: number[] } };
         steps: { run?: string; uses?: string; with?: Record<string, unknown> }[];
       }
     >;
   }
 
-  it("[AC-ci-pipeline-1] runs lint, typecheck, tests and acceptance coverage on 3 OSes × Node 20 and 22", () => {
-    const workflow = parse(
-      readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8"),
-    ) as Workflow;
-    expect(Object.keys(workflow.on)).toContain("pull_request");
+  const workflow = parse(
+    readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8"),
+  ) as Workflow;
+  const job = workflow.jobs.check!;
 
-    const job = workflow.jobs.check!;
-    expect(job.strategy.matrix.os).toEqual(["ubuntu-latest", "macos-latest", "windows-latest"]);
+  /**
+   * Evaluates the `matrix.os` expression for a pull request with `labels`. It understands the one
+   * shape the workflow uses: `fromJSON(format('<template>', contains(<labels>, '<label>') && '<text>' || '', …))`.
+   */
+  function osFor(labels: string[]): string[] {
+    const expression = job.strategy.matrix.os.replace(/^\$\{\{\s*|\s*\}\}$/g, "");
+    const call = /^fromJSON\(format\('([^']*)',([\s\S]*)\)\)$/.exec(expression);
+    if (!call) throw new Error(`unexpected matrix.os expression: ${expression}`);
+    const args = [
+      ...call[2]!.matchAll(
+        /contains\(github\.event\.pull_request\.labels\.\*\.name, '([^']+)'\) && '([^']*)' \|\| ''/g,
+      ),
+    ].map(([, label, text]) => (labels.includes(label!) ? text! : ""));
+    const json = call[1]!.replace(/\{(\d+)\}/g, (_, i: string) => args[Number(i)] ?? "");
+    return JSON.parse(json) as string[];
+  }
+
+  it("[AC-ci-pipeline-1] runs on Linux × Node 20 and 22 for every PR, and on macOS or Windows by label", () => {
+    expect(workflow.on.pull_request?.types).toEqual([
+      "opened",
+      "synchronize",
+      "reopened",
+      "labeled",
+    ]);
     expect(job.strategy.matrix.node).toEqual([20, 22]);
     expect(job.strategy["fail-fast"]).toBe(false);
+
+    expect(osFor([])).toEqual(["ubuntu-latest"]);
+    expect(osFor(["bug"])).toEqual(["ubuntu-latest"]);
+    expect(osFor(["full-ci-mac"])).toEqual(["ubuntu-latest", "macos-latest"]);
+    expect(osFor(["full-ci-win"])).toEqual(["ubuntu-latest", "windows-latest"]);
+    expect(osFor(["full-ci-win", "full-ci-mac"])).toEqual([
+      "ubuntu-latest",
+      "macos-latest",
+      "windows-latest",
+    ]);
+    // Only a full-ci-* label starts a new run when a label is added.
+    expect(job.if).toContain("startsWith(github.event.label.name, 'full-ci-')");
 
     const runs = job.steps.map((s) => s.run).filter(Boolean);
     expect(runs).toEqual([

@@ -8,7 +8,7 @@
  */
 import { cp, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const fixturesDir = resolve(fileURLToPath(import.meta.url), "..", "..", "fixtures");
@@ -20,13 +20,18 @@ export interface LoadedFixture {
   cleanup: () => Promise<void>;
 }
 
-/** Copies `fixtures/<name>` into a new temporary directory. */
+/** Copies `fixtures/<name>` into a new temporary directory. `name` may be nested (`ts/basic`). */
 export async function loadFixture(name: string): Promise<LoadedFixture> {
-  const source = join(fixturesDir, name);
+  const source = resolve(fixturesDir, name);
+  const inside = relative(fixturesDir, source);
+  if (!inside || inside.startsWith("..") || isAbsolute(inside)) {
+    throw new Error(`fixture name "${name}" must name a folder inside ${fixturesDir}`);
+  }
   const info = await stat(source).catch(() => undefined);
   if (!info?.isDirectory()) throw new Error(`unknown fixture "${name}" (looked in ${source})`);
 
-  const dir = await mkdtemp(join(tmpdir(), `catspec-fixture-${name}-`));
+  const prefix = inside.replace(/[\\/]/g, "-");
+  const dir = await mkdtemp(join(tmpdir(), `catspec-fixture-${prefix}-`));
   await cp(source, dir, { recursive: true });
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
