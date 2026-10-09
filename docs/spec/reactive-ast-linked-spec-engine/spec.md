@@ -40,7 +40,7 @@ extension points for each.
 
 | Persona | Uses |
 |---|---|
-| Tech lead / architect | writes specs and `guidelines/architecture/ADR.md`, reviews DAG and coverage |
+| Tech lead / architect | writes specs and the ADR log `guidelines/architecture/<name>-adr.md`, reviews DAG and coverage |
 | Developer | implements specs, gets fast hook feedback, heals renames |
 | AI coding agent (Claude Code, Cursor, Windsurf) | reads context, self-verifies, claims specs via MCP/CLI |
 
@@ -73,7 +73,7 @@ that go with it, lives in a folder named after its feature (epic).
   catspec.yaml                          # config (§4)
   guidelines/
     architecture/
-      ADR.md                            # architecture spec, type: architecture (§6.4):
+      <name>-adr.md                     # architecture spec, type: architecture (§6.4):
                                         #   frontmatter = global rules, body = ADR log
   docs/spec/
     <feature>/                          # kebab-case full feature/epic name, e.g. react-sdd
@@ -88,7 +88,7 @@ that go with it, lives in a folder named after its feature (epic).
     cache/<blob-sha>.json
 ```
 
-- `catspec init` creates this layout, a starter `ADR.md`, and an example feature folder
+- `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and an example feature folder
   with `spec.md`, `plan.md` and one `*.spec.md`. `catspec init --agents` also appends
   the layout rules to `AGENTS.md` (created if missing) so coding agents follow them.
 - `catspec lint` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
@@ -106,7 +106,7 @@ version: 1
 layout: feature-folders  # feature-folders | free
 specs:
   include: ["docs/spec/*/*.spec.md"]
-  architecture: "guidelines/architecture/ADR.md"
+  architecture: "guidelines/architecture/*-adr.md"   # exactly one match, else CS0107
 languages:
   typescript:
     include: ["src/**/*.{ts,tsx}"]
@@ -294,9 +294,9 @@ configured sources.
 
 Queries are compiled at load time; invalid query → `CS0130`.
 
-### 6.4 Global rules (`guidelines/architecture/ADR.md`)
+### 6.4 Global rules (`guidelines/architecture/<name>-adr.md`)
 
-The architecture spec is a single file at `guidelines/architecture/ADR.md`
+The architecture spec is a single file at `guidelines/architecture/<name>-adr.md`
 (configurable via `specs.architecture`). Its frontmatter holds the global rules;
 its Markdown body is the project's Architecture Decision Record log (one
 `## ADR-NNN: <title>` section per decision, append-only). Each global rule should
@@ -401,7 +401,7 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 
 | Command | Description |
 |---|---|
-| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/ADR.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
+| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec lint` | validate spec files only: schema, ids, DAG, references, queries |
 | `catspec check [paths…] [--staged] [--spec <id>…] [--run-tests]` | full validation (lint + contracts + drift + claims); `--staged` reads the index |
 | `catspec verify <spec-id>` | check one spec, print agent-friendly report; exit code = done/not-done |
@@ -447,7 +447,7 @@ Text output example:
 
 Dependency direction: `core ← lang ← lang-* ← cli / mcp`. `core` never imports
 Tree-sitter or any adapter; `cli` and `mcp` inject the adapters into the engine
-(ADR-003 in `guidelines/architecture/ADR.md`).
+(ADR-003 in this repo's `guidelines/architecture/reactive-ast-adr.md`).
 
 `catspec` (unscoped) is the meta-package that installs CLI + MCP + default adapters,
 so `npx catspec init` works. WASM grammars avoid native build failures (decision: portability over raw speed).
@@ -552,7 +552,7 @@ interface Diagnostic {
 
 | Range | Area | Examples |
 |---|---|---|
-| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0106 spec outside feature folder, 0110 unknown ref in body, 0111 unenforced prose, 0112 unknown ADR id, 0130 invalid query |
+| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0106 spec outside feature folder, 0107 architecture spec missing or ambiguous, 0110 unknown ref in body, 0111 unenforced prose, 0112 unknown ADR id, 0130 invalid query |
 | CS02xx | bindings | 0201 not found, 0202 ambiguous, 0203 member missing, 0204 base missing, 0205 signature mismatch, 0206 attribute missing, 0207 ctor dependency missing, 0208 visibility/export, 0210 renamed (heal), 0220 unresolvable (syntactic limit) |
 | CS03xx | drift / ratchet | 0300 drift, 0301 regression of satisfied item |
 | CS04xx | waivers | 0400 waived, 0401 expired |

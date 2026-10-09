@@ -41,8 +41,8 @@ Tasks
 1. npm workspaces monorepo: `packages/{core,lang,lang-typescript,lang-csharp,cli,mcp,catspec}`.
 2. TypeScript 5 strict, ESM, `tsup` builds, `vitest`, `eslint` + `prettier`, `changesets` for versioning.
 3. GitHub Actions for **this repo** (lint, typecheck, test on Linux/macOS/Windows, Node 20/22).
-4. `fixtures/` directory convention: `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, guidelines/architecture/ADR.md, expected.json}`.
-5. CONTRIBUTING, issue templates, keep `guidelines/architecture/ADR.md` up to date (decisions F-1…F-19 are already logged there as ADR-001…).
+4. `fixtures/` directory convention: `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, guidelines/architecture/<name>-adr.md, expected.json}`.
+5. CONTRIBUTING, issue templates, keep `guidelines/architecture/reactive-ast-adr.md` up to date (decisions F-1…F-19 are already logged there as ADR-001…).
 
 Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 
@@ -59,7 +59,7 @@ Tasks
 6. **DAG** (`core/graph`): build, Tarjan SCC for cycles (report full cycle path), unknown deps, topological order, `ready` computation (status-only for now).
 7. **CST editor** (`core/spec/edit`): `applyPatch(spec, ops)` via `Document.setIn/deleteIn`; byte-for-byte preservation of body; golden round-trip suite (comments, quotes, flow vs block sequences, CRLF).
 8. **Diagnostics core**: `Diagnostic` type, code registry (code → default severity, docs URL), text + json reporters.
-9. **CLI skeleton** (`commander`): global flags, exit codes, `init` (feature-folder layout, starter `ADR.md`, `--agents` writes layout rules to `AGENTS.md`), `lint` (incl. CS0106 layout and CS0112 ADR-id checks), `list`, `show`, `graph --format mermaid|dot|json`.
+9. **CLI skeleton** (`commander`): global flags, exit codes, `init` (feature-folder layout, starter `<name>-adr.md`, `--agents` writes layout rules to `AGENTS.md`), `lint` (incl. CS0106 layout and CS0112 ADR-id checks), `list`, `show`, `graph --format mermaid|dot|json`.
 
 Tests: schema unit tests per field; ~20 fixture specs (valid/invalid); DAG cycle cases; CST round-trip property test (fast-check: random edits on random valid docs keep the body untouched and re-parse equal).
 

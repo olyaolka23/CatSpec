@@ -14,5 +14,5 @@ Feature: Reactive AST-Linked Spec Engine (`docs/spec/reactive-ast-linked-spec-en
 2. [Product & technical specification (MVP)](docs/spec/reactive-ast-linked-spec-engine/spec.md)
 3. [Implementation plan](docs/spec/reactive-ast-linked-spec-engine/plan.md)
 
-Architecture decisions: [`guidelines/architecture/ADR.md`](guidelines/architecture/ADR.md).
+Architecture decisions: [`guidelines/architecture/reactive-ast-adr.md`](guidelines/architecture/reactive-ast-adr.md).
 Repository conventions for agents and contributors: [`AGENTS.md`](AGENTS.md).

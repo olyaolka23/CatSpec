@@ -140,6 +140,6 @@ reasoning for ADR-002…ADR-012 is in
 - **Decision:** Each feature's docs live in `docs/spec/<feature>/` (kebab-case full epic name)
   with fixed file names `analysis.md`, `spec.md`, `plan.md`, `tasks.md`, and its `*.spec.md`
   machine specs. Architecture decisions and global rules live only in
-  `guidelines/architecture/ADR.md`. This is both this repo's convention (`AGENTS.md`) and
+  `guidelines/architecture/reactive-ast-adr.md` (product default: `guidelines/architecture/<name>-adr.md`, where `<name>` is the project or epic name in kebab-case). This is both this repo's convention (`AGENTS.md`) and
   CatSpec's product default (`catspec init`, lint `CS0106`).
 - **Consequences:** No numbered or scattered design docs. The architecture spec is discovered at a fixed path.

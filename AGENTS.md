@@ -38,13 +38,13 @@ docs/spec/
    `docs/spec/`, no `specs/`, `.specs/` or `design/` folders, no docs next to source code.
 7. Use relative links. Files in the same folder link as `./spec.md`.
 
-## Rule 2: Architecture decisions live in `guidelines/architecture/ADR.md`
+## Rule 2: Architecture decisions live in `guidelines/architecture/reactive-ast-adr.md`
 
-`guidelines/architecture/ADR.md` is the **single** architecture decision log and the
+`guidelines/architecture/reactive-ast-adr.md` is the **single** architecture decision log and the
 architecture spec of the whole repository. Its frontmatter holds the global rules that
 CatSpec enforces (`type: architecture`); its body holds the decisions.
 
-1. **Read `ADR.md` before any non-trivial change.** Code must not contradict an
+1. **Read the ADR log before any non-trivial change.** Code must not contradict an
    `Accepted` ADR.
 2. **Record every architectural decision there**: package boundaries and dependency
    direction, new runtime dependencies, data and file formats, public APIs and CLI
@@ -55,8 +55,8 @@ CatSpec enforces (`type: architecture`); its body holds the decisions.
    entry. To change a decision, add a new ADR that supersedes it and mark the old one
    `Superseded by ADR-NNN`.
 4. **Make it checkable when possible.** If a decision can be verified in code, add a rule
-   to the `ADR.md` frontmatter with `adr: ADR-NNN`.
-5. Don't create other ADR files or folders (`docs/adr/`, `<feature>/adr/`, `decisions/`).
+   to the ADR log's frontmatter with `adr: ADR-NNN`.
+5. Don't create other ADR files or folders (`ADR.md`, `docs/adr/`, `<feature>/adr/`, `decisions/`).
 6. Other project-wide guidelines go in `guidelines/<topic>/` (e.g. `guidelines/coding/`),
    never in `docs/spec/`.
 
@@ -70,5 +70,5 @@ The standard root files stay where tools expect them: `README.md`, `AGENTS.md`,
 
 | What | Where |
 |---|---|
-| Architecture decisions & global rules | [`guidelines/architecture/ADR.md`](guidelines/architecture/ADR.md) |
+| Architecture decisions & global rules | [`guidelines/architecture/reactive-ast-adr.md`](guidelines/architecture/reactive-ast-adr.md) |
 | Reactive AST-Linked Spec Engine (CatSpec MVP): analysis, spec, plan | [`docs/spec/reactive-ast-linked-spec-engine/`](docs/spec/reactive-ast-linked-spec-engine/) |
