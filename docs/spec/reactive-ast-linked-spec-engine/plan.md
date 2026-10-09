@@ -25,9 +25,9 @@
 | M4 | C# adapter ⇄ | 1.5 | 5.3 partial classes, attributes, DI | acceptance 1, 6 on C# fixtures |
 | M5 | Git: staged reading, hook, lock file, ratchet, drift | 1.5 | 7, 8, 13, 11.3 IndexProvider | acceptance 4, 5 |
 | M6 | Rename/move detection, heal, large refactors | 1.5 | 11.4, 11.6, 11.8, `sync/accept/bind/refactor` | acceptance 2, 3, 11, 12 |
-| M7 | MCP server | 1 | 14 | acceptance 9, 10; works in Claude Code |
+| M7 | MCP server & agent layer | 1 | 14 | acceptance 9, 10, 17; works in Claude Code |
 | M8 | Workflow profiles (custom skills, OpenSpec, Spec Kit) | 1 | 17 | acceptance 14, 15, 16 |
-| M9 | Hardening & 0.1.0 release | 1 | 15 | all MVP acceptance scenarios (1–7, 9–12, 14–16), perf budgets, docs |
+| M9 | Hardening & 0.1.0 release | 1 | 15 | all MVP acceptance scenarios (1–7, 9–12, 14–17), perf budgets, docs |
 | | **Total** | **~12.5** (≈11 with M4 parallel) | | |
 
 Critical path: M0 → M1 → M2 → M3 → M5 → M6 → M7 → M8 → M9. M4 can run in parallel
@@ -173,12 +173,12 @@ Tasks
 2. Tools (§14.1) with zod input schemas, text + `structuredContent` outputs; consistent error mapping (engine diagnostics are results, not protocol errors; protocol errors only for bad input / outside-root paths).
 3. Write safety: path guard, location vs contract classification of patches (shared with M6), `dry_run` default, unified diff output.
 4. Resources & prompts (§14.2).
-5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf; Claude Code `Stop` hook recipe calling `catspec check --spec <id>` (F-18).
+5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf. Agent layer (§14.3): `check --in-progress`, `--format agent` with exit 0/2/1, `--max-blocks` loop protection, the `AGENTS.md` block (`init --agents`, `workflow snippet agents`), and the Claude Code `Stop` hook merged into `.claude/settings.json` (F-18).
 6. Test harness: in-process MCP client driving the server over a fixture repo; scripted "agent loop" test for acceptance 9; acceptance 10.
 
 Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/spec/reactive-ast-linked-spec-engine/examples/`.
 
-Done when: acceptance 9, 10 pass in automated tests and once manually in Claude Code.
+Done when: acceptance 9, 10, 17 pass in automated tests and once manually in Claude Code.
 
 ---
 
@@ -210,7 +210,7 @@ Tasks
 5. Example repos: `examples/ts-auth-service` (requirements' `AuthService` journey), `examples/dotnet-user-sync` (`UserUpdatedHandler`).
 6. Release 0.1.0 with changesets; announce limitations clearly.
 
-Done when: all MVP acceptance scenarios (1–7, 9–12, 14–16) pass in CI on 3 OSes, budgets met, docs published.
+Done when: all MVP acceptance scenarios (1–7, 9–12, 14–17) pass in CI on 3 OSes, budgets met, docs published.
 
 ---
 

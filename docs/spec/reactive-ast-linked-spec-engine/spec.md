@@ -409,13 +409,20 @@ Store: `<git-common-dir>/catspec/claims/`, shared by all worktrees of the clone.
 
 ## 10. CLI — `catspec`
 
-Global flags: `--cwd`, `--config`, `--format text|json`, `--no-color`, `--quiet`, `--verbose`.
+Global flags: `--cwd`, `--config`, `--format text|json|agent`, `--no-color`, `--quiet`, `--verbose`.
 Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` internal error.
+
+`--format agent` is for agent hooks (§14.3). The output is a short, imperative fix list for an AI
+agent (what is wrong, where, and the exact next action), and the exit codes follow the Claude Code
+hook convention:
+- `0`: done, or nothing to check;
+- `2`: not done, so the agent is blocked and the fix list goes back to it (on stderr);
+- `1`: config or internal error, shown to the user without blocking the agent.
 
 | Command | Description |
 |---|---|
 | `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
-| `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode) |
+| `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode). `--in-progress`: only the specs whose status is `in-progress` on the current branch, i.e. the work items the agent is working on (exit 0 when there are none) |
 | `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
 | `catspec show <spec-id>` | normalised model + compliance + deps |
 | `catspec graph [--format mermaid\|dot\|json] [--focus id]` | DAG export |
@@ -428,8 +435,8 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 | `catspec refactor status` / `catspec refactor abort` | show the active refactor (scope, branch, broken bindings so far) / drop it without edits |
 | `catspec install-hooks [--manager auto\|git\|husky\|lefthook]` / `uninstall-hooks` | |
 | `catspec next <feature>` | current workflow stage, its driver (skill / slash command / command), inputs, outputs and gates (§17) |
-| `catspec stage start\|finish <stage> <feature> [--force]` | run the stage's start / finish gates and apply its status transition (§17) |
-| `catspec workflow show\|doctor\|snippet <stage>` | inspect, validate, and get the text to paste into a skill (§17) |
+| `catspec stage start\|finish <stage> <feature\|spec-id> [--force]` | run the stage's start / finish gates and apply its status transition (§17) |
+| `catspec workflow show\|doctor\|snippet <stage\|agents>` | inspect, validate, and get the text to paste into a skill (§17) |
 | `catspec mcp` | start MCP server on stdio |
 | `catspec coverage` | contract satisfaction, enforcement coverage, reverse code coverage (F-3) |
 
@@ -705,9 +712,55 @@ root; anything outside → error.
 
 ### 14.3 Agent "definition of done" (F-18)
 
-Documented recipe for Claude Code: a `Stop` hook running
-`catspec check --spec <id> --format json` and returning the diagnostics to the agent
-when not done; plus the MCP server registered via `claude mcp add catspec -- npx catspec mcp`.
+"Done" is decided by CatSpec, not by the agent. Three layers make the agent run the workflow by
+itself, so the developer doesn't have to type any `catspec` command:
+
+| Layer | Mechanism | Guarantee |
+|---|---|---|
+| Instructions | a CatSpec block in `AGENTS.md` (and in the team's skills) telling the agent which commands to run and when | usually followed, not guaranteed |
+| Agent stop hook | Claude Code `Stop` hook: `catspec check --in-progress --format agent`. While any in-progress spec isn't DONE, the agent can't end its turn and gets the fix list | deterministic on every agent stop |
+| Commit gate | pre-commit hook `catspec check --staged` (§13) | deterministic on every commit (unless `--no-verify`) |
+
+**`AGENTS.md` block.** `catspec init --agents` writes it, and `catspec workflow snippet agents` prints it:
+
+```markdown
+<!-- catspec:begin -->
+## CatSpec workflow (agents must follow)
+For every work item (PBI) `<id>` you work on:
+1. Before coding run `catspec stage start task <id>`. If it fails, stop and report why.
+2. After each change run `catspec check --spec <id>` and fix everything it reports, until it says DONE.
+3. When all tasks in `<id>.spec.md` are ticked, run `catspec stage finish task <id>`,
+   then `catspec stage finish close <id>`.
+4. Never weaken a contract in a `*.spec.md` to make a check pass. Ask the developer instead.
+<!-- catspec:end -->
+```
+
+Stage names come from the workflow profile (§17), so a custom workflow gets its own stage names in
+the block. The markers let `init --agents` update the block without touching the rest of the file.
+
+**Claude Code hooks.** `catspec init --agents` adds them to `.claude/settings.json`, merging with any existing hooks:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "npx catspec check --in-progress --format agent" } ] }
+    ]
+  }
+}
+```
+
+- `--in-progress` selects the specs the agent is working on. A spec's status lives in its file, so a
+  status set by `stage start` on one branch doesn't affect other branches.
+- **Loop protection:** CatSpec reads the hook input from stdin. If the agent has been blocked
+  `--max-blocks` times in a row (default 3) with the same diagnostics, it lets the agent stop, tells
+  the user the item is stuck, and leaves the spec `in-progress`. The counter lives in the runtime
+  store and is reset by any change in the diagnostics.
+- Other agents (Cursor, Windsurf, Codex) get the same `AGENTS.md` block and the pre-commit hook. A stop
+  hook is added for them once their hook APIs are supported.
+
+**MCP.** `claude mcp add catspec -- npx catspec mcp` (or the equivalent client config) lets the agent
+run the same steps as tools (`start_stage`, `check_compliance`, `finish_stage`) instead of shell commands.
 
 ---
 
@@ -742,6 +795,7 @@ when not done; plus the MCP server registered via `claude mcp add catspec -- npx
 14. **Custom workflow**: with `preset: custom` and skills `sdd-spec/plan/task/close`, `catspec next login` names `sdd-plan` after `spec.md` exists, and `catspec stage finish close login` fails with `CS0702` (`contracts_pass`) while `login()` is missing. Once fixed, it sets `implemented`.
 15. **OpenSpec preset**: in a repo with `openspec/changes/add-login/`, `catspec stage start archive add-login` is refused while contracts fail or tasks are unticked. After it passes, the archived change's `*.spec.md` stays enforced.
 16. **Doctor**: a config naming skill `sdd-plan` that doesn't exist under `skills_dir` gets `CS0704` from `catspec workflow doctor`.
+17. **Agent can't stop early**: with the Claude Code `Stop` hook installed, `register-api` `in-progress` and `login()` missing, the agent's attempt to end its turn is blocked (exit 2) with the fix list. After the fix, the hook exits 0. With the same failure 3 times in a row, the agent is let go and the user is told the item is stuck.
 
 ---
 
@@ -865,8 +919,8 @@ Failing gates are reported as `CS07xx` diagnostics, plus the diagnostics of the 
    hook re-checks that `implemented` specs still pass their final stage's finish gates (`CS0703`).
    The hook only evaluates the built-in gates, using results the `check` already computed. It never
    runs `command:` gates, so the hook's 1-second budget (§11.7) is unchanged.
-   `catspec init --agents` can add a Claude Code `Stop` hook that runs `catspec stage finish` for the
-   current stage. That makes "done" mean that the gates pass.
+   `catspec init --agents` adds the `AGENTS.md` block and the Claude Code `Stop` hook from §14.3, so
+   the agent runs the stage commands itself and can't stop while an in-progress item fails its checks.
 
 CatSpec doesn't edit your skills. Integration means adding the two lines from
 `workflow snippet`, or having the agent call `next_step` / `finish_stage` over MCP.
