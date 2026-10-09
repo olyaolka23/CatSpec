@@ -657,7 +657,7 @@ interface Diagnostic {
 | CS04xx | waivers | 0400 waived, 0401 expired |
 | CS05xx | DAG gate / claims | 0502 deps not satisfied; reserved for post-MVP claims: 0500 claim conflict, 0501 commit touches foreign claim, 0503 refactor claim conflict |
 | CS06xx | rules | 0601 forbidden call, 0602 required call missing, 0603 forbidden import, 0604 naming, 0605 must-not-exist, 0610 query match, 0620 test symbol missing, 0621 test failed |
-| CS07xx | workflow | 0700 invalid workflow config, 0701 start gate failed, 0702 finish gate failed, 0703 implemented spec fails final gates, 0704 driver not found, 0705 stage out of order, 0706 command gate skipped (§17.6) |
+| CS07xx | workflow | 0700 invalid workflow config, 0701 start gate failed, 0702 finish gate failed, 0703 implemented spec fails final gates, 0704 driver not found, 0705 stage out of order, 0706 command gate skipped (§17.7) |
 | CS09xx | engine | 0901 parse error in file (partial results), 0902 git unavailable |
 
 ---
