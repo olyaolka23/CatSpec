@@ -143,3 +143,21 @@ reasoning for ADR-002…ADR-012 is in
   `guidelines/architecture/reactive-ast-adr.md` (product default: `guidelines/architecture/<name>-adr.md`, where `<name>` is the project or epic name in kebab-case). This is both this repo's convention (`AGENTS.md`) and
   CatSpec's product default (`catspec init`, lint `CS0106`).
 - **Consequences:** No numbered or scattered design docs. The architecture spec is discovered at a fixed path.
+
+## ADR-013: Large refactorings use an explicit refactor mode and batch rename mapping
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Ref:** spec §11.8
+- **Context:** Per-binding rename guessing (ADR-008, spec §11.4) breaks down when a refactor
+  renames or moves dozens of bound symbols at once: errors flood the hook, similar classes become
+  ambiguous, claimed files block the commit, and re-binding by hand loses the ratchet history.
+- **Decision:** `catspec refactor start` takes an exclusive refactor claim and records a baseline.
+  `catspec refactor finish` maps every broken binding to its new symbol, preferring exact evidence
+  (an explicit rename map, usually written by the agent that did the refactor, then moves, prefix
+  rules and git file renames) over similarity scoring. Scoring uses a global one-to-one assignment.
+  All location edits and lock-file entries are rewritten in one batch, in the same commit as the
+  code. Ambiguous or lost bindings block `finish`, and contract fields are never edited automatically.
+  Without `start`, the hook detects a large refactor and reports one grouped diagnostic (`CS0215`).
+- **Consequences:** Mass renames cost one command instead of dozens of manual spec edits, and the
+  ratchet history survives. The CLI and MCP surface grow (`refactor start|finish|status|abort`,
+  `start_refactor`/`finish_refactor`). A refactor claim can make other agents wait.
+

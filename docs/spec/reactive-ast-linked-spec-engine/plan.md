@@ -24,11 +24,11 @@
 | M3 | Rule engine & `check` (working tree) | 1.5 | 6, 11.3, 11.5, 12, 10 (`check/verify/coverage`) | acceptance 1, 6 on TS |
 | M4 | C# adapter ⇄ | 1.5 | 5.3 partial classes, attributes, DI | acceptance 1, 6 on C# fixtures |
 | M5 | Git: staged reading, hook, lock file, ratchet, drift | 1.5 | 7, 8, 13, 11.3 IndexProvider | acceptance 4, 5 |
-| M6 | Rename/move detection & heal | 1 | 11.4, 11.6, `sync/accept/bind` | acceptance 2, 3 |
+| M6 | Rename/move detection, heal, batch refactor mapping | 1.5 | 11.4, 11.6, 11.8 (mapping), `sync/accept/bind/refactor finish` | acceptance 2, 3, 11, 12 |
 | M7 | MCP server | 1 | 14 | acceptance 9, 10; works in Claude Code |
-| M8 | Claims, assign, worktrees | 1 | 9, `claim/assign`, hook enforcement | acceptance 7, 8 |
-| M9 | Hardening & 0.1.0 release | 1 | 15 | all 10 acceptance scenarios, perf budgets, docs |
-| | **Total** | **~12** (≈10.5 with M4 parallel) | | |
+| M8 | Claims, assign, worktrees, refactor claims | 1.5 | 9, 11.8 (claims), `claim/assign/refactor start`, hook enforcement | acceptance 7, 8, 13 |
+| M9 | Hardening & 0.1.0 release | 1 | 15 | all 13 acceptance scenarios, perf budgets, docs |
+| | **Total** | **~13** (≈11.5 with M4 parallel) | | |
 
 Critical path: M0 → M1 → M2 → M3 → M5 → M6 → M7 → M9. M4 can run in parallel
 with M5–M6 if a second person is available; M8 needs M5 (hook) only.
@@ -146,7 +146,7 @@ Done when: acceptance 4, 5 pass; hook run on fixture repo ≤ 1 s warm.
 
 ---
 
-## M6 — Rename/move detection & heal (1 w)
+## M6 — Rename/move detection, heal, batch refactor mapping (1.5 w)
 
 Tasks
 1. Detection pipeline (§11.4): moved → file-renamed → symbol-renamed with scoring; `RevisionProvider` gives the previous facts (HEAD for staged mode, index for working-tree mode).
@@ -154,10 +154,13 @@ Tasks
 3. `SpecPatch` generation (location ops only), CS0210 with patch; `sync` (dry run diff) / `sync --apply`; `heal.mode=auto` in hook applies + re-stages + prints what changed.
 4. Markdown body mentions of old name → info diagnostics.
 5. `bind <symbol> --spec <id>`: scaffold binding with current shape (members, bases, ctor params) using CST insert.
+6. **Batch refactor mapping** (§11.8): baseline capture (from `HEAD` when no `refactor start`), name-free fingerprints, rename-map parser (`symbols`/`namespaces`/`paths`), prefix-rule detection, global one-to-one assignment, mapped/ambiguous/lost report.
+7. `refactor finish [--apply|--partial|--update-mentions]`: one CST batch per spec file; move lock entries (`resolved`, `satisfied`, fingerprints) to new ids; auto-accept name-only shape changes.
+8. Hook grouping: above `refactor.detect_threshold` broken bindings, emit one `CS0215` instead of N errors.
 
-Tests: rename fixtures (class rename, method rename, rename + move, two similar candidates → ambiguous, rename + heavy body change → below threshold); acceptance 2 & 3.
+Tests: rename fixtures (class rename, method rename, rename + move, two similar candidates → ambiguous, rename + heavy body change → below threshold); a generated "namespace rename + folder move of 40 classes" fixture; a swap-like rename of two near-identical classes; acceptance 2, 3, 11, 12.
 
-Done when: acceptance 2, 3 pass; no auto edit ever touches contract fields (asserted by a test over all patch ops).
+Done when: acceptance 2, 3, 11, 12 pass; no auto edit ever touches contract fields (asserted by a test over all patch ops); the ratchet survives a mass refactor.
 
 ---
 
@@ -177,7 +180,7 @@ Done when: acceptance 9, 10 pass in automated tests and once manually in Claude 
 
 ---
 
-## M8 — Claims, assign, worktrees (1 w)
+## M8 — Claims, assign, worktrees, refactor claims (1.5 w)
 
 Tasks
 1. `ClaimStore` interface + `FsClaimStore` in git common dir: O_EXCL create, global mutex file for overlap check, heartbeat, TTL, stale reclaim, `--steal`.
@@ -186,8 +189,9 @@ Tasks
 4. Commands: `claim`, `release`, `claims`, `assign` (deps check → claim → `git worktree add -b spec/<id>` → write `.catspec-context.md` = rendered `get_spec_context` → print next steps).
 5. Hook enforcement CS0501; `list --ready` excludes claimed specs; MCP `claim_spec`/`release_spec` wired.
 6. Concurrency test: N processes racing to claim overlapping specs — exactly one wins (run 100× in CI).
+7. **Refactor claims** (§11.8): `refactor start/status/abort`, exclusive claim over a scope (default whole repo), `--wait`, block new overlapping claims, baseline stored in the runtime store, `--allow-wip` relaxation in the hook for the owner's branch only; MCP `start_refactor`/`finish_refactor`.
 
-Done when: acceptance 7, 8 pass; race test stable.
+Done when: acceptance 7, 8, 13 pass; race test stable (including refactor claim vs normal claims).
 
 ---
 

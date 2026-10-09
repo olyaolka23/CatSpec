@@ -126,6 +126,9 @@ hook:
 claims:
   ttl: 4h
   enforce_in_hook: true
+refactor:
+  detect_threshold: 10   # broken bindings in one commit that count as a large refactor (§11.8)
+  allow_wip: false
 mcp:
   allow_location_edits: true
   allow_contract_edits: false   # F-13
@@ -388,6 +391,7 @@ Store: `<git-common-dir>/catspec/claims/`, shared by all worktrees of the clone.
 - **Acquire** is atomic: write a temp file, then `link()`/`open(O_CREAT|O_EXCL)` the claim name; a global `claims.lock` mutex (same technique) guards the scope-overlap check so two overlapping claims cannot be taken concurrently.
 - **Overlap**: scope globs and resolved files are compared; any intersection with another live claim → refused (`CS0500`), listing the holder.
 - **Lease**: `heartbeatAt + ttl` < now → stale; `catspec claim --steal` or automatic reclaim with a warning.
+- **Refactor claims** (§11.8) are exclusive: they need a scope free of other live claims, and they block new overlapping claims until `finish` or `abort`.
 - **Owner identity**: worktree path → claim lookup, else `CATSPEC_AGENT_ID`, else `user:<git user.email>`.
 - **Enforcement**: in the pre-commit hook, staged paths that fall in another owner's live claim → error `CS0501`.
 - Interface `ClaimStore` (`acquire/release/heartbeat/list`) allows a later git-refs or HTTP backend.
@@ -414,6 +418,8 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 | `catspec bind <symbol> --spec <id> [--file f]` | scaffold a binding from existing code (shape copied as contract) |
 | `catspec lock [--rebuild]` | (re)generate lock files |
 | `catspec claim <spec-id> [--owner o] [--steal]` / `release <spec-id>` / `claims` | runtime locks |
+| `catspec refactor start [--scope g…] [--reason r] [--allow-wip] [--wait]` | begin a large refactor: exclusive claim + baseline (§11.8) |
+| `catspec refactor finish [--map f] [--apply] [--partial] [--update-mentions]` / `status` / `abort` | map old → new symbols in batch, update specs and lock files |
 | `catspec assign <spec-id> [--owner o] [--worktree path]` | check deps → claim → `git worktree add -b spec/<id>` → write `.catspec-context.md` into the worktree |
 | `catspec install-hooks [--manager auto\|git\|husky\|lefthook]` / `uninstall-hooks` | |
 | `catspec mcp` | start MCP server on stdio |
@@ -514,6 +520,8 @@ Triggered when a previously resolved binding (lock file `resolved`) no longer re
 
 Body references to the old name in the Markdown (`` `OldName` ``) are reported as `info` with locations, not rewritten.
 
+This path is for a few renames per commit. Large refactorings use the batch mode in §11.8.
+
 ### 11.5 Binding resolution
 
 1. Expand `file` hint (glob) within the language include set; collect symbols whose qualified name ends with `symbol` (segment-wise suffix match).
@@ -531,6 +539,90 @@ Golden round-trip tests guarantee `parse → no-op edit → write` is identity.
 - Parse cache: `<git-common-dir>/catspec/cache/<lang>/<blob-sha>.json` (FileFacts minus `bodyTokens`), versioned by adapter+grammar version.
 - Staged mode parses only staged files + files of bindings whose specs or files changed.
 - Budgets (asserted in a benchmark job): staged ≤ 1 s, full cold ≤ 10 s on a 10k-file synthetic repo.
+
+### 11.8 Large refactorings (mass rename / move)
+
+The per-binding detection in §11.4 works for a handful of renames. A large refactoring
+(renaming a namespace, moving a folder, renaming 50 handlers at once) breaks it:
+
+- one commit produces dozens of `CS0201`/`CS0301` errors;
+- guessing by similarity gets ambiguous when many similar symbols change together;
+- the files belong to specs that other owners have claimed, so `CS0501` appears everywhere;
+- re-creating bindings by hand loses the ratchet history in the lock files.
+
+**Approach:** tell CatSpec a refactor is happening, prefer exact rename information over
+guessing, and apply every spec update as one batch in the same commit as the code.
+
+```
+catspec refactor start --scope "src/Services/Identity/**" --reason "rename Identity to Accounts"
+   … rename / move with the IDE, a codemod or an agent …
+catspec refactor finish --apply [--map renames.json]
+git commit            # code + specs + lock files together
+```
+
+1. **`refactor start`**
+   - Takes a **refactor claim** on the scope (whole repo if `--scope` is omitted). It is an
+     exclusive claim (§9): refused with `CS0503` if any live claim overlaps (holders are listed;
+     `--wait` waits until they are released). While it is active, new overlapping claims are refused.
+   - Records a **baseline** in the runtime store: for every binding of the affected specs, its
+     resolved symbol id, file, shape fingerprint, *name-free* fingerprint (shape without the
+     symbol's own name and namespace) and a body-token sketch. The baseline revision is `HEAD`.
+2. **During the refactor** the hook groups all binding, drift and ratchet errors in the scope
+   into **one** summary `CS0215` ("refactor in progress: 37 bindings unresolved, run
+   `catspec refactor finish`"). By default it still blocks. `start --allow-wip` lets
+   intermediate commits through, only on the refactor's branch and only for its owner.
+3. **`refactor finish`** maps every baseline binding that no longer resolves to its new
+   symbol, using the strongest evidence available:
+
+   | # | Evidence | Confidence |
+   |---|---|---|
+   | 1 | explicit rename map (`--map`, or MCP `finish_refactor`) | exact |
+   | 2 | same qualified name found elsewhere (moved file) | exact |
+   | 3 | namespace / module / path prefix rule (from the map, or detected when many symbols share one prefix change, e.g. `Identity.*` → `Accounts.*`) | high |
+   | 4 | file rename from `git diff -M <baseline>`, same name in the new file | high |
+   | 5 | identical name-free fingerprint, unique among candidates (only the name changed) | high |
+   | 6 | similarity score from §11.4 | scored |
+
+   Rows 5 and 6 use a **global one-to-one assignment**: all broken bindings are matched
+   together, each new symbol can be used once, and pairs are taken by descending score
+   only when they are mutual best matches above `heal.threshold`. Two bindings can never be
+   mapped to the same new class.
+
+   The report has three buckets: **mapped** (with the evidence), **ambiguous** (with the
+   candidates) and **lost** (no candidate: restore the code, add it to the map, or change the spec).
+   With `--apply`:
+   - all location edits are written in one CST batch per spec file (ADR-008: never contract edits);
+   - lock entries (`resolved`, `satisfied`, fingerprints) move to the new symbol ids, so the
+     ratchet history survives;
+   - fingerprints whose only change is the name or namespace are accepted automatically; any
+     other shape change is reported as drift as usual;
+   - backticked mentions of old names in spec bodies are reported, and rewritten only with `--update-mentions`.
+
+   `finish` succeeds only when nothing in the scope is ambiguous or lost. `--partial` applies the
+   mapped part and keeps the refactor open. On success it releases the claim and deletes the baseline.
+4. **`refactor abort`** releases the claim and drops the baseline. No edits are made.
+
+**Rename map** (written by hand, by the agent that did the refactor, or by a codemod):
+
+```json
+{
+  "symbols":    { "Identity.Handlers.UserUpdatedHandler": "Accounts.Handlers.AccountUpdatedHandler" },
+  "namespaces": { "Identity": "Accounts" },
+  "paths":      { "src/Services/Identity/": "src/Services/Accounts/" }
+}
+```
+
+The agent that performed a refactor knows exactly what it renamed, so asking it for the map
+(MCP `finish_refactor` with `map`) is the most reliable source and removes guessing entirely.
+
+**If nobody ran `refactor start`:** when one commit breaks more than
+`refactor.detect_threshold` bindings (default 10), or `git diff -M` shows many renames, the hook
+prints one grouped `CS0215` instead of N separate errors and suggests `catspec refactor finish`.
+`finish` also works without `start`: the baseline is then `HEAD` and no claim is taken. `start`
+is recommended for its claim and WIP mode, but it is not required.
+
+**Moving specs themselves** is safe: a spec's identity is its `id`, not its path, and its lock
+file sits next to it, so it moves with it. A lock file without its spec gets `CS0108`.
 
 ---
 
@@ -552,11 +644,11 @@ interface Diagnostic {
 
 | Range | Area | Examples |
 |---|---|---|
-| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0106 spec outside feature folder, 0107 architecture spec missing or ambiguous, 0110 unknown ref in body, 0111 unenforced prose, 0112 unknown ADR id, 0130 invalid query |
-| CS02xx | bindings | 0201 not found, 0202 ambiguous, 0203 member missing, 0204 base missing, 0205 signature mismatch, 0206 attribute missing, 0207 ctor dependency missing, 0208 visibility/export, 0210 renamed (heal), 0220 unresolvable (syntactic limit) |
+| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0106 spec outside feature folder, 0107 architecture spec missing or ambiguous, 0108 lock file without spec, 0110 unknown ref in body, 0111 unenforced prose, 0112 unknown ADR id, 0130 invalid query |
+| CS02xx | bindings | 0201 not found, 0202 ambiguous, 0203 member missing, 0204 base missing, 0205 signature mismatch, 0206 attribute missing, 0207 ctor dependency missing, 0208 visibility/export, 0210 renamed (heal), 0215 large refactor summary, 0216 ambiguous refactor mapping, 0217 binding lost in refactor, 0220 unresolvable (syntactic limit) |
 | CS03xx | drift / ratchet | 0300 drift, 0301 regression of satisfied item |
 | CS04xx | waivers | 0400 waived, 0401 expired |
-| CS05xx | claims / DAG gate | 0500 claim conflict, 0501 commit touches foreign claim, 0502 deps not satisfied |
+| CS05xx | claims / DAG gate | 0500 claim conflict, 0501 commit touches foreign claim, 0502 deps not satisfied, 0503 refactor claim conflict |
 | CS06xx | rules | 0601 forbidden call, 0602 required call missing, 0603 forbidden import, 0604 naming, 0605 must-not-exist, 0610 query match, 0620 test symbol missing, 0621 test failed |
 | CS09xx | engine | 0901 parse error in file (partial results), 0902 git unavailable |
 
@@ -595,6 +687,7 @@ root; anything outside → error.
 | `check_dependencies` | `spec_id` | each dependency with status, satisfaction, failing items |
 | `claim_spec` / `release_spec` | `spec_id`, `owner?` | §9; returns scope or conflict holder |
 | `update_spec_bindings` | `spec_id`, `patch` (JSON-merge on bindings), `dry_run=true` | returns unified diff; location edits applied if allowed; contract edits applied only if `mcp.allow_contract_edits` else returned as proposal (F-13) |
+| `start_refactor` / `finish_refactor` | `scope?`, `reason?` / `map?`, `dry_run=true` | §11.8; `finish_refactor` returns the mapped / ambiguous / lost report and applies location edits when `dry_run=false` |
 | `set_spec_status` | `spec_id`, `status`, `links?` (`pr`, `commit`) | lifecycle rules (§8); `implemented` refused if contracts fail (replaces `mark_spec_resolved`) |
 
 ### 14.2 Resources & prompts
@@ -635,3 +728,6 @@ when not done; plus the MCP server registered via `claude mcp add catspec -- npx
 8. **Claims**: two agents claiming overlapping specs — second gets `CS0500`; committing into a foreign claim's files fails with `CS0501`.
 9. **MCP loop**: agent calls `get_spec_context`, writes code with `signIn`, `verify_compliance` returns `CS0203 expected login, found signIn`, agent fixes, verify returns `done: true`, `set_spec_status implemented` succeeds.
 10. **Agent can't weaken contract**: `update_spec_bindings` removing a member returns a proposal and does not write when `allow_contract_edits=false`.
+11. **Mass refactor**: renaming namespace `Identity` → `Accounts` (40 bound classes) and moving the folder in one commit. The hook shows one `CS0215`; `catspec refactor finish --apply` maps all 40 with no manual edits, ratchet entries are preserved, and the commit passes.
+12. **Ambiguous refactor**: two near-identical handlers renamed at once without a map. `finish` reports `CS0216` with candidates and changes nothing; with `--map` it succeeds.
+13. **Refactor vs claims**: `refactor start` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.

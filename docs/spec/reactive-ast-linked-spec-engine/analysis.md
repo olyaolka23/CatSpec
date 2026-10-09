@@ -309,7 +309,7 @@ agent; (c) the pre-commit gate as the backstop.
 The source plans the MVP in 5 weeks including two languages, a hook, an MCP
 server, rename detection and (implicitly) locks. With the clarifications above
 (CST editing, staged reading, ratchet, C# partial classes, golden tests per
-grammar) a realistic estimate for one engineer is **~12 weeks** (~10.5 if the C# adapter is built in parallel); see the plan.
+grammar) a realistic estimate for one engineer is **~13 weeks** (~11.5 if the C# adapter is built in parallel, including large-refactor support, §11.8 of the spec); see the plan.
 
 ---
 
