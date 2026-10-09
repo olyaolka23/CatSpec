@@ -4,7 +4,7 @@
 > This file is a critical re-analysis of that document. It lists what the source
 > gets right, where it is vague, contradictory or technically infeasible, and the
 > design decisions taken to resolve each point. The resulting product spec is in
-> [`02-spec.md`](./02-spec.md); the implementation plan is in [`03-plan.md`](./03-plan.md).
+> [`spec.md`](./spec.md); the implementation plan is in [`plan.md`](./plan.md).
 
 ---
 
@@ -55,7 +55,7 @@ drift the tool is meant to remove.
 | Kind | Example | Where | Committed |
 |---|---|---|---|
 | Declared (human intent) | contracts, `depends_on`, lifecycle `status` | `*.spec.md` frontmatter | yes |
-| Observed (machine facts) | which contracts were satisfied, signature fingerprints | `.specs/.lock/<spec-id>.json` | yes, generated |
+| Observed (machine facts) | which contracts were satisfied, signature fingerprints | `docs/spec/<feature>/<spec-id>.lock.json` | yes, generated |
 | Runtime (ephemeral) | agent locks, parse cache | `$(git rev-parse --git-common-dir)/catspec/` | **no** |
 
 Using the git *common* dir means all worktrees of one clone share one lock
@@ -237,7 +237,8 @@ task-level.
 
 A free-text global document cannot be checked for contradictions.
 
-**Decision.** `architecture.md` is a spec of `type: architecture` whose rules are
+**Decision.** `guidelines/architecture/ADR.md` is a spec of `type: architecture`: its body is the
+ADR log and its frontmatter holds the rules that enforce those decisions. The rules are
 **global**: layer/import boundaries (`forbid_import from: src/Domain/** to: src/Infrastructure/**`),
 naming conventions (`*Handler` must implement `IMessageHandler<…>`),
 forbidden calls. They are checked over all source files, using the same rule engine.
@@ -273,7 +274,7 @@ message, and machine-readable `expected` / `actual` / `suggestions`
 A binary called `spec` collides with existing tools and is ungoogleable.
 
 **Decision.** Product **CatSpec**, binary `catspec`, spec files `*.spec.md`,
-config `.specs/catspec.yaml`. (`*.spec.md` can clash with test naming in some
+config `catspec.yaml` at the repo root, specs in `docs/spec/<feature>/`. (`*.spec.md` can clash with test naming in some
 JS repos — the glob is configurable.)
 
 ### F-16. Performance is unstated but critical for a hook

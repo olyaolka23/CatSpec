@@ -1,7 +1,7 @@
 # CatSpec — Implementation Plan (MVP v0.1)
 
-> Implements [`02-spec.md`](./02-spec.md). Finding references `F-n` point to
-> [`01-analysis.md`](./01-analysis.md). Estimates assume one experienced
+> Implements [`spec.md`](./spec.md). Finding references `F-n` point to
+> [`analysis.md`](./analysis.md). Estimates assume one experienced
 > TypeScript engineer; parallelisable work is marked ⇄.
 
 ## 0. Principles
@@ -41,8 +41,8 @@ Tasks
 1. npm workspaces monorepo: `packages/{core,lang,lang-typescript,lang-csharp,cli,mcp,catspec}`.
 2. TypeScript 5 strict, ESM, `tsup` builds, `vitest`, `eslint` + `prettier`, `changesets` for versioning.
 3. GitHub Actions for **this repo** (lint, typecheck, test on Linux/macOS/Windows, Node 20/22).
-4. `fixtures/` directory convention: `fixtures/<name>/{repo files, .specs/, expected.json}`.
-5. CONTRIBUTING, issue templates, ADR folder `docs/spec/project/adr/` (record decisions F-1…F-19 as ADRs 0001–00xx).
+4. `fixtures/` directory convention: `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, guidelines/architecture/ADR.md, expected.json}`.
+5. CONTRIBUTING, issue templates, keep `guidelines/architecture/ADR.md` up to date (decisions F-1…F-19 are already logged there as ADR-001…).
 
 Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 
@@ -51,7 +51,7 @@ Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 ## M1 — Spec model, lint, DAG (1.5 w)
 
 Tasks
-1. **Config** (`core/config`): zod schema for `catspec.yaml`, defaults, discovery (walk up to git root), JSON Schema export (`zod-to-json-schema`) into `schemas/`.
+1. **Config** (`core/config`): zod schema for `catspec.yaml`, defaults, discovery of root `catspec.yaml` (walk up to git root), JSON Schema export (`zod-to-json-schema`) into `schemas/`.
 2. **Frontmatter parser** (`core/spec/parse`): split `---` block with exact offsets; parse with `yaml` `parseDocument` (keep CST + line positions for diagnostics).
 3. **Spec schema** (`core/spec/schema`): zod for §5.2–5.3, §6; shorthand normalisation (`members: ["login"]` → member objects); position mapping from zod issue path → YAML node range → `specLocation`.
 4. **Body parser** (`core/spec/body`): remark → extract `[rule:id]`/`[binding:id]` refs, `Contracts`/`Invariants` bullets, task checkboxes.
@@ -59,7 +59,7 @@ Tasks
 6. **DAG** (`core/graph`): build, Tarjan SCC for cycles (report full cycle path), unknown deps, topological order, `ready` computation (status-only for now).
 7. **CST editor** (`core/spec/edit`): `applyPatch(spec, ops)` via `Document.setIn/deleteIn`; byte-for-byte preservation of body; golden round-trip suite (comments, quotes, flow vs block sequences, CRLF).
 8. **Diagnostics core**: `Diagnostic` type, code registry (code → default severity, docs URL), text + json reporters.
-9. **CLI skeleton** (`commander`): global flags, exit codes, `init`, `lint`, `list`, `show`, `graph --format mermaid|dot|json`.
+9. **CLI skeleton** (`commander`): global flags, exit codes, `init` (feature-folder layout, starter `ADR.md`, `--agents` writes layout rules to `AGENTS.md`), `lint` (incl. CS0106 layout and CS0112 ADR-id checks), `list`, `show`, `graph --format mermaid|dot|json`.
 
 Tests: schema unit tests per field; ~20 fixture specs (valid/invalid); DAG cycle cases; CST round-trip property test (fast-check: random edits on random valid docs keep the body untouched and re-parse equal).
 
@@ -171,7 +171,7 @@ Tasks
 5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf; Claude Code `Stop` hook recipe calling `catspec verify` (F-18).
 6. Test harness: in-process MCP client driving the server over a fixture repo; scripted "agent loop" test for acceptance 9; acceptance 10.
 
-Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/spec/mcp-server/examples/`.
+Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/spec/reactive-ast-linked-spec-engine/examples/`.
 
 Done when: acceptance 9, 10 pass in automated tests and once manually in Claude Code.
 
@@ -196,7 +196,7 @@ Done when: acceptance 7, 8 pass; race test stable.
 Tasks
 1. Performance: synthetic 10k-file generator (TS + C#), benchmark job asserting budgets (F-16); profile and fix hot spots (likely: globbing, cache I/O → batch reads).
 2. Robustness: fuzz adapters with random/truncated files (no throws), huge files skip with CS0901 above size limit.
-3. Docs (in `docs/spec/project/guides/`, per `AGENTS.md`): quick start (5 minutes), spec format reference, rule catalogue, diagnostics reference (generated from code registry), agent integration, FAQ on syntactic limits (F-5).
+3. User docs (feature folder `docs/spec/catspec-user-guide/`, per `AGENTS.md`): quick start (5 minutes), spec format reference, rule catalogue, diagnostics reference (generated from code registry), agent integration, FAQ on syntactic limits (F-5).
 4. `catspec` meta-package, `npx catspec init` smoke test on clean machines (CI matrix).
 5. Example repos: `examples/ts-auth-service` (requirements' `AuthService` journey), `examples/dotnet-user-sync` (`UserUpdatedHandler`).
 6. Release 0.1.0 with changesets; announce limitations clearly.

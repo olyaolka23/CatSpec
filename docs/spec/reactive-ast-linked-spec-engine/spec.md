@@ -1,8 +1,8 @@
 # CatSpec — Product & Technical Specification (MVP, v0.1)
 
 > CatSpec is an implementation of the *Reactive AST-Linked Spec Engine* idea.
-> Design decisions marked `F-n` are justified in [`01-analysis.md`](./01-analysis.md).
-> The build order is in [`03-plan.md`](./03-plan.md).
+> Design decisions marked `F-n` are justified in [`analysis.md`](./analysis.md).
+> The build order is in [`plan.md`](./plan.md).
 
 ## 1. Purpose
 
@@ -40,7 +40,7 @@ extension points for each.
 
 | Persona | Uses |
 |---|---|
-| Tech lead / architect | writes specs and `architecture.md`, reviews DAG and coverage |
+| Tech lead / architect | writes specs and `guidelines/architecture/ADR.md`, reviews DAG and coverage |
 | Developer | implements specs, gets fast hook feedback, heals renames |
 | AI coding agent (Claude Code, Cursor, Windsurf) | reads context, self-verifies, claims specs via MCP/CLI |
 
@@ -65,27 +65,48 @@ extension points for each.
 
 ## 3. Repository layout
 
+Default layout. CatSpec uses **feature folders**: every spec, and the human docs
+that go with it, lives in a folder named after its feature (epic).
+
 ```
 <repo>/
-  .specs/
-    catspec.yaml              # config (§4)
-    architecture.md           # global spec, type: architecture (optional)
-    features/…/*.spec.md      # specs (any layout; discovered by glob)
-    .lock/<spec-id>.json      # generated, committed (§7)
-  <git-common-dir>/catspec/   # runtime, NOT committed (§9)
+  catspec.yaml                          # config (§4)
+  guidelines/
+    architecture/
+      ADR.md                            # architecture spec, type: architecture (§6.4):
+                                        #   frontmatter = global rules, body = ADR log
+  docs/spec/
+    <feature>/                          # kebab-case full feature/epic name, e.g. react-sdd
+      analysis.md                       # human docs (optional, opaque to the engine)
+      spec.md
+      plan.md
+      tasks.md
+      <spec-id>.spec.md                 # machine spec(s) of this feature (§5)
+      <spec-id>.lock.json               # generated, committed, next to its spec (§7)
+  <git-common-dir>/catspec/             # runtime, NOT committed (§9)
     claims/<spec-id>.json
     cache/<blob-sha>.json
 ```
 
+- `catspec init` creates this layout, a starter `ADR.md`, and an example feature folder
+  with `spec.md`, `plan.md` and one `*.spec.md`. `catspec init --agents` also appends
+  the layout rules to `AGENTS.md` (created if missing) so coding agents follow them.
+- `catspec lint` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
+  or sits deeper than one folder level, and when the architecture spec is not at the
+  configured path. Teams with another layout set `layout: free` in the config.
+- Human docs (`analysis.md`, `spec.md`, `plan.md`, `tasks.md`) never match the spec glob
+  (`*.spec.md` requires the `.spec.md` suffix), so the engine ignores them.
+
 ---
 
-## 4. Configuration — `.specs/catspec.yaml`
+## 4. Configuration — `catspec.yaml` (repo root)
 
 ```yaml
 version: 1
+layout: feature-folders  # feature-folders | free
 specs:
-  include: [".specs/**/*.spec.md", "docs/specs/**/*.spec.md"]
-  architecture: ".specs/architecture.md"
+  include: ["docs/spec/*/*.spec.md"]
+  architecture: "guidelines/architecture/ADR.md"
 languages:
   typescript:
     include: ["src/**/*.{ts,tsx}"]
@@ -252,6 +273,8 @@ The body is otherwise opaque and returned verbatim to agents.
 | `naming` | symbols of `kind` matching `name` must satisfy `implements` / `extends` / `attributes` / `in_path` | |
 | `must_not_exist` | a symbol pattern must not exist (deprecations) | `symbol`, `kind` |
 
+Common rule fields: `id`, `class`, `message` (optional custom text), `adr` (ADR id the rule
+enforces, §6.4) and `paths` (glob list narrowing the files checked).
 `within` scopes a rule to a binding (or `binding.member`); without it the scope is
 the spec's resolved files. In `architecture` specs the default scope is all
 configured sources.
@@ -271,7 +294,13 @@ configured sources.
 
 Queries are compiled at load time; invalid query → `CS0130`.
 
-### 6.4 Global rules (`architecture.md`)
+### 6.4 Global rules (`guidelines/architecture/ADR.md`)
+
+The architecture spec is a single file at `guidelines/architecture/ADR.md`
+(configurable via `specs.architecture`). Its frontmatter holds the global rules;
+its Markdown body is the project's Architecture Decision Record log (one
+`## ADR-NNN: <title>` section per decision, append-only). Each global rule should
+name the decision it enforces (`adr: ADR-003`); `catspec lint` reports unknown ADR ids (`CS0112`).
 
 Rules in a `type: architecture` spec apply repo-wide and are checked on every
 `check` (in `--staged` mode: on changed files only). Architecture specs have no
@@ -291,10 +320,11 @@ A waived diagnostic becomes `info` (`CS0400`); an expired waiver → error `CS04
 
 ---
 
-## 7. Lock file — `.specs/.lock/<spec-id>.json` (observed state)
+## 7. Lock file — `docs/spec/<feature>/<spec-id>.lock.json` (observed state)
 
 Generated, deterministic (sorted keys, stable formatting), committed. One file
-per spec to minimise merge conflicts. `catspec lock --rebuild` regenerates all.
+per spec, stored next to its `*.spec.md`, to minimise merge conflicts and keep a
+feature folder self-contained. `catspec lock --rebuild` regenerates all.
 
 ```json
 {
@@ -371,7 +401,7 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 
 | Command | Description |
 |---|---|
-| `catspec init [--hooks]` | create `.specs/`, `catspec.yaml`, `architecture.md` template, example spec; optionally install hooks |
+| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/ADR.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec lint` | validate spec files only: schema, ids, DAG, references, queries |
 | `catspec check [paths…] [--staged] [--spec <id>…] [--run-tests]` | full validation (lint + contracts + drift + claims); `--staged` reads the index |
 | `catspec verify <spec-id>` | check one spec, print agent-friendly report; exit code = done/not-done |
@@ -392,7 +422,7 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 Text output example:
 
 ```
-✖ user-sync-handler  .specs/features/user-sync.spec.md:12
+✖ user-sync-handler  docs/spec/user-sync/user-sync-handler.spec.md:12
   CS0204 Binding 'handler' (Identity.Handlers.UserUpdatedHandler) does not implement IMessageHandler<UserUpdatedEvent>
          found: class UserUpdatedHandler : IHandler   src/Services/Identity/Handlers/UserUpdatedHandler.cs:8:14
   CS0203 Member 'HandleAsync' missing; did you mean 'HandleUserAsync'? (:21:23)
@@ -408,12 +438,16 @@ Text output example:
 
 | Package | Responsibility | Depends on |
 |---|---|---|
-| `@catspec/core` | spec model, schema, parser, CST editor, DAG, config, rule engine, diagnostics, lock files, claims, git access | `yaml`, `zod`, `remark-parse`, `picomatch` |
-| `@catspec/lang` | adapter interface, Tree-sitter (WASM) loader, query runner, symbol normaliser, parse cache | `web-tree-sitter` |
+| `@catspec/core` | spec model, schema, parser, CST editor, DAG, config, rule engine, diagnostics, lock files, claims, git access; **defines** the `LanguageAdapter` / `FileFacts` types (§11.2) | `yaml`, `zod`, `remark-parse`, `picomatch` |
+| `@catspec/lang` | Tree-sitter (WASM) loader, query runner, symbol normaliser, parse cache | core, `web-tree-sitter` |
 | `@catspec/lang-typescript` | TS/TSX adapter + `.scm` queries + grammar WASM | `@catspec/lang` |
 | `@catspec/lang-csharp` | C# adapter | `@catspec/lang` |
 | `@catspec/cli` | `catspec` binary, reporters | core, lang-* |
-| `@catspec/mcp` | MCP server | core, `@modelcontextprotocol/sdk` |
+| `@catspec/mcp` | MCP server | core, lang-*, `@modelcontextprotocol/sdk` |
+
+Dependency direction: `core ← lang ← lang-* ← cli / mcp`. `core` never imports
+Tree-sitter or any adapter; `cli` and `mcp` inject the adapters into the engine
+(ADR-003 in `guidelines/architecture/ADR.md`).
 
 `catspec` (unscoped) is the meta-package that installs CLI + MCP + default adapters,
 so `npx catspec init` works. WASM grammars avoid native build failures (decision: portability over raw speed).
@@ -518,7 +552,7 @@ interface Diagnostic {
 
 | Range | Area | Examples |
 |---|---|---|
-| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0110 unknown ref in body, 0111 unenforced prose, 0130 invalid query |
+| CS01xx | spec lint | 0101 invalid schema, 0102 unknown key, 0103 duplicate id, 0104 unknown dependency, 0105 cycle, 0106 spec outside feature folder, 0110 unknown ref in body, 0111 unenforced prose, 0112 unknown ADR id, 0130 invalid query |
 | CS02xx | bindings | 0201 not found, 0202 ambiguous, 0203 member missing, 0204 base missing, 0205 signature mismatch, 0206 attribute missing, 0207 ctor dependency missing, 0208 visibility/export, 0210 renamed (heal), 0220 unresolvable (syntactic limit) |
 | CS03xx | drift / ratchet | 0300 drift, 0301 regression of satisfied item |
 | CS04xx | waivers | 0400 waived, 0401 expired |
