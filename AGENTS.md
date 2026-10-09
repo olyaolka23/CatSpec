@@ -34,13 +34,15 @@ docs/spec/
    rename a folder without updating every link to it.
 5. **Spec and code change together.** If code changes behaviour that a spec describes,
    update the spec in the same commit or PR.
-6. **Nowhere else.** No design notes in the repo root, no `docs/<file>.md` outside
-   `docs/spec/`, no `specs/`, `.specs/` or `design/` folders, no docs next to source code.
+6. **Nowhere else.** The only documentation folders are `docs/spec/<feature>/` (features),
+   `docs/architecture/adr/` (the ADR log, Rule 2) and `docs/guidelines/<topic>/` (project-wide
+   guidelines). No design notes in the repo root, no loose `docs/<file>.md`, no `specs/`, `.specs/`,
+   `design/` or `guidelines/` folders at the root, no docs next to source code.
 7. Use relative links. Files in the same folder link as `./spec.md`.
 
-## Rule 2: Architecture decisions live in `guidelines/architecture/reactive-ast-adr.md`
+## Rule 2: Architecture decisions live in `docs/architecture/adr/reactive-ast-adr.md`
 
-`guidelines/architecture/reactive-ast-adr.md` is the **single** architecture decision log and the
+`docs/architecture/adr/reactive-ast-adr.md` is the **single** architecture decision log and the
 architecture spec of the whole repository. Its frontmatter holds the global rules that
 CatSpec enforces (`type: architecture`); its body holds the decisions.
 
@@ -56,9 +58,10 @@ CatSpec enforces (`type: architecture`); its body holds the decisions.
    `Superseded by ADR-NNN`.
 4. **Make it checkable when possible.** If a decision can be verified in code, add a rule
    to the ADR log's frontmatter with `adr: ADR-NNN`.
-5. Don't create other ADR files or folders (`ADR.md`, `docs/adr/`, `<feature>/adr/`, `decisions/`).
-6. Other project-wide guidelines go in `guidelines/<topic>/` (e.g. `guidelines/coding/`),
-   never in `docs/spec/`.
+5. Don't create other ADR files or folders (`ADR.md`, `docs/adr/`, `<feature>/adr/`, `decisions/`,
+   or more files in `docs/architecture/adr/`).
+6. Other project-wide guidelines (coding style, testing conventions…) go in
+   `docs/guidelines/<topic>/` (e.g. `docs/guidelines/coding/`), never in `docs/spec/`.
 
 ## Exceptions
 
@@ -70,5 +73,5 @@ The standard root files stay where tools expect them: `README.md`, `AGENTS.md`,
 
 | What | Where |
 |---|---|
-| Architecture decisions & global rules | [`guidelines/architecture/reactive-ast-adr.md`](guidelines/architecture/reactive-ast-adr.md) |
+| Architecture decisions & global rules | [`docs/architecture/adr/reactive-ast-adr.md`](docs/architecture/adr/reactive-ast-adr.md) |
 | Reactive AST-Linked Spec Engine (CatSpec MVP): analysis, spec, plan | [`docs/spec/reactive-ast-linked-spec-engine/`](docs/spec/reactive-ast-linked-spec-engine/) |

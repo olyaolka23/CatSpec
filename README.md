@@ -8,7 +8,7 @@ checks them on every commit, and lets AI agents verify their own work before the
 > change. Design documents: [analysis](docs/spec/reactive-ast-linked-spec-engine/analysis.md) ·
 > [spec](docs/spec/reactive-ast-linked-spec-engine/spec.md) ·
 > [plan](docs/spec/reactive-ast-linked-spec-engine/plan.md) ·
-> [ADR log](guidelines/architecture/reactive-ast-adr.md).
+> [ADR log](docs/architecture/adr/reactive-ast-adr.md).
 
 ---
 
@@ -51,7 +51,7 @@ npx catspec init --hooks --agents
 
 ```
 catspec.yaml                               # config
-guidelines/architecture/<name>-adr.md      # architecture decisions + repo-wide rules
+docs/architecture/adr/<name>-adr.md      # architecture decisions + repo-wide rules
 docs/spec/<feature>/                       # one folder per feature / epic
   spec.md  plan.md                         # your human docs
   <spec-id>.spec.md                        # machine-checkable specs
@@ -355,7 +355,7 @@ Exit codes: `0` ok, `1` errors, `2` usage or config error, `3` internal error. W
 ## Contributing
 
 This repo is developed spec-first. Read [`AGENTS.md`](AGENTS.md) for where docs and decisions live,
-the [ADR log](guidelines/architecture/reactive-ast-adr.md) for architecture decisions, and the
+the [ADR log](docs/architecture/adr/reactive-ast-adr.md) for architecture decisions, and the
 [design documents](docs/spec/reactive-ast-linked-spec-engine/).
 
 ## License

@@ -42,8 +42,8 @@ Tasks
 1. npm workspaces monorepo: `packages/{core,lang,lang-typescript,lang-csharp,cli,mcp,catspec}`.
 2. TypeScript 5 strict, ESM, `tsup` builds, `vitest`, `eslint` + `prettier`, `changesets` for versioning.
 3. GitHub Actions for **this repo** (lint, typecheck, test on Linux/macOS/Windows, Node 20/22).
-4. `fixtures/` directory convention: `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, guidelines/architecture/<name>-adr.md, expected.json}`.
-5. CONTRIBUTING, issue templates, keep `guidelines/architecture/reactive-ast-adr.md` up to date (decisions F-1…F-19 are already logged there as ADR-001…).
+4. `fixtures/` directory convention: `fixtures/<name>/{repo files, catspec.yaml, docs/spec/<feature>/, docs/architecture/adr/<name>-adr.md, expected.json}`.
+5. CONTRIBUTING, issue templates, keep `docs/architecture/adr/reactive-ast-adr.md` up to date (decisions F-1…F-19 are already logged there as ADR-001…).
 
 Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 

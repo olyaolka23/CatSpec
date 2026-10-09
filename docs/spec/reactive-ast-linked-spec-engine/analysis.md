@@ -237,7 +237,7 @@ task-level.
 
 A free-text global document cannot be checked for contradictions.
 
-**Decision.** The ADR log `guidelines/architecture/<name>-adr.md` is a spec of `type: architecture`: its body is the
+**Decision.** The ADR log `docs/architecture/adr/<name>-adr.md` is a spec of `type: architecture`: its body is the
 ADR log and its frontmatter holds the rules that enforce those decisions. The rules are
 **global**: layer/import boundaries (`forbid_import from: src/Domain/** to: src/Infrastructure/**`),
 naming conventions (`*Handler` must implement `IMessageHandler<…>`),

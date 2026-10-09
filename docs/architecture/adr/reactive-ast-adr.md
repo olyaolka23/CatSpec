@@ -40,7 +40,7 @@ How to add a decision (see `AGENTS.md`):
 
 Format: **Status** · **Date** · **Context** · **Decision** · **Consequences**. Detailed
 reasoning for ADR-002…ADR-012 is in
-[`docs/spec/reactive-ast-linked-spec-engine/analysis.md`](../../docs/spec/reactive-ast-linked-spec-engine/analysis.md)
+[`docs/spec/reactive-ast-linked-spec-engine/analysis.md`](../../spec/reactive-ast-linked-spec-engine/analysis.md)
 (findings `F-n`).
 
 ---
@@ -134,7 +134,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-012: Documentation layout: feature folders and a single ADR log
 
-- **Status:** Accepted · **Date:** 2026-10-09
+- **Status:** Accepted; the ADR log location is amended by ADR-017 · **Date:** 2026-10-09
 - **Context:** Spec-driven development needs every agent to find a feature's docs and the
   project's architecture decisions in a predictable place.
 - **Decision:** Each feature's docs live in `docs/spec/<feature>/` (kebab-case full epic name)
@@ -218,4 +218,16 @@ reasoning for ADR-002…ADR-012 is in
     can be driven PBI by PBI.
 - **Consequences:** Fewer commands to learn, one verb pair for anything that starts and finishes,
   and the old names never ship.
+
+## ADR-017: The ADR log moves to `docs/architecture/adr/`
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Amends:** ADR-012
+- **Context:** A separate root `guidelines/` folder split documentation across two top-level
+  places. Keeping all documentation under `docs/` is simpler for people and agents to find.
+- **Decision:** The ADR log is `docs/architecture/adr/reactive-ast-adr.md`. CatSpec's product
+  default becomes `docs/architecture/adr/<name>-adr.md` (config `specs.architecture:
+  "docs/architecture/adr/*-adr.md"`). Other project-wide guidelines go in
+  `docs/guidelines/<topic>/`. The root `guidelines/` folder is removed.
+- **Consequences:** Everything lives under `docs/`: `spec/` (features), `architecture/adr/`
+  (decisions and global rules) and `guidelines/` (conventions). Existing links were updated.
 

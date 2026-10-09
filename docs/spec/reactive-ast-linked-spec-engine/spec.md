@@ -41,7 +41,7 @@ extension points for each.
 
 | Persona | Uses |
 |---|---|
-| Tech lead / architect | writes specs and the ADR log `guidelines/architecture/<name>-adr.md`, reviews DAG and coverage |
+| Tech lead / architect | writes specs and the ADR log `docs/architecture/adr/<name>-adr.md`, reviews DAG and coverage |
 | Developer | implements specs, gets fast hook feedback, heals renames |
 | AI coding agent (Claude Code, Cursor, Windsurf) | reads context, self-verifies via MCP/CLI |
 
@@ -72,9 +72,8 @@ that go with it, lives in a folder named after its feature (epic).
 ```
 <repo>/
   catspec.yaml                          # config (§4)
-  guidelines/
-    architecture/
-      <name>-adr.md                     # architecture spec, type: architecture (§6.4):
+  docs/architecture/adr/
+    <name>-adr.md                       # architecture spec, type: architecture (§6.4):
                                         #   frontmatter = global rules, body = ADR log
   docs/spec/
     <feature>/                          # kebab-case full feature/epic name, e.g. react-sdd
@@ -112,7 +111,7 @@ workflow:
   enforce_in_hook: warn  # off | warn | error
 specs:
   include: ["docs/spec/*/*.spec.md"]
-  architecture: "guidelines/architecture/*-adr.md"   # exactly one match, else CS0107
+  architecture: "docs/architecture/adr/*-adr.md"   # exactly one match, else CS0107
 languages:
   typescript:
     include: ["src/**/*.{ts,tsx}"]
@@ -300,9 +299,9 @@ configured sources.
 
 Queries are compiled at load time; invalid query → `CS0130`.
 
-### 6.4 Global rules (`guidelines/architecture/<name>-adr.md`)
+### 6.4 Global rules (`docs/architecture/adr/<name>-adr.md`)
 
-The architecture spec is a single file at `guidelines/architecture/<name>-adr.md`
+The architecture spec is a single file at `docs/architecture/adr/<name>-adr.md`
 (configurable via `specs.architecture`). Its frontmatter holds the global rules;
 its Markdown body is the project's Architecture Decision Record log (one
 `## ADR-NNN: <title>` section per decision, append-only). Each global rule should
@@ -421,7 +420,7 @@ hook convention:
 
 | Command | Description |
 |---|---|
-| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
+| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `docs/architecture/adr/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode). `--in-progress`: only the specs whose status is `in-progress` on the current branch, i.e. the work items the agent is working on (exit 0 when there are none) |
 | `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
 | `catspec show <spec-id>` | normalised model + compliance + deps |
@@ -468,7 +467,7 @@ Text output example:
 
 Dependency direction: `core ← lang ← lang-* ← cli / mcp`. `core` never imports
 Tree-sitter or any adapter; `cli` and `mcp` inject the adapters into the engine
-(ADR-003 in this repo's `guidelines/architecture/reactive-ast-adr.md`).
+(ADR-003 in this repo's `docs/architecture/adr/reactive-ast-adr.md`).
 
 `catspec` (unscoped) is the meta-package that installs CLI + MCP + default adapters,
 so `npx catspec init` works. WASM grammars avoid native build failures (decision: portability over raw speed).
