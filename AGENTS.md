@@ -101,6 +101,17 @@ or a bot or review comment is not approval.
 4. Generated files that aren't Markdown (e.g. `*.lock.json` written by CatSpec) follow the
    normal review process, not this rule.
 
+## CI
+
+Every pull request runs lint, typecheck, tests and the acceptance-coverage check on Linux (Node 20
+and 22). macOS and Windows run only when the pull request has the label `full-ci-mac` or
+`full-ci-win`.
+
+**When a feature is implemented and when opening a PR, recommend which CI labels to add and why**,
+in the PR's "Recommended CI" section and to the owner. Recommend both labels when the change touches
+file paths, processes, line endings or other platform-specific code, and before ticking a PBI or
+closing a feature (its Definition of Done needs all three operating systems).
+
 ## Exceptions
 
 The standard root files stay where tools expect them: `README.md`, `AGENTS.md`,
