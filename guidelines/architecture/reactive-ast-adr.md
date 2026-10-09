@@ -197,3 +197,25 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** CatSpec works alongside existing SDD tools, and adding it to a custom
   workflow means two lines per skill. Presets for third-party tools must follow their releases
   (pinned preset versions, fixture tests). About one week is added to the MVP (plan M8).
+
+## ADR-016: Consolidated CLI naming
+
+- **Status:** Accepted · **Date:** 2026-10-09 · **Amends:** ADR-013, ADR-014, ADR-015
+- **Context:** The planned CLI had overlapping commands and inconsistent verbs (`lint` / `check` /
+  `verify`, `sync` / `refactor finish`, `stage enter|exit` vs `refactor start|finish`, and `lock`,
+  which sounds like the deferred agent locks).
+- **Decision:**
+  - `check` is the only validation command: `--specs-only` replaces `lint`, `--spec <id>` replaces `verify`.
+  - `sync` is the only command that fixes spec locations. During a refactor it does the batch
+    mapping and ends the refactor, which replaces `refactor finish`.
+  - `catspec refactor` starts a refactor; `refactor status` and `refactor abort` remain.
+  - Workflow stages use `stage start|finish` (MCP `start_stage`/`finish_stage`), and stage config
+    uses `start:`/`finish:`.
+  - `baseline --rebuild` replaces `lock --rebuild`.
+  - MCP `verify_compliance` → `check_compliance`, and `finish_refactor` → `sync_specs`.
+  - Gates `lint` → `specs_valid`, `verify` → `contracts_pass`, `adr_lint` → `adr_valid`.
+  - Workflow stages get `per: feature|spec` scope and aggregate specs (spec §17.1), so an epic
+    can be driven PBI by PBI.
+- **Consequences:** Fewer commands to learn, one verb pair for anything that starts and finishes,
+  and the old names never ship.
+

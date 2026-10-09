@@ -93,7 +93,7 @@ that go with it, lives in a folder named after its feature (epic).
 - `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and an example feature folder
   with `spec.md`, `plan.md` and one `*.spec.md`. `catspec init --agents` also appends
   the layout rules to `AGENTS.md` (created if missing) so coding agents follow them.
-- `catspec lint` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
+- `catspec check --specs-only` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
   or sits deeper than one folder level, and when the architecture spec is not at the
   configured path. Teams with another layout set `layout: free` in the config.
 - Human docs (`analysis.md`, `spec.md`, `plan.md`, `tasks.md`) never match the spec glob
@@ -306,7 +306,7 @@ The architecture spec is a single file at `guidelines/architecture/<name>-adr.md
 (configurable via `specs.architecture`). Its frontmatter holds the global rules;
 its Markdown body is the project's Architecture Decision Record log (one
 `## ADR-NNN: <title>` section per decision, append-only). Each global rule should
-name the decision it enforces (`adr: ADR-003`); `catspec lint` reports unknown ADR ids (`CS0112`).
+name the decision it enforces (`adr: ADR-003`); `catspec check --specs-only` reports unknown ADR ids (`CS0112`).
 
 Rules in a `type: architecture` spec apply repo-wide and are checked on every
 `check` (in `--staged` mode: on changed files only). Architecture specs have no
@@ -330,7 +330,7 @@ A waived diagnostic becomes `info` (`CS0400`); an expired waiver → error `CS04
 
 Generated, deterministic (sorted keys, stable formatting), committed. One file
 per spec, stored next to its `*.spec.md`, to minimise merge conflicts and keep a
-feature folder self-contained. `catspec lock --rebuild` regenerates all.
+feature folder self-contained. `catspec baseline --rebuild` regenerates all.
 
 ```json
 {
@@ -374,7 +374,7 @@ draft ──► ready ──► in-progress ──► implemented ──► depr
 | contract fails, never satisfied | — | warning | **error** | — |
 | contract fails, previously satisfied | — | **error** (ratchet) | **error** | — |
 | drift | — | info | per config | — |
-| spec-lint errors (schema, DAG) | **error** | **error** | **error** | warning |
+| spec errors (schema, DAG; `check --specs-only`) | **error** | **error** | **error** | warning |
 
 - `ready` requires all `depends_on` to exist; `in-progress` requires them to be **satisfied** (status `implemented` and passing), unless `--force`.
 - `implemented` can only be set when the spec's enforceable contracts pass (CLI and MCP enforce this).
@@ -415,22 +415,20 @@ Exit codes: `0` ok/warnings only, `1` errors found, `2` usage/config error, `3` 
 | Command | Description |
 |---|---|
 | `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `guidelines/architecture/<name>-adr.md` and an example feature folder (§3); optionally install hooks and add layout rules to `AGENTS.md` |
-| `catspec lint` | validate spec files only: schema, ids, DAG, references, queries |
-| `catspec check [paths…] [--staged] [--spec <id>…] [--run-tests]` | full validation (lint + contracts + drift); `--staged` reads the index |
-| `catspec verify <spec-id>` | check one spec, print agent-friendly report; exit code = done/not-done |
+| `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode) |
 | `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
 | `catspec show <spec-id>` | normalised model + compliance + deps |
 | `catspec graph [--format mermaid\|dot\|json] [--focus id]` | DAG export |
-| `catspec sync [--apply] [--staged]` | detect renames/moves (§11.4) and propose / apply location edits |
+| `catspec sync [--apply] [--staged] [--map f] [--partial] [--update-mentions]` | find renamed / moved symbols and fix spec locations (§11.4). One command for one rename or a thousand: during a refactor (§11.8) it maps all bindings in a batch against the refactor's baseline and ends the refactor on success |
 | `catspec accept <spec-id>` | record current shapes as accepted (drift baseline) |
 | `catspec status <spec-id> <status> [--force]` | lifecycle transition with rule checks (§8) |
 | `catspec bind <symbol> --spec <id> [--file f]` | scaffold a binding from existing code (shape copied as contract) |
-| `catspec lock [--rebuild]` | (re)generate lock files |
-| `catspec refactor start [--scope g…] [--reason r] [--allow-wip]` | begin a large refactor: record a baseline (§11.8) |
-| `catspec refactor finish [--map f] [--apply] [--partial] [--update-mentions]` / `status` / `abort` | map old → new symbols in batch, update specs and lock files |
+| `catspec baseline --rebuild` | regenerate all lock files (observed state, §7) from the current code |
+| `catspec refactor [--scope g…] [--reason r] [--allow-wip]` | start a large refactor: record a baseline of all bindings in the scope (§11.8); finish it with `catspec sync --apply` |
+| `catspec refactor status` / `catspec refactor abort` | show the active refactor (scope, branch, broken bindings so far) / drop it without edits |
 | `catspec install-hooks [--manager auto\|git\|husky\|lefthook]` / `uninstall-hooks` | |
 | `catspec next <feature>` | current workflow stage, its driver (skill / slash command / command), inputs, outputs and gates (§17) |
-| `catspec stage enter\|exit <stage> <feature> [--force]` | run the stage's entry / exit gates and apply its status transition (§17) |
+| `catspec stage start\|finish <stage> <feature> [--force]` | run the stage's start / finish gates and apply its status transition (§17) |
 | `catspec workflow show\|doctor\|snippet <stage>` | inspect, validate, and get the text to paste into a skill (§17) |
 | `catspec mcp` | start MCP server on stdio |
 | `catspec coverage` | contract satisfaction, enforcement coverage, reverse code coverage (F-3) |
@@ -530,7 +528,7 @@ Triggered when a previously resolved binding (lock file `resolved`) no longer re
 
 Body references to the old name in the Markdown (`` `OldName` ``) are reported as `info` with locations, not rewritten.
 
-This path is for a few renames per commit. Large refactorings use the batch mode in §11.8.
+Both small and large renames go through `catspec sync`; for large refactorings see §11.8.
 
 ### 11.5 Binding resolution
 
@@ -563,28 +561,28 @@ The per-binding detection in §11.4 works for a handful of renames. A large refa
 guessing, and apply every spec update as one batch in the same commit as the code.
 
 ```
-catspec refactor start --scope "src/Services/Identity/**" --reason "rename Identity to Accounts"
+catspec refactor --scope "src/Services/Identity/**" --reason "rename Identity to Accounts"
    … rename / move with the IDE, a codemod or an agent …
-catspec refactor finish --apply [--map renames.json]
+catspec sync --apply [--map renames.json]      # maps everything and ends the refactor
 git commit            # code + specs + lock files together
 ```
 
-1. **`refactor start`**
+1. **`catspec refactor`** (start)
    - Records the scope (whole repo if `--scope` is omitted), the current branch and a
      **baseline** in the runtime store: for every binding of the affected specs, its
      resolved symbol id, file, shape fingerprint, *name-free* fingerprint (shape without the
      symbol's own name and namespace) and a body-token sketch. The baseline revision is `HEAD`.
 2. **During the refactor** the hook groups all binding, drift and ratchet errors in the scope
    into **one** summary `CS0215` ("refactor in progress: 37 bindings unresolved, run
-   `catspec refactor finish`"). By default it still blocks. `start --allow-wip` lets
-   intermediate commits through, only on the branch recorded at `start`.
-   *(Post-MVP, with claims: `start` also takes an exclusive refactor claim on the scope, ADR-014.)*
-3. **`refactor finish`** maps every baseline binding that no longer resolves to its new
+   `catspec sync`"). By default it still blocks. `catspec refactor --allow-wip` lets
+   intermediate commits through, only on the branch recorded when the refactor started.
+   *(Post-MVP, with claims: starting a refactor also takes an exclusive refactor claim on the scope, ADR-014.)*
+3. **`catspec sync`** maps every baseline binding that no longer resolves to its new
    symbol, using the strongest evidence available:
 
    | # | Evidence | Confidence |
    |---|---|---|
-   | 1 | explicit rename map (`--map`, or MCP `finish_refactor`) | exact |
+   | 1 | explicit rename map (`--map`, or MCP `sync_specs`) | exact |
    | 2 | same qualified name found elsewhere (moved file) | exact |
    | 3 | namespace / module / path prefix rule (from the map, or detected when many symbols share one prefix change, e.g. `Identity.*` → `Accounts.*`) | high |
    | 4 | file rename from `git diff -M <baseline>`, same name in the new file | high |
@@ -606,9 +604,10 @@ git commit            # code + specs + lock files together
      other shape change is reported as drift as usual;
    - backticked mentions of old names in spec bodies are reported, and rewritten only with `--update-mentions`.
 
-   `finish` succeeds only when nothing in the scope is ambiguous or lost. `--partial` applies the
-   mapped part and keeps the refactor open. On success it deletes the baseline.
-4. **`refactor abort`** drops the baseline. No edits are made.
+   During a refactor, `sync --apply` succeeds only when nothing in the scope is ambiguous or lost.
+   `--partial` applies the mapped part and keeps the refactor open. On success it ends the refactor
+   and deletes the baseline.
+4. **`catspec refactor abort`** drops the baseline. No edits are made.
 
 **Rename map** (written by hand, by the agent that did the refactor, or by a codemod):
 
@@ -621,13 +620,13 @@ git commit            # code + specs + lock files together
 ```
 
 The agent that performed a refactor knows exactly what it renamed, so asking it for the map
-(MCP `finish_refactor` with `map`) is the most reliable source and removes guessing entirely.
+(MCP `sync_specs` with `map`) is the most reliable source and removes guessing entirely.
 
-**If nobody ran `refactor start`:** when one commit breaks more than
+**If nobody started a refactor:** when one commit breaks more than
 `refactor.detect_threshold` bindings (default 10), or `git diff -M` shows many renames, the hook
-prints one grouped `CS0215` instead of N separate errors and suggests `catspec refactor finish`.
-`finish` also works without `start`: the baseline is then `HEAD`. `start` is recommended for a
-refactor that spans several commits (baseline and WIP mode), but it is not required.
+prints one grouped `CS0215` instead of N separate errors and suggests `catspec sync`.
+`sync` uses the same batch matching without a refactor; the baseline is then `HEAD`. Starting a
+refactor is recommended when it spans several commits (baseline and WIP mode), but it is not required.
 
 **Moving specs themselves** is safe: a spec's identity is its `id`, not its path, and its lock
 file sits next to it, so it moves with it. A lock file without its spec gets `CS0108`.
@@ -658,7 +657,7 @@ interface Diagnostic {
 | CS04xx | waivers | 0400 waived, 0401 expired |
 | CS05xx | DAG gate / claims | 0502 deps not satisfied; reserved for post-MVP claims: 0500 claim conflict, 0501 commit touches foreign claim, 0503 refactor claim conflict |
 | CS06xx | rules | 0601 forbidden call, 0602 required call missing, 0603 forbidden import, 0604 naming, 0605 must-not-exist, 0610 query match, 0620 test symbol missing, 0621 test failed |
-| CS07xx | workflow | 0700 invalid workflow config, 0701 entry gate failed, 0702 exit gate failed, 0703 implemented spec fails final gates, 0704 driver not found, 0705 stage out of order, 0706 command gate skipped (§17.6) |
+| CS07xx | workflow | 0700 invalid workflow config, 0701 start gate failed, 0702 finish gate failed, 0703 implemented spec fails final gates, 0704 driver not found, 0705 stage out of order, 0706 command gate skipped (§17.6) |
 | CS09xx | engine | 0901 parse error in file (partial results), 0902 git unavailable |
 
 ---
@@ -691,23 +690,23 @@ root; anything outside → error.
 |---|---|---|
 | `list_specs` | `status?`, `ready_only?` | id, title, status, deps satisfied?, progress |
 | `get_spec_context` | `spec_id` | Markdown body, normalised contract (bindings, members, rules by class), dependency status, infrastructure, **current compliance** and resolved file paths, architecture rules that apply |
-| `verify_compliance` | `spec_id?`, `file_path?`, `staged?` | runs check for the spec, or for all specs bound to the file; diagnostics with expected/actual/suggestions; `done: boolean` |
+| `check_compliance` | `spec_id?`, `file_path?`, `staged?` | runs check for the spec, or for all specs bound to the file; diagnostics with expected/actual/suggestions; `done: boolean` |
 | `find_specs_for_file` | `file_path` | specs binding/scoping that file |
 | `check_dependencies` | `spec_id` | each dependency with status, satisfaction, failing items |
 | `update_spec_bindings` | `spec_id`, `patch` (JSON-merge on bindings), `dry_run=true` | returns unified diff; location edits applied if allowed; contract edits applied only if `mcp.allow_contract_edits` else returned as proposal (F-13) |
-| `start_refactor` / `finish_refactor` | `scope?`, `reason?` / `map?`, `dry_run=true` | §11.8; `finish_refactor` returns the mapped / ambiguous / lost report and applies location edits when `dry_run=false` |
-| `next_step` / `enter_stage` / `exit_stage` | `feature`, `stage?`, `force?` | §17.5; the stage driver, inputs, outputs and gate results |
+| `start_refactor` / `sync_specs` | `scope?`, `reason?` / `map?`, `dry_run=true` | §11.8; `sync_specs` returns the mapped / ambiguous / lost report and applies location edits when `dry_run=false` |
+| `next_step` / `start_stage` / `finish_stage` | `feature`, `stage?`, `force?` | §17.5; the stage driver, inputs, outputs and gate results |
 | `set_spec_status` | `spec_id`, `status`, `links?` (`pr`, `commit`) | lifecycle rules (§8); `implemented` refused if contracts fail (replaces `mark_spec_resolved`) |
 
 ### 14.2 Resources & prompts
 
 - Resources: `catspec://spec/{id}` (raw file), `catspec://architecture`, `catspec://graph` (mermaid), `catspec://diagnostics` (last check).
-- Prompts: `implement-spec(spec_id)` — workflow: get context → check dependencies → implement → verify until `done` → set status; `fix-drift(spec_id)`.
+- Prompts: `implement-spec(spec_id)` — workflow: get context → check dependencies → implement → `check_compliance` until `done` → set status; `fix-drift(spec_id)`.
 
 ### 14.3 Agent "definition of done" (F-18)
 
 Documented recipe for Claude Code: a `Stop` hook running
-`catspec verify <id> --format json` and returning the diagnostics to the agent
+`catspec check --spec <id> --format json` and returning the diagnostics to the agent
 when not done; plus the MCP server registered via `claude mcp add catspec -- npx catspec mcp`.
 
 ---
@@ -735,13 +734,13 @@ when not done; plus the MCP server registered via `claude mcp add catspec -- npx
 6. **Architecture rule**: `src/Domain/**` importing `src/Infrastructure/**` fails with `CS0603`.
 7. **DAG**: `catspec status user-sync-handler in-progress` refuses (`CS0502`) while `cdc-core-events` is not `implemented`.
 8. *(Post-MVP, ADR-014.)* **Claims**: two agents claiming overlapping specs — second gets `CS0500`; committing into a foreign claim's files fails with `CS0501`.
-9. **MCP loop**: agent calls `get_spec_context`, writes code with `signIn`, `verify_compliance` returns `CS0203 expected login, found signIn`, agent fixes, verify returns `done: true`, `set_spec_status implemented` succeeds.
+9. **MCP loop**: agent calls `get_spec_context`, writes code with `signIn`, `check_compliance` returns `CS0203 expected login, found signIn`, agent fixes, the next check returns `done: true`, `set_spec_status implemented` succeeds.
 10. **Agent can't weaken contract**: `update_spec_bindings` removing a member returns a proposal and does not write when `allow_contract_edits=false`.
-11. **Mass refactor**: renaming namespace `Identity` → `Accounts` (40 bound classes) and moving the folder in one commit. The hook shows one `CS0215`; `catspec refactor finish --apply` maps all 40 with no manual edits, ratchet entries are preserved, and the commit passes.
+11. **Mass refactor**: renaming namespace `Identity` → `Accounts` (40 bound classes) and moving the folder in one commit. The hook shows one `CS0215`; `catspec sync --apply` maps all 40 with no manual edits, ratchet entries are preserved, and the commit passes.
 12. **Ambiguous refactor**: two near-identical handlers renamed at once without a map. `finish` reports `CS0216` with candidates and changes nothing; with `--map` it succeeds.
-13. *(Post-MVP, ADR-014.)* **Refactor vs claims**: `refactor start` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.
-14. **Custom workflow**: with `preset: custom` and skills `sdd-spec/plan/task/close`, `catspec next login` names `sdd-plan` after `spec.md` exists, and `catspec stage exit close login` fails with `CS0702` (`verify`) while `login()` is missing. Once fixed, it sets `implemented`.
-15. **OpenSpec preset**: in a repo with `openspec/changes/add-login/`, `catspec stage enter archive add-login` is refused while contracts fail or tasks are unticked. After it passes, the archived change's `*.spec.md` stays enforced.
+13. *(Post-MVP, ADR-014.)* **Refactor vs claims**: `catspec refactor` over a scope another agent has claimed fails with `CS0503`; while the refactor is active, that agent's new claim in the scope is refused.
+14. **Custom workflow**: with `preset: custom` and skills `sdd-spec/plan/task/close`, `catspec next login` names `sdd-plan` after `spec.md` exists, and `catspec stage finish close login` fails with `CS0702` (`contracts_pass`) while `login()` is missing. Once fixed, it sets `implemented`.
+15. **OpenSpec preset**: in a repo with `openspec/changes/add-login/`, `catspec stage start archive add-login` is refused while contracts fail or tasks are unticked. After it passes, the archived change's `*.spec.md` stays enforced.
 16. **Doctor**: a config naming skill `sdd-plan` that doesn't exist under `skills_dir` gets `CS0704` from `catspec workflow doctor`.
 
 ---
@@ -763,14 +762,21 @@ the result and updates the spec status.
 | Concept | Meaning |
 |---|---|
 | **Feature** | the unit of work: a feature folder (`docs/spec/<feature>/`), an OpenSpec change, a Spec Kit feature folder |
-| **Stage** | one step of the workflow (`spec`, `plan`, `task`, `close`, …), ordered |
+| **Work item** | one machine spec (`<spec-id>.spec.md`) inside a feature, e.g. a PBI. Its tasks are the `## Tasks` checklist in its body (§5.4) |
+| **Aggregate spec** | a spec with no bindings and no rules, only `depends_on`, e.g. a feature that groups PBIs. Its contracts pass when all its dependencies are `implemented` |
+| **Stage** | one step of the workflow (`spec`, `plan`, `task`, `close`, …), ordered. `per: feature` stages run once for the whole feature folder; `per: spec` stages run for one work item at a time |
 | **Driver** | who performs the stage: `skill` (agent skill), `slash` (agent slash command), `command` (shell command CatSpec may run), or `manual` |
 | **Produces** | path templates of the artifacts the stage must leave behind |
-| **Gate** | a named check run on `enter` or `exit` of a stage; failing gates block the transition |
-| **Status transition** | the spec status (§8) set when a stage is entered or completed |
+| **Gate** | a named check run when a stage starts or finishes; failing gates block the transition |
+| **Status transition** | the spec status (§8) set when a stage starts or finishes |
 
-The current stage of a feature is **derived**, not stored: it's the first stage whose exit gates
-don't pass yet, given the spec status and the artifacts that exist (ADR-004: no new state files).
+The current stage of a feature (or of a work item, for `per: spec` stages) is **derived**, not
+stored: it's the first stage whose finish gates don't pass yet, given the spec status and the
+artifacts that exist (ADR-004: no new state files).
+
+Targets: `stage` commands take either a feature name or a spec id. A `per: spec` stage called with
+a feature name runs for **every** spec of that feature, which is how a whole epic is closed. Path
+templates may use `{feature}`, `{feature_dir}` and `{spec}`.
 
 ### 17.2 Configuration
 
@@ -783,21 +789,24 @@ workflow:
   skills_dir: ".claude/skills"              # where `skill:` names are resolved (<dir>/<name>/SKILL.md)
   stages:
     - id: spec
+      per: feature
       driver: { skill: sdd-spec }
       produces: ["{feature_dir}/spec.md", "{feature_dir}/*.spec.md"]
-      exit:  { gates: [lint, artifacts, contracts_declared] }
+      finish: { gates: [specs_valid, artifacts, contracts_declared] }
     - id: plan
+      per: feature
       driver: { skill: sdd-plan }
       produces: ["{feature_dir}/plan.md"]
-      exit:  { gates: [artifacts, deps_known], status: ready }
+      finish: { gates: [artifacts, deps_known], status: ready }   # sets every spec of the feature
     - id: task
+      per: spec                              # one PBI at a time
       driver: { skill: sdd-task }
-      produces: ["{feature_dir}/tasks.md"]
-      enter: { gates: [deps_ready], status: in-progress }
-      exit:  { gates: [artifacts, verify] }
+      start:  { gates: [deps_ready], status: in-progress }
+      finish: { gates: [contracts_pass] }
     - id: close
+      per: spec
       driver: { skill: sdd-close }
-      exit:  { gates: [verify, tasks_done, no_drift], status: implemented }
+      finish: { gates: [contracts_pass, tasks_done, no_drift], status: implemented }
 ```
 
 OpenSpec or Spec Kit (a preset fills in all of the above; any key can still be overridden):
@@ -812,8 +821,8 @@ workflow:
 | Preset | Feature dir | Stages → driver | CatSpec attaches |
 |---|---|---|---|
 | `catspec` (default) | `docs/spec/{feature}` | spec → plan → task → close, driven by CatSpec's MCP prompts | the gates in §17.2 |
-| `openspec` | `openspec/changes/{feature}` (machine specs: `openspec/changes/**/*.spec.md`, archived ones included) | proposal (`/openspec:proposal`) → apply (`/openspec:apply`) → archive (`/openspec:archive`) | proposal exit: `openspec validate {feature}` + `lint`; apply enter: `deps_ready` → `in-progress`; **archive enter: `verify`, `tasks_done`** → `implemented` |
-| `spec-kit` | `specs/{feature}` | specify → plan → tasks → implement (`/speckit.*` commands) | specify exit: `lint`; implement enter: `deps_ready`; implement exit: `verify`, `tasks_done` → `implemented`; `.specify/memory/constitution.md` is passed to agents as extra architecture context |
+| `openspec` | `openspec/changes/{feature}` (machine specs: `openspec/changes/**/*.spec.md`, archived ones included) | proposal (`/openspec:proposal`) → apply (`/openspec:apply`) → archive (`/openspec:archive`) | proposal finish: `openspec validate {feature}` + `specs_valid`; apply start: `deps_ready` → `in-progress`; **archive start: `contracts_pass`, `tasks_done`** → `implemented` |
+| `spec-kit` | `specs/{feature}` | specify → plan → tasks → implement (`/speckit.*` commands) | specify finish: `specs_valid`; implement start: `deps_ready`; implement finish: `contracts_pass`, `tasks_done` → `implemented`; `.specify/memory/constitution.md` is passed to agents as extra architecture context |
 | `custom` | from config | from config | from config |
 
 Preset paths and command names follow the tools' public layouts at the time of writing. They are
@@ -826,15 +835,15 @@ skills in `skills_dir`) and proposes the matching preset.
 
 | Gate | Passes when |
 |---|---|
-| `lint` | the feature's specs pass spec lint (§12, CS01xx) |
+| `specs_valid` | the feature's specs pass `catspec check --specs-only` (CS01xx) |
 | `artifacts` | every `produces` path of the stage exists and is not empty |
-| `contracts_declared` | every machine spec of the feature has at least one binding or enforceable rule |
+| `contracts_declared` | every machine spec of the feature has at least one binding or enforceable rule (aggregate specs excepted) |
 | `deps_known` | every `depends_on` id exists |
 | `deps_ready` | every dependency is `implemented` and passes (§8) |
-| `verify` | `catspec verify` is DONE for every spec of the feature |
-| `tasks_done` | every checkbox in the feature's tasks file is ticked |
+| `contracts_pass` | `catspec check --spec <id>` is DONE for every spec of the feature |
+| `tasks_done` | every checkbox is ticked: in the spec's `## Tasks` section for `per: spec` stages, in the feature's `tasks.md` (if present) for `per: feature` stages |
 | `no_drift` | no `CS0300` for the feature's specs |
-| `adr_lint` | the architecture spec passes lint, and rules reference existing ADR ids |
+| `adr_valid` | the architecture spec passes `check --specs-only`, and its rules reference existing ADR ids |
 | `command: "<shell>"` | the command exits 0 (placeholders `{feature}`, `{feature_dir}`); runs only when `workflow.allow_commands: true` |
 
 Failing gates are reported as `CS07xx` diagnostics, plus the diagnostics of the underlying check.
@@ -842,34 +851,78 @@ Failing gates are reported as `CS07xx` diagnostics, plus the diagnostics of the 
 ### 17.5 How CatSpec attaches to each step
 
 1. **CLI, called by the skill or the person:**
-   - `catspec next <feature>` names the current stage, its driver (e.g. "use skill `sdd-plan`"), the inputs to read, the files to produce and the exit gates.
-   - `catspec stage enter <stage> <feature>` runs the entry gates and applies the status. It prints the stage context and exits 1 if a gate fails.
-   - `catspec stage exit <stage> <feature>` runs the exit gates and applies the status on success.
+   - `catspec next <feature>` names the current stage, its driver (e.g. "use skill `sdd-plan`"), the inputs to read, the files to produce and the finish gates.
+   - `catspec stage start <stage> <feature>` runs the start gates and applies the status. It prints the stage context and exits 1 if a gate fails.
+   - `catspec stage finish <stage> <feature>` runs the finish gates and applies the status on success.
    - `catspec workflow show [feature]` lists the stages and where each feature currently is.
    - `catspec workflow doctor` checks the config: skill files exist, `command` tools are installed, and the preset matches what's in the repo.
-   - `catspec workflow snippet <stage>` prints a short block to paste into a skill, e.g. "First run `catspec stage enter plan {feature}`. Finish with `catspec stage exit plan {feature}` and fix everything it reports."
+   - `catspec workflow snippet <stage>` prints a short block to paste into a skill, e.g. "First run `catspec stage start plan {feature}`. End with `catspec stage finish plan {feature}` and fix everything it reports."
 2. **MCP, for agents:**
-   - `next_step`, `enter_stage` and `exit_stage` work like the CLI commands.
+   - `next_step`, `start_stage` and `finish_stage` work like the CLI commands.
    - `get_spec_context` gains a `workflow` block with the current stage, its driver and its gates.
    - One MCP prompt per stage (`stage-<id>`) is generated from the config.
 3. **Hooks (optional):** with `workflow.enforce_in_hook: warn|error` (default `warn`), the pre-commit
-   hook re-checks that `implemented` specs still pass their final stage's exit gates (`CS0703`).
+   hook re-checks that `implemented` specs still pass their final stage's finish gates (`CS0703`).
    The hook only evaluates the built-in gates, using results the `check` already computed. It never
    runs `command:` gates, so the hook's 1-second budget (§11.7) is unchanged.
-   `catspec init --agents` can add a Claude Code `Stop` hook that runs `catspec stage exit` for the
+   `catspec init --agents` can add a Claude Code `Stop` hook that runs `catspec stage finish` for the
    current stage. That makes "done" mean that the gates pass.
 
 CatSpec doesn't edit your skills. Integration means adding the two lines from
-`workflow snippet`, or having the agent call `next_step` / `exit_stage` over MCP.
+`workflow snippet`, or having the agent call `next_step` / `finish_stage` over MCP.
 
-### 17.6 Diagnostics
+### 17.6 Example: an epic with features, PBIs and tasks, using custom skills
+
+**Epic** "User account management" → one feature folder. **Features** → aggregate specs.
+**PBIs** → work-item specs. **Tasks** → the `## Tasks` checklist inside each PBI spec.
+
+```
+docs/spec/user-account-management/
+  analysis.md  spec.md  plan.md                 # human docs (sdd-spec, sdd-plan)
+  registration.spec.md        # feature (aggregate)  depends_on: [register-api, email-verification]
+  register-api.spec.md        # PBI                  depends_on: []
+  email-verification.spec.md  # PBI                  depends_on: [register-api]
+  login.spec.md               # feature (aggregate)  depends_on: [login-api, token-refresh]
+  login-api.spec.md           # PBI                  depends_on: [register-api]
+  token-refresh.spec.md       # PBI                  depends_on: [login-api]
+```
+
+Dependency order: `register-api` → (`email-verification` ∥ `login-api`) → `token-refresh`;
+then the aggregates `registration` and `login`.
+
+| # | Who | Command | What happens |
+|---|---|---|---|
+| 0 | dev, once | `catspec init --preset custom --hooks --agents` | config with the four `sdd-*` stages, pre-commit hook, `AGENTS.md` rules |
+| 0 | dev, once | `catspec workflow doctor` | confirms `sdd-spec/plan/task/close` exist under `.claude/skills` |
+| 0 | dev, once | `catspec workflow snippet task` (and spec, plan, close) | lines pasted into each skill: start with `stage start`, end with `stage finish` |
+| 1 | `/sdd-spec user-account-management` | `catspec stage start spec user-account-management` | prints the context: files to produce, finish gates |
+| 2 | sdd-spec | *(writes `spec.md` and the six `*.spec.md`; may use `catspec bind` for existing code)* | |
+| 3 | sdd-spec | `catspec stage finish spec user-account-management` | `specs_valid` (= `check --specs-only`), `artifacts`, `contracts_declared`. A typo in `depends_on` → `CS0104`, fix and repeat |
+| 4 | `/sdd-plan user-account-management` | `catspec stage start plan user-account-management` → `catspec graph user-account-management --format mermaid` | the skill orders the PBIs from the graph and writes `plan.md` |
+| 5 | sdd-plan | `catspec stage finish plan user-account-management` | `artifacts`, `deps_known` → all six specs become `ready` |
+| 6 | agent / dev | `catspec next user-account-management` | "ready: `register-api` → stage `task`, use `sdd-task`. Waiting: `email-verification`, `login-api` (on `register-api`), `token-refresh` (on `login-api`)" |
+| 7 | `/sdd-task register-api` | `catspec stage start task register-api` | `deps_ready` ✓ → `register-api` becomes `in-progress` |
+| 8 | sdd-task loop | *(implement)* → `catspec check --spec register-api` (or MCP `check_compliance`) → fix → repeat | ends when the report says `DONE`. Commits in between: the hook warns about unfinished items and blocks regressions (ratchet) |
+| 9 | sdd-task | `catspec stage finish task register-api` | `contracts_pass` |
+| 10 | `/sdd-close register-api` | `catspec stage finish close register-api` | `contracts_pass`, `tasks_done` (its `## Tasks` all ticked), `no_drift` → `implemented`; lock file updated in the same commit |
+| 11 | agent / dev | `catspec next user-account-management` | `email-verification` and `login-api` are now ready, and can run on two branches in parallel |
+| 12 | someone too early | `catspec stage start task token-refresh` | refused: `CS0701` `deps_ready`, `login-api` is not `implemented` |
+| 13 | … | steps 7–10 for `email-verification`, `login-api`, `token-refresh` | |
+| 14 | `/sdd-close registration` | `catspec stage finish close registration` | aggregate: passes because both of its PBIs are `implemented` → `implemented`. Same for `login` |
+| 15 | `/sdd-close user-account-management` | `catspec stage finish close user-account-management` | `per: spec` stage on a feature: re-checks all six specs; succeeds only when every one passes. The epic is done |
+| 16 | tech lead | `catspec coverage` · `catspec workflow show user-account-management` | contract satisfaction and the stage of every PBI |
+| later | dev | `catspec refactor --scope "src/accounts/**"` → *(rename)* → `catspec sync --apply` | a large rename keeps all six specs in sync |
+
+Over MCP, an agent does the same with `next_step`, `start_stage`, `check_compliance` and `finish_stage`.
+
+### 17.7 Diagnostics
 
 | Code | Meaning |
 |---|---|
 | CS0700 | invalid workflow config (unknown preset, stage, gate or placeholder) |
-| CS0701 | entry gate failed |
-| CS0702 | exit gate failed |
-| CS0703 | an `implemented` spec no longer passes its final stage's exit gates |
+| CS0701 | start gate failed |
+| CS0702 | finish gate failed |
+| CS0703 | an `implemented` spec no longer passes its final stage's finish gates |
 | CS0704 | driver not found (missing skill file, command not on PATH) |
-| CS0705 | stage out of order (entering a stage before the previous one's exit gates pass; `--force` to override, logged) |
+| CS0705 | stage out of order (starting a stage before the previous one's finish gates pass; `--force` to override, logged) |
 | CS0706 | `command` gate skipped because `workflow.allow_commands` is false |

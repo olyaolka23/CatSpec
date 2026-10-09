@@ -230,7 +230,7 @@ task-level.
   (informational, counted in progress).
 - A dependency is **satisfied** when its status is `implemented` **and** its
   enforceable contracts pass on the current tree.
-- Cycles, unknown ids and self-dependencies are spec-lint errors.
+- Cycles, unknown ids and self-dependencies are spec validation errors (`catspec check --specs-only`).
 - Moving a spec to `in-progress` with unsatisfied dependencies is refused (`--force` to override, logged).
 
 ### F-12. "Contradicts architecture-spec.md" is not checkable as stated
@@ -299,8 +299,8 @@ optional `until` date. Expired waivers become errors. Waivers are listed in repo
 The source says completion is decided by compiled invariants, not by the agent,
 but defines no hook into the agent loop.
 
-**Decision.** Three integration points: (a) MCP `verify_compliance` for
-self-checks; (b) `catspec verify <spec-id>` exit code for any agent harness,
+**Decision.** Three integration points: (a) MCP `check_compliance` for
+self-checks; (b) `catspec check --spec <spec-id>` exit code for any agent harness,
 e.g. a Claude Code `Stop` / `PostToolUse` hook that feeds diagnostics back to the
 agent; (c) the pre-commit gate as the backstop.
 
@@ -346,6 +346,6 @@ creative work or calls an LLM itself (spec §17, ADR-015).
 | False positives from syntactic matching | hook disabled | status-aware enforcement, ratchet, `unresolvable` diagnostics, waivers |
 | Writing specs is extra work | low adoption | `catspec bind` scaffolds bindings from existing code; MCP lets the agent draft specs |
 | Grammar/version churn in Tree-sitter | broken parsing | pin grammar WASM versions, golden tests per adapter |
-| Lock file merge conflicts | friction | one lock file per spec, sorted keys, deterministic output, `catspec lock --rebuild` |
+| Lock file merge conflicts | friction | one lock file per spec, sorted keys, deterministic output, `catspec baseline --rebuild` |
 | Agents weakening specs to pass | false "done" | contract edits disabled for MCP by default, spec changes visible in diff, ratchet |
 | Hook latency | `--no-verify` | blob-SHA cache, parse only bound/changed files, budgets tested in CI |

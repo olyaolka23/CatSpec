@@ -19,9 +19,9 @@
 | # | Milestone | Weeks | Delivers spec § | Exit criterion |
 |---|---|---|---|---|
 | M0 | Repo scaffolding | 0.5 | 11.1 | CI green on empty packages |
-| M1 | Spec model, lint, DAG | 1.5 | 4, 5, 6 (parse), 8, 10 (`init/lint/list/show/graph`) | `catspec lint` on fixture specs, CST round-trip identity |
+| M1 | Spec model, spec validation, DAG | 1.5 | 4, 5, 6 (parse), 8, 10 (`init/check --specs-only/list/show/graph`) | `catspec check --specs-only` on fixture specs, CST round-trip identity |
 | M2 | Language layer + TypeScript adapter | 1.5 | 11.2, 11.7 (cache) | golden facts for TS fixtures |
-| M3 | Rule engine & `check` (working tree) | 1.5 | 6, 11.3, 11.5, 12, 10 (`check/verify/coverage/status`) | acceptance 1, 6, 7 on TS |
+| M3 | Rule engine & `check` (working tree) | 1.5 | 6, 11.3, 11.5, 12, 10 (`check [--spec]/coverage/status`) | acceptance 1, 6, 7 on TS |
 | M4 | C# adapter ⇄ | 1.5 | 5.3 partial classes, attributes, DI | acceptance 1, 6 on C# fixtures |
 | M5 | Git: staged reading, hook, lock file, ratchet, drift | 1.5 | 7, 8, 13, 11.3 IndexProvider | acceptance 4, 5 |
 | M6 | Rename/move detection, heal, large refactors | 1.5 | 11.4, 11.6, 11.8, `sync/accept/bind/refactor` | acceptance 2, 3, 11, 12 |
@@ -49,7 +49,7 @@ Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 
 ---
 
-## M1 — Spec model, lint, DAG (1.5 w)
+## M1 — Spec model, spec validation, DAG (1.5 w)
 
 Tasks
 1. **Config** (`core/config`): zod schema for `catspec.yaml`, defaults, discovery of root `catspec.yaml` (walk up to git root), JSON Schema export (`zod-to-json-schema`) into `schemas/`.
@@ -60,11 +60,11 @@ Tasks
 6. **DAG** (`core/graph`): build, Tarjan SCC for cycles (report full cycle path), unknown deps, topological order, `ready` computation (status-only for now).
 7. **CST editor** (`core/spec/edit`): `applyPatch(spec, ops)` via `Document.setIn/deleteIn`; byte-for-byte preservation of body; golden round-trip suite (comments, quotes, flow vs block sequences, CRLF).
 8. **Diagnostics core**: `Diagnostic` type, code registry (code → default severity, docs URL), text + json reporters.
-9. **CLI skeleton** (`commander`): global flags, exit codes, `init` (feature-folder layout, starter `<name>-adr.md`, `--agents` writes layout rules to `AGENTS.md`), `lint` (incl. CS0106 layout and CS0112 ADR-id checks), `list`, `show`, `graph --format mermaid|dot|json`.
+9. **CLI skeleton** (`commander`): global flags, exit codes, `init` (feature-folder layout, starter `<name>-adr.md`, `--agents` writes layout rules to `AGENTS.md`), `check --specs-only` (incl. CS0106 layout and CS0112 ADR-id checks), `list`, `show`, `graph --format mermaid|dot|json`.
 
 Tests: schema unit tests per field; ~20 fixture specs (valid/invalid); DAG cycle cases; CST round-trip property test (fast-check: random edits on random valid docs keep the body untouched and re-parse equal).
 
-Done when: `catspec lint` reports CS01xx with correct line numbers on fixtures; `init` creates a working layout; round-trip identity holds.
+Done when: `catspec check --specs-only` reports CS01xx with correct line numbers on fixtures; `init` creates a working layout; round-trip identity holds.
 
 ---
 
@@ -97,13 +97,13 @@ Tasks
 1. **Binding resolver** (§11.5) incl. did-you-mean (Damerau-Levenshtein, same kind, same file first).
 2. **Contract evaluator**: kind, exported/visibility, implements/extends (normalised suffix), attributes, members (existence, kind, params positional with `*`, returns, modifiers, optional), `constructor.requires`. Each check emits its own item id (`binding:handler.HandleAsync`) — needed later for the ratchet.
 3. **Structural rules**: `forbid_call`, `require_call`, `forbid_import`, `allow_import_only`, `naming`, `must_not_exist`; `within` scoping by binding/member ranges.
-4. **`query` rules**: compile per language at lint time, run on scoped files, `expect: absent|present`.
+4. **`query` rules**: compile per language when specs are loaded, run on scoped files, `expect: absent|present`.
 5. **`test` rules**: resolve test symbol (existence). `--run-tests`: run `config.tests.command` with `{symbol}` placeholder; map exit code → CS0621. (Simple, opt-in.)
 6. **`manual` rules** and prose: counted in coverage, CS0111 for unreferenced prose.
 7. **Architecture spec**: global scope evaluation.
 8. **Status matrix** (§8) without ratchet (lock file comes in M5); waivers + expiry.
-9. **Commands**: `check [paths] [--spec]`, `verify <id>` (agent-oriented text: expected/found/fix per item, ends with `DONE` / `NOT DONE`), `coverage`.
-10. Promote `status` command: `implemented` only if verify passes; `in-progress` only if deps satisfied (§8).
+9. **Commands**: `check [paths] [--spec <id>] [--specs-only]` (with `--spec`: agent-oriented text, expected/found/fix per item, ends with `DONE` / `NOT DONE`), `coverage`.
+10. Promote `status` command: `implemented` only if `check --spec` passes; `in-progress` only if deps satisfied (§8).
 11. **Dogfood**: add `*.spec.md` files under `docs/spec/<feature>/` (config `specs.include: ["docs/spec/**/*.spec.md"]`) describing `core` public API (e.g. `LanguageAdapter` interface members) and run `catspec check` in CI.
 
 Tests: rule engine unit tests on synthetic `FileFacts` (no grammar); end-to-end fixture repos for acceptance 1 & 6 (TS); message wording snapshot tests (diagnostics are UX).
@@ -135,7 +135,7 @@ Tasks
 1. **Git access** (`core/git`): thin `execFile` wrapper (no shell), batched `cat-file --batch`, `ls-files -s -z`, `diff --cached -M --name-status -z`, `rev-parse --git-common-dir --show-toplevel`; clear CS0902 when git is missing.
 2. **SourceProvider**: `WorkingTreeProvider`, `IndexProvider` (staged content for both specs and sources), `RevisionProvider` (for HEAD comparisons in M6).
 3. **Staged check scope**: changed files ∪ files of specs whose spec file changed ∪ bound files resolved via lock file `resolved` paths (fast path, no repo search unless needed).
-4. **Lock file** (§7): generator, deterministic JSON writer, per-item spec hash, `lock --rebuild`.
+4. **Lock file** (§7): generator, deterministic JSON writer, per-item spec hash, `baseline --rebuild`.
 5. **Ratchet**: satisfied set update after each successful item; CS0301 on regression; item invalidation when the spec item changes.
 6. **Fingerprints & drift**: shape hashing, CS0300 for `implemented` specs, `accept <id>`.
 7. **Hook installer**: plain git, `core.hooksPath`, husky, lefthook detection; chaining/backup of foreign hooks; `uninstall-hooks`; `CATSPEC_SKIP`.
@@ -155,10 +155,10 @@ Tasks
 3. `SpecPatch` generation (location ops only), CS0210 with patch; `sync` (dry run diff) / `sync --apply`; `heal.mode=auto` in hook applies + re-stages + prints what changed.
 4. Markdown body mentions of old name → info diagnostics.
 5. `bind <symbol> --spec <id>`: scaffold binding with current shape (members, bases, ctor params) using CST insert.
-6. **Batch refactor mapping** (§11.8): baseline capture (from `HEAD` when no `refactor start`), name-free fingerprints, rename-map parser (`symbols`/`namespaces`/`paths`), prefix-rule detection, global one-to-one assignment, mapped/ambiguous/lost report.
-7. `refactor finish [--apply|--partial|--update-mentions]`: one CST batch per spec file; move lock entries (`resolved`, `satisfied`, fingerprints) to new ids; auto-accept name-only shape changes.
+6. **Batch refactor mapping** (§11.8): baseline capture (from `HEAD` when no refactor was started), name-free fingerprints, rename-map parser (`symbols`/`namespaces`/`paths`), prefix-rule detection, global one-to-one assignment, mapped/ambiguous/lost report.
+7. `sync [--apply|--map|--partial|--update-mentions]` in batch mode (always the same algorithm; during a refactor it uses its baseline and ends it on success): one CST batch per spec file; move lock entries (`resolved`, `satisfied`, fingerprints) to new ids; auto-accept name-only shape changes.
 8. Hook grouping: above `refactor.detect_threshold` broken bindings, emit one `CS0215` instead of N errors.
-9. `refactor start/status/abort`: baseline + scope + branch in the runtime store; `--allow-wip` relaxation in the hook on that branch only; MCP `start_refactor`/`finish_refactor`.
+9. `refactor` (start) / `refactor status` / `refactor abort`: baseline + scope + branch in the runtime store; `--allow-wip` relaxation in the hook on that branch only; MCP `start_refactor`/`sync_specs`.
 
 Tests: rename fixtures (class rename, method rename, rename + move, two similar candidates → ambiguous, rename + heavy body change → below threshold); a generated "namespace rename + folder move of 40 classes" fixture; a swap-like rename of two near-identical classes; acceptance 2, 3, 11, 12.
 
@@ -173,7 +173,7 @@ Tasks
 2. Tools (§14.1) with zod input schemas, text + `structuredContent` outputs; consistent error mapping (engine diagnostics are results, not protocol errors; protocol errors only for bad input / outside-root paths).
 3. Write safety: path guard, location vs contract classification of patches (shared with M6), `dry_run` default, unified diff output.
 4. Resources & prompts (§14.2).
-5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf; Claude Code `Stop` hook recipe calling `catspec verify` (F-18).
+5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf; Claude Code `Stop` hook recipe calling `catspec check --spec <id>` (F-18).
 6. Test harness: in-process MCP client driving the server over a fixture repo; scripted "agent loop" test for acceptance 9; acceptance 10.
 
 Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/spec/reactive-ast-linked-spec-engine/examples/`.
@@ -185,13 +185,13 @@ Done when: acceptance 9, 10 pass in automated tests and once manually in Claude 
 ## M8 — Workflow profiles (1 w)
 
 Tasks
-1. `workflow:` config schema (§17.2): stages, drivers, `produces` templates, enter/exit gates, status transitions, placeholders; CS0700 validation; JSON Schema export.
+1. `workflow:` config schema (§17.2): stages, drivers, `produces` templates, start/finish gates, status transitions, placeholders; CS0700 validation; JSON Schema export.
 2. Stage resolution: derive a feature's current stage from spec status + artifacts + gate results (no stored state, ADR-004).
-3. Gate runner (§17.4): `lint`, `artifacts`, `contracts_declared`, `deps_known`, `deps_ready`, `verify`, `tasks_done`, `no_drift`, `adr_lint`, `command` (guarded by `allow_commands`, `execFile` per ADR-009).
-4. CLI: `next`, `stage enter|exit [--force]`, `workflow show|doctor|snippet`.
-5. MCP: `next_step`, `enter_stage`, `exit_stage`; `workflow` block in `get_spec_context`; generated `stage-<id>` prompts.
+3. Gate runner (§17.4): `specs_valid`, `artifacts`, `contracts_declared`, `deps_known`, `deps_ready`, `contracts_pass`, `tasks_done`, `no_drift`, `adr_valid`, `command` (guarded by `allow_commands`, `execFile` per ADR-009).
+4. CLI: `next`, `stage start|finish [--force]`, `workflow show|doctor|snippet`.
+5. MCP: `next_step`, `start_stage`, `finish_stage`; `workflow` block in `get_spec_context`; generated `stage-<id>` prompts.
 6. Presets `catspec` and `custom`; presets `openspec` and `spec-kit` checked against fixture repos built from the tools' current releases (verify layouts and command names first; pin per preset version). Detection in `catspec init`.
-7. Hook: `workflow.enforce_in_hook` (CS0703). `init --agents`: optional Claude Code `Stop` hook running `catspec stage exit`.
+7. Hook: `workflow.enforce_in_hook` (CS0703). `init --agents`: optional Claude Code `Stop` hook running `catspec stage finish`.
 8. Docs: one page per preset, plus "connect your own skills" with the `snippet` output.
 
 Tests: config validation cases; gate unit tests; fixture repos for `custom` (with stub `sdd-*` skills), `openspec` and `spec-kit`; acceptance 14, 15, 16.
