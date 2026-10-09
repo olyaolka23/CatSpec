@@ -8,6 +8,6 @@ gives AI agents spec context and self-verification through an MCP server.
 
 ## Design documents
 
-1. [Requirements analysis](docs/01-analysis.md): gaps in the original idea and the decisions taken
-2. [Product & technical specification (MVP)](docs/02-spec.md)
-3. [Implementation plan](docs/03-plan.md)
+1. [Requirements analysis](docs/spec/catspec-mvp/01-analysis.md): gaps in the original idea and the decisions taken
+2. [Product & technical specification (MVP)](docs/spec/catspec-mvp/02-spec.md)
+3. [Implementation plan](docs/spec/catspec-mvp/03-plan.md)

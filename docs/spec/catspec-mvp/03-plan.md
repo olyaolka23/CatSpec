@@ -10,7 +10,7 @@
   (spec → check → diagnostics); everything after adds depth.
 - **Facts, not trees.** Adapters turn Tree-sitter trees into `FileFacts`; the rule
   engine never sees grammar nodes. Rules are tested with hand-written facts, adapters with golden files.
-- **Dogfooding.** From M3 the CatSpec repo has its own `.specs/` describing its
+- **Dogfooding.** From M3 the CatSpec repo has its own machine specs in `docs/spec/<feature>/` (see `AGENTS.md`) describing its
   packages (TypeScript adapter), and `catspec check` runs in the repo's own CI.
 - **Every milestone ends releasable** (`0.0.x` pre-releases on npm under `next`).
 
@@ -42,7 +42,7 @@ Tasks
 2. TypeScript 5 strict, ESM, `tsup` builds, `vitest`, `eslint` + `prettier`, `changesets` for versioning.
 3. GitHub Actions for **this repo** (lint, typecheck, test on Linux/macOS/Windows, Node 20/22).
 4. `fixtures/` directory convention: `fixtures/<name>/{repo files, .specs/, expected.json}`.
-5. CONTRIBUTING, issue templates, ADR folder `docs/adr/` (record decisions F-1…F-19 as ADRs 0001–00xx).
+5. CONTRIBUTING, issue templates, ADR folder `docs/spec/project/adr/` (record decisions F-1…F-19 as ADRs 0001–00xx).
 
 Done when: `npm test` and CI pass with placeholder tests on 3 OSes.
 
@@ -103,7 +103,7 @@ Tasks
 8. **Status matrix** (§8) without ratchet (lock file comes in M5); waivers + expiry.
 9. **Commands**: `check [paths] [--spec]`, `verify <id>` (agent-oriented text: expected/found/fix per item, ends with `DONE` / `NOT DONE`), `coverage`.
 10. Promote `status` command: `implemented` only if verify passes; `in-progress` only if deps satisfied (§8).
-11. **Dogfood**: add `.specs/` to this repo describing `core` public API (e.g. `LanguageAdapter` interface members) and run `catspec check` in CI.
+11. **Dogfood**: add `*.spec.md` files under `docs/spec/<feature>/` (config `specs.include: ["docs/spec/**/*.spec.md"]`) describing `core` public API (e.g. `LanguageAdapter` interface members) and run `catspec check` in CI.
 
 Tests: rule engine unit tests on synthetic `FileFacts` (no grammar); end-to-end fixture repos for acceptance 1 & 6 (TS); message wording snapshot tests (diagnostics are UX).
 
@@ -171,7 +171,7 @@ Tasks
 5. Docs: setup for Claude Code (`claude mcp add`), Claude Desktop, Cursor, Windsurf; Claude Code `Stop` hook recipe calling `catspec verify` (F-18).
 6. Test harness: in-process MCP client driving the server over a fixture repo; scripted "agent loop" test for acceptance 9; acceptance 10.
 
-Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/examples/`.
+Manual validation: run the requirements' user journey with Claude Code on the TS fixture; capture transcript in `docs/spec/mcp-server/examples/`.
 
 Done when: acceptance 9, 10 pass in automated tests and once manually in Claude Code.
 
@@ -196,7 +196,7 @@ Done when: acceptance 7, 8 pass; race test stable.
 Tasks
 1. Performance: synthetic 10k-file generator (TS + C#), benchmark job asserting budgets (F-16); profile and fix hot spots (likely: globbing, cache I/O → batch reads).
 2. Robustness: fuzz adapters with random/truncated files (no throws), huge files skip with CS0901 above size limit.
-3. Docs site (in `docs/`): quick start (5 minutes), spec format reference, rule catalogue, diagnostics reference (generated from code registry), agent integration, FAQ on syntactic limits (F-5).
+3. Docs (in `docs/spec/project/guides/`, per `AGENTS.md`): quick start (5 minutes), spec format reference, rule catalogue, diagnostics reference (generated from code registry), agent integration, FAQ on syntactic limits (F-5).
 4. `catspec` meta-package, `npx catspec init` smoke test on clean machines (CI matrix).
 5. Example repos: `examples/ts-auth-service` (requirements' `AuthService` journey), `examples/dotnet-user-sync` (`UserUpdatedHandler`).
 6. Release 0.1.0 with changesets; announce limitations clearly.
