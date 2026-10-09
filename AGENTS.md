@@ -74,4 +74,4 @@ The standard root files stay where tools expect them: `README.md`, `AGENTS.md`,
 | What | Where |
 |---|---|
 | Architecture decisions & global rules | [`docs/architecture/adr/reactive-ast-adr.md`](docs/architecture/adr/reactive-ast-adr.md) |
-| Reactive AST-Linked Spec Engine (CatSpec MVP): analysis, spec, plan | [`docs/spec/reactive-ast-linked-spec-engine/`](docs/spec/reactive-ast-linked-spec-engine/) |
+| Reactive AST-Linked Spec Engine (CatSpec MVP): analysis, spec, plan, tasks | [`docs/spec/reactive-ast-linked-spec-engine/`](docs/spec/reactive-ast-linked-spec-engine/) |

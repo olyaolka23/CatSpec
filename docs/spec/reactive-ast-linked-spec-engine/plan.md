@@ -3,6 +3,7 @@
 > Implements [`spec.md`](./spec.md). Finding references `F-n` point to
 > [`analysis.md`](./analysis.md). Estimates assume one experienced
 > TypeScript engineer; parallelisable work is marked ⇄.
+> The step-by-step breakdown into features, PBIs and tasks is in [`tasks.md`](./tasks.md).
 
 ## 0. Principles
 
