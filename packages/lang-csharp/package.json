@@ -1,0 +1,27 @@
+{
+  "name": "@catspec/lang-csharp",
+  "version": "0.0.0",
+  "description": "C# language adapter for CatSpec.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup"
+  },
+  "dependencies": {
+    "@catspec/lang": "0.0.0"
+  }
+}

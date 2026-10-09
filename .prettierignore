@@ -1,0 +1,7 @@
+# Markdown changes need the owner's approval (AGENTS.md Rule 3); don't let the formatter touch them.
+*.md
+dist
+coverage
+test-results
+fixtures
+package-lock.json
