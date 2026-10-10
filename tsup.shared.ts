@@ -4,7 +4,7 @@ import type { Options } from "tsup";
 export const packageBuild: Options = {
   entry: ["src/index.ts"],
   format: ["esm"],
-  target: "node20",
+  target: "node22",
   platform: "node",
   dts: true,
   sourcemap: true,

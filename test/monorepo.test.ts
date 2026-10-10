@@ -174,14 +174,14 @@ describe("CI workflow", () => {
     return JSON.parse(json) as string[];
   }
 
-  it("[AC-ci-pipeline-1] runs on Linux × Node 20 and 22 for every PR, and on macOS or Windows by label", () => {
+  it("[AC-ci-pipeline-1] runs on Linux × Node 22 and 24 for every PR, and on macOS or Windows by label", () => {
     expect(workflow.on.pull_request?.types).toEqual([
       "opened",
       "synchronize",
       "reopened",
       "labeled",
     ]);
-    expect(job.strategy.matrix.node).toEqual([20, 22]);
+    expect(job.strategy.matrix.node).toEqual([22, 24]);
     expect(job.strategy["fail-fast"]).toBe(false);
 
     expect(osFor([])).toEqual(["ubuntu-latest"]);

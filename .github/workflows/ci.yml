@@ -1,6 +1,6 @@
 name: CI
 
-# Every pull request and every push to main runs on Linux (Node 20 and 22).
+# Every pull request and every push to main runs on Linux (Node 22 and 24).
 # macOS and Windows run only when the pull request has the label `full-ci-mac` or `full-ci-win`;
 # adding the label starts a new run that includes them.
 on:
@@ -29,7 +29,7 @@ jobs:
           ${{ fromJSON(format('["ubuntu-latest"{0}{1}]',
             contains(github.event.pull_request.labels.*.name, 'full-ci-mac') && ',"macos-latest"' || '',
             contains(github.event.pull_request.labels.*.name, 'full-ci-win') && ',"windows-latest"' || '')) }}
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7

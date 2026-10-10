@@ -553,7 +553,7 @@ Text output example:
 
 ## D11. Engine design
 
-### D11.1 Packages (npm workspaces, TypeScript, Node ≥ 20, ESM)
+### D11.1 Packages (npm workspaces, TypeScript, Node ≥ 22.12, ESM)
 
 | Package | Responsibility | Depends on |
 |---|---|---|
