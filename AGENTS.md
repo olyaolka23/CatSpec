@@ -103,8 +103,8 @@ or a bot or review comment is not approval.
 
 ## CI
 
-Every pull request runs lint, typecheck, tests and the acceptance-coverage check on Linux (Node 20
-and 22). macOS and Windows run only when the pull request has the label `full-ci-mac` or
+Every pull request runs lint, typecheck, tests and the acceptance-coverage check on Linux (Node 22
+and 24). macOS and Windows run only when the pull request has the label `full-ci-mac` or
 `full-ci-win`.
 
 **When a feature is implemented and when opening a PR, recommend which CI labels to add and why**,

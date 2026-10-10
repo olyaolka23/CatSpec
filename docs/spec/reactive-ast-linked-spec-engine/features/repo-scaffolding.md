@@ -22,7 +22,7 @@ Feature: F0 repo-scaffolding
 
   @AC-F0-1
   Scenario: A fresh clone builds and tests on every supported platform
-    Given a fresh clone of the repository on Linux, macOS or Windows with Node 20 or 22
+    Given a fresh clone of the repository on Linux, macOS or Windows with Node 22 or 24
     When I run "npm ci" and then "npm test"
     Then every package builds
     And every test passes
@@ -60,7 +60,7 @@ Creates the npm-workspaces monorepo with every package and the shared build, tes
 ## PBI `ci-pipeline`
 Runs every check on every pull request and enforces the Definition of Done automatically.
 - depends on: `monorepo-setup`
-- [x] GitHub Actions: lint, typecheck, test on Linux × Node 20 / 22 for every PR; on macOS and Windows only when the PR has the label `full-ci-mac` or `full-ci-win`; npm cache; lint warnings fail
+- [x] GitHub Actions: lint, typecheck, test on Linux × Node 22 / 24 for every PR; on macOS and Windows only when the PR has the label `full-ci-mac` or `full-ci-win`; npm cache; lint warnings fail
 - [x] **acceptance-coverage script** (`scripts/check-acceptance.ts`): parses the `@AC-…` tags in `features/*.md`, finds which PBIs are fully ticked and which features are closed, and matches tags to test names (`[AC-…]`) and results
 - [x] the script runs as a required CI step
 - [x] PR template `.github/pull_request_template.md` with the PBI checklist (propose the text to the owner first; Rule 3)
@@ -71,7 +71,7 @@ Runs every check on every pull request and enforces the Definition of Done autom
   Scenario: CI runs on Linux for every PR, and on macOS or Windows by label
     Given a pull request
     When CI runs
-    Then lint, typecheck and tests run on Linux with Node 20 and Node 22
+    Then lint, typecheck and tests run on Linux with Node 22 and Node 24
     And they also run on macOS when the PR has the label "full-ci-mac", and on Windows when it has "full-ci-win"
 
   @AC-ci-pipeline-2

@@ -22,7 +22,7 @@ Feature: F9 release-0-1
 
   @AC-F9-1
   Scenario: Install on a clean machine
-    Given a clean Linux, macOS or Windows machine with Node 20
+    Given a clean Linux, macOS or Windows machine with Node 22.12 or newer
     When I run "npx catspec init" in a new git repository and then "npx catspec check"
     Then both succeed without a native build step
 
