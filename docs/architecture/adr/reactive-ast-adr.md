@@ -254,3 +254,15 @@ reasoning for ADR-002…ADR-012 is in
   needs, and one feature file. Progress is visible in `plan.md` §1. The acceptance-coverage
   check reads tags from `features/*.md`.
 
+## ADR-019: Runtime dependencies of `@catspec/core` and `@catspec/cli`
+
+- **Status:** Accepted · **Date:** 2026-10-10 · **Ref:** plan §D11.1, PBI `cli-skeleton`
+- **Context:** Plan §D11.1 lists `yaml`, `zod`, `remark-parse` and `picomatch` for core.
+  `remark-parse` is a unified plugin and needs `unified` to run. The CLI needs an argument
+  parser (`commander` in PBI `cli-skeleton`).
+- **Decision:** `@catspec/core` depends on `yaml`, `zod` (v4), `remark-parse` with `unified`
+  (already a dependency of `remark-parse`, so nothing extra is installed) and `picomatch`.
+  `@catspec/cli` depends on `commander` v14 (v15 requires Node ≥ 22.12, and we support Node 20).
+  New runtime dependencies need a new ADR.
+- **Consequences:** No native modules; the dependency list is the one in §D11.1 plus `unified`
+  and `commander`.
