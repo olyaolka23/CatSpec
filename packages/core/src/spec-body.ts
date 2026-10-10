@@ -7,6 +7,8 @@ import type { Heading, List, ListItem, Nodes, RootContent } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
+import { LineIndex } from "./util.js";
+
 export interface BodyReference {
   kind: "rule" | "binding";
   id: string;
@@ -50,34 +52,33 @@ export function parseBody(markdown: string, firstLine: number): SpecBody {
   const toFileLine = (line: number): number => firstLine + line - 1;
   const body: SpecBody = { references: [], contracts: [], tasks: [], adrIds: [] };
 
+  const lines = new LineIndex(markdown);
+  const at = (offset: number): { line: number; column: number } => {
+    const { line, column } = lines.position(offset);
+    return { line: toFileLine(line), column };
+  };
+
   const referencesIn = (node: Nodes): BodyReference[] => {
     const found: BodyReference[] = [];
     visit(node, (child) => {
-      if (child.type === "text" && child.position) {
+      const start = child.position?.start.offset;
+      if (start === undefined) return;
+      if (child.type === "text") {
+        // Positions come from the source, not from the decoded text (entities, indentation).
+        const source = markdown.slice(start, child.position!.end.offset);
+        let cursor = 0;
         for (const match of child.value.matchAll(REFERENCE)) {
-          const before = child.value.slice(0, match.index);
-          const newlines = before.split("\n").length - 1;
-          const column =
-            newlines === 0
-              ? child.position.start.column + match.index
-              : match.index - before.lastIndexOf("\n");
-          found.push({
-            kind: match[1] as "rule" | "binding",
-            id: match[2]!,
-            line: toFileLine(child.position.start.line + newlines),
-            column,
-          });
+          const index = source.indexOf(match[0], cursor);
+          if (index !== -1) cursor = index + match[0].length;
+          const kind = match[1] as "rule" | "binding";
+          found.push({ kind, id: match[2]!, ...at(start + Math.max(index, 0)) });
         }
-      } else if (child.type === "linkReference" && child.position) {
-        const match = /^(rule|binding):(\S+)$/.exec(child.label ?? "");
-        if (match) {
-          found.push({
-            kind: match[1] as "rule" | "binding",
-            id: match[2]!,
-            line: toFileLine(child.position.start.line),
-            column: child.position.start.column,
-          });
-        }
+      } else if (child.type === "linkReference" || child.type === "link") {
+        // `[rule:x][]` with a definition, or `[rule:x](#x)`.
+        const label = child.type === "linkReference" ? (child.label ?? "") : plainText(child);
+        const match = /^(rule|binding):(\S+)$/.exec(label.trim());
+        if (match)
+          found.push({ kind: match[1] as "rule" | "binding", id: match[2]!, ...at(start) });
       }
     });
     return found;

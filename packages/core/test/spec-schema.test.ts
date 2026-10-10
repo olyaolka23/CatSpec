@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { readSpec, type Diagnostic } from "../src/index.js";
+import { ALIAS_BOMB } from "../../../test/temp-repo.js";
+import { BindingSchema, readSpec, SpecFrontmatterSchema, type Diagnostic } from "../src/index.js";
 
 const FILE = "docs/spec/feature/login.spec.md";
 
@@ -201,7 +202,7 @@ describe("spec-schema", () => {
       ["CS0101", 12, expect.stringContaining('rules[0].class: invalid value "strctural"')],
       ["CS0101", 13, expect.stringContaining("a structural rule needs one of forbid_call")],
       ["CS0101", 15, expect.stringContaining("found forbid_call, require_call")],
-      ["CS0101", 22, "waivers[0].until: must be a valid date"],
+      ["CS0101", 22, "waivers[0].until: must be a date that exists"],
     ]);
     expect(diagnostics[3]!.suggestions).toEqual([{ message: 'did you mean "implements"?' }]);
   });
@@ -271,5 +272,74 @@ describe("spec-schema", () => {
       expect: "absent",
       adr: "ADR-003",
     });
+  });
+
+  it("accepts a binding without `constructor` through the exported schemas", () => {
+    expect(BindingSchema.safeParse({ symbol: "X" }).success).toBe(true);
+    const parsed = BindingSchema.safeParse({ symbol: "X", constructor: { requires: ["ILogger"] } });
+    expect(parsed.success && parsed.data.constructor).toEqual({ requires: ["ILogger"] });
+    expect(BindingSchema.safeParse({ symbol: "X", constructor: 5 }).success).toBe(false);
+    const frontmatter = {
+      catspec: 1,
+      id: "login",
+      type: "feature",
+      status: "draft",
+      bindings: [{ symbol: "X" }],
+    };
+    expect(SpecFrontmatterSchema.safeParse(frontmatter).success).toBe(true);
+  });
+
+  it("rejects waiver dates that don't exist", () => {
+    const until = (date: string) =>
+      readSpec(spec(["waivers:", "  - rule: r", "    reason: x", `    until: ${date}`]), FILE)
+        .diagnostics;
+    expect(until("2026-02-31").map((d) => d.message)).toEqual([
+      "waivers[0].until: must be a date that exists",
+    ]);
+    expect(until("2026-04-31")).toHaveLength(1);
+    expect(until("2028-02-29")).toEqual([]);
+  });
+
+  it("names the allowed keys of the object inside a list of alternatives", () => {
+    const { diagnostics } = readSpec(
+      spec([
+        "bindings:",
+        "  - symbol: A",
+        "    members:",
+        "      - name: run",
+        "        kidn: method",
+      ]),
+      FILE,
+    );
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]!.message).toBe(
+      'unknown key "kidn" in bindings[0].members[0]; allowed: name, kind, params, returns, modifiers, attributes, optional',
+    );
+    expect(diagnostics[0]!.suggestions).toEqual([{ message: 'did you mean "kind"?' }]);
+  });
+
+  it("resolves binding ids that contain dots in references and within", () => {
+    const { diagnostics } = readSpec(
+      spec(
+        [
+          "bindings:",
+          "  - id: a.b",
+          "    symbol: A.B",
+          "rules:",
+          "  - { id: r, class: structural, forbid_call: x, within: a.b }",
+          "  - { id: s, class: structural, forbid_call: x, within: a.b.Run }",
+        ],
+        "## Contracts\n- [binding:a.b] exists, [binding:a.b.Run] too, [rule:r] [rule:s].\n",
+      ),
+      FILE,
+    );
+    expect(diagnostics).toEqual([]);
+  });
+
+  it("reports a frontmatter with too many aliases as CS0101 instead of crashing", () => {
+    const { spec: model, diagnostics } = readSpec(ALIAS_BOMB, FILE);
+    expect(model).toBeUndefined();
+    expect(diagnostics.map((d) => d.code)).toEqual(["CS0101"]);
+    expect(diagnostics[0]!.message).toContain("can't be read");
   });
 });

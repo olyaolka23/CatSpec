@@ -90,4 +90,11 @@ describe("dependency-graph", () => {
     expect(graph.dependents("register-api")).toEqual(["email-verification", "login-api"]);
     expect(graph.edgeList()).toHaveLength(3);
   });
+
+  it("orders a spec that depends on a cycle after the whole cycle", () => {
+    const graph = new DependencyGraph(
+      specs({ aa: ["ready", ["xx"]], xx: ["ready", ["yy"]], yy: ["ready", ["xx"]] }),
+    );
+    expect(graph.topologicalOrder()).toEqual(["xx", "yy", "aa"]);
+  });
 });

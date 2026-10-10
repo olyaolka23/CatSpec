@@ -14,10 +14,11 @@ import {
   type PatchPath,
 } from "./diagnostics.js";
 import { frontmatterLocation, parseSpecSource, type SpecSource } from "./frontmatter.js";
-import { locate, schemaIssues, valueAt, type SchemaIssue } from "./schema-issues.js";
+import { describeValue, locate, schemaIssues, valueAt, type SchemaIssue } from "./schema-issues.js";
 import { parseBody, type SpecBody } from "./spec-body.js";
 import {
   BindingSchema,
+  defaultBindingId,
   FRONTMATTER_KEYS,
   RULE_CLASSES,
   RULE_SCHEMAS,
@@ -109,7 +110,15 @@ export function readSpec(
     }
   };
 
-  const root = toPlain(doc.toJS());
+  let root: unknown;
+  try {
+    root = toPlain(doc.toJS());
+  } catch (error) {
+    // For example "Excessive alias count": report the file instead of failing the whole check.
+    const reason = error instanceof Error ? error.message : String(error);
+    report("CS0101", [], `${file}: the frontmatter can't be read: ${reason}`);
+    return { diagnostics };
+  }
   if (!isMap(doc.contents) || !root || typeof root !== "object" || Array.isArray(root)) {
     report("CS0101", [], `${file}: the frontmatter must be a YAML map of keys and values`);
     return { diagnostics };
@@ -196,12 +205,16 @@ export function readSpec(
   function forEachItem(value: unknown, key: string, fn: (item: unknown, index: number) => void) {
     if (value === undefined) return;
     if (!Array.isArray(value)) {
-      report("CS0101", [key], `${key}: expected a list, found ${describe(value)}`);
+      report("CS0101", [key], `${key}: expected a list, found ${describeValue(value)}`);
       return;
     }
     value.forEach((item, index) => {
       if (item === null || typeof item !== "object" || Array.isArray(item)) {
-        report("CS0101", [key, index], `${key}[${index}]: expected a map, found ${describe(item)}`);
+        report(
+          "CS0101",
+          [key, index],
+          `${key}[${index}]: expected a map, found ${describeValue(item)}`,
+        );
       } else {
         fn(item, index);
       }
@@ -227,8 +240,8 @@ export function readSpec(
   const writtenBindingIds = rawBindingIds(data.bindings);
   for (const rule of rules) {
     if (!("within" in rule) || rule.within === undefined) continue;
-    const target = rule.within.split(".")[0]!;
-    if (writtenBindingIds.includes(target)) continue;
+    if (resolveBindingRef(rule.within, writtenBindingIds) !== undefined) continue;
+    const target = unknownBindingName(rule.within, writtenBindingIds);
     const close = didYouMean(target, writtenBindingIds);
     report(
       "CS0101",
@@ -273,8 +286,12 @@ export function readSpec(
   const known = { rule: rules.map((r) => r.id), binding: bindingIds };
   const knownRaw = { rule: rawIds(data.rules, "id"), binding: writtenBindingIds };
   for (const ref of body.references) {
-    const target = ref.kind === "binding" ? ref.id.split(".")[0]! : ref.id;
-    if (knownRaw[ref.kind].includes(target)) continue;
+    const found =
+      ref.kind === "binding"
+        ? resolveBindingRef(ref.id, knownRaw.binding)
+        : knownRaw.rule.find((id) => id === ref.id);
+    if (found !== undefined) continue;
+    const target = ref.kind === "binding" ? unknownBindingName(ref.id, knownRaw.binding) : ref.id;
     const close = didYouMean(target, known[ref.kind]);
     diagnostics.push(
       createDiagnostic("CS0110", {
@@ -362,19 +379,23 @@ function rawBindingIds(list: unknown): string[] {
     if (!item || typeof item !== "object") return [];
     const { id, symbol } = item as Record<string, unknown>;
     if (typeof id === "string") return [id];
-    if (typeof symbol === "string") return [symbol.split("#").pop()!.split(".").pop() || symbol];
+    if (typeof symbol === "string") return [defaultBindingId(symbol)];
     return [];
   });
 }
 
-const describe = (value: unknown): string =>
-  value === null || value === undefined
-    ? "nothing"
-    : Array.isArray(value)
-      ? "a list"
-      : typeof value === "object"
-        ? "a map"
-        : JSON.stringify(value);
+/**
+ * The binding a reference names: `handler` or `handler.Member`. Binding ids may contain dots, so
+ * the whole reference is tried first, then the longest binding id followed by `.`.
+ */
+function resolveBindingRef(ref: string, ids: readonly string[]): string | undefined {
+  if (ids.includes(ref)) return ref;
+  return ids.filter((id) => ref.startsWith(`${id}.`)).sort((a, b) => b.length - a.length)[0];
+}
+
+/** The name to report for an unresolved binding reference: the part before a member, if any. */
+const unknownBindingName = (ref: string, ids: readonly string[]): string =>
+  ref.includes(".") && !ids.some((id) => id.includes(".")) ? ref.split(".")[0]! : ref;
 
 const truncate = (text: string, max = 60): string =>
   text.length > max ? `${text.slice(0, max - 1)}…` : text;

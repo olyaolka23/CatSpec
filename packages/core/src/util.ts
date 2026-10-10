@@ -99,16 +99,18 @@ export async function listFiles(root: string): Promise<string[]> {
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
     const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      if (entry.isSymbolicLink()) continue;
-      const path = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
-        await walk(path);
-      } else if (entry.isFile()) {
-        files.push(relativePosix(root, path));
-      }
-    }
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.isSymbolicLink()) return;
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "node_modules" || entry.name.startsWith(".")) return;
+          await walk(path);
+        } else if (entry.isFile()) {
+          files.push(relativePosix(root, path));
+        }
+      }),
+    );
   };
   await walk(root);
   return files.sort(compareStrings);

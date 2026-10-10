@@ -1,11 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { kebabCase } from "@catspec/core";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { loadFixture } from "../../../test/fixtures.js";
 import {
   ADR_LOG,
   adrLogText,
@@ -15,7 +17,16 @@ import {
 } from "../../../test/temp-repo.js";
 import { run } from "../src/index.js";
 
-const bin = resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "bin.js");
+/**
+ * Runs the `catspec` bin entry in its own process, from source: the monorepo test rebuilds
+ * `dist/` (and empties it first) while the tests run in parallel.
+ */
+const binArgs = [
+  "--conditions=source",
+  "--import",
+  pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+  resolve(fileURLToPath(import.meta.url), "..", "..", "src", "bin.ts"),
+];
 
 const repos: TempRepo[] = [];
 afterEach(async () => {
@@ -48,8 +59,8 @@ describe("F1 spec-model", () => {
     const dir = await repo({});
     const name = kebabCase(basename(dir));
 
-    // The built binary, the way a user runs it.
-    const init = spawnSync(process.execPath, [bin, "init"], { cwd: dir, encoding: "utf8" });
+    // The bin entry in its own process, the way a user runs it.
+    const init = spawnSync(process.execPath, [...binArgs, "init"], { cwd: dir, encoding: "utf8" });
     expect(init.status, init.stderr).toBe(0);
     expect(existsSync(join(dir, "catspec.yaml"))).toBe(true);
     expect(readdirSync(join(dir, "docs", "spec", "example-feature")).sort()).toEqual([
@@ -59,7 +70,7 @@ describe("F1 spec-model", () => {
     ]);
     expect(existsSync(join(dir, "docs", "architecture", "adr", `${name}-adr.md`))).toBe(true);
 
-    const check = spawnSync(process.execPath, [bin, "check", "--specs-only"], {
+    const check = spawnSync(process.execPath, [...binArgs, "check", "--specs-only"], {
       cwd: dir,
       encoding: "utf8",
     });
@@ -282,5 +293,43 @@ describe("cli-skeleton", () => {
     const help = await catspec(dir, "--help");
     expect(help.code).toBe(0);
     expect(help.stdout).toContain("check");
+  });
+
+  it("checks the committed sample fixture without errors", async () => {
+    const fixture = await loadFixture("sample");
+    try {
+      const result = await catspec(fixture.dir, "check", "--specs-only");
+      expect(result.stderr).toBe("");
+      expect(result.code).toBe(0);
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+
+  it("finds the specs from the repository root with --config in a subfolder", async () => {
+    const dir = await repo({
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/a/aa.spec.md": specText("aa"),
+      "ci/catspec.yaml": "version: 1\n",
+    });
+    const result = await catspec(dir, "check", "--specs-only", "--config", "ci/catspec.yaml");
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("in 2 specs");
+  });
+
+  it("graph --focus keeps the dependents of a spec reached as a dependency", async () => {
+    const dir = await repo({
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/a/ff.spec.md": specText("ff", { dependsOn: ["aa"] }),
+      "docs/spec/a/aa.spec.md": specText("aa", { dependsOn: ["ff"] }),
+      "docs/spec/a/bb.spec.md": specText("bb", { dependsOn: ["aa"] }),
+      "docs/spec/a/zz.spec.md": specText("zz"),
+    });
+    const json = JSON.parse(
+      (await catspec(dir, "graph", "--format", "json", "--focus", "ff")).stdout,
+    ) as {
+      nodes: { id: string }[];
+    };
+    expect(json.nodes.map((n) => n.id)).toEqual(["aa", "bb", "ff"]);
   });
 });

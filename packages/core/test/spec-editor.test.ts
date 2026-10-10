@@ -18,6 +18,7 @@ import {
   type PatchPath,
   type SpecSource,
 } from "../src/index.js";
+import { ALIAS_BOMB } from "../../../test/temp-repo.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
 
@@ -150,21 +151,51 @@ describe("spec-cst-editor", () => {
   });
 
   it("[AC-spec-cst-editor-3] classifies a symbol change as a location edit and a member removal as a contract edit", () => {
+    const source = sourceOf(EXAMPLE);
+    const classify = (op: PatchOp) => classifyOp(op, source);
     const rename: PatchOp = { op: "set", path: ["bindings", 0, "symbol"], value: "New.Name" };
     const removeMember: PatchOp = { op: "delete", path: ["bindings", 0, "members", 1] };
-    expect(classifyOp(rename)).toBe("location");
-    expect(classifyOp(removeMember)).toBe("contract");
-    expect(classifyOp({ op: "set", path: ["bindings", 2, "file"], value: ["a.cs", "b.cs"] })).toBe(
+    expect(classify(rename)).toBe("location");
+    expect(classify(removeMember)).toBe("contract");
+    expect(classify({ op: "set", path: ["bindings", 0, "file"], value: ["a.cs", "b.cs"] })).toBe(
       "location",
     );
-    expect(classifyOp({ op: "delete", path: ["bindings", 0, "file", 1] })).toBe("location");
-    expect(classifyOp({ op: "delete", path: ["bindings", 0, "symbol"] })).toBe("contract");
-    expect(classifyOp({ op: "set", path: ["bindings", 0, "kind"], value: "class" })).toBe(
+    expect(classify({ op: "delete", path: ["bindings", 0, "file"] })).toBe("location");
+    expect(classify({ op: "delete", path: ["bindings", 0, "symbol"] })).toBe("contract");
+    expect(classify({ op: "set", path: ["bindings", 0, "kind"], value: "class" })).toBe("contract");
+    expect(classify({ op: "set", path: ["status"], value: "implemented" })).toBe("contract");
+    expect(classifyPatch([rename], source)).toBe("location");
+    expect(classifyPatch([rename, removeMember], source)).toBe("contract");
+  });
+
+  it("classifies anything that would add a binding, or a non-path file value, as a contract edit", () => {
+    const source = sourceOf(EXAMPLE);
+    const classify = (op: PatchOp) => classifyOp(op, source);
+    // bindings[1] doesn't exist: setting its symbol appends a binding.
+    expect(classify({ op: "set", path: ["bindings", 1, "symbol"], value: "Evil.Thing" })).toBe(
       "contract",
     );
-    expect(classifyOp({ op: "set", path: ["status"], value: "implemented" })).toBe("contract");
-    expect(classifyPatch([rename])).toBe("location");
-    expect(classifyPatch([rename, removeMember])).toBe("contract");
+    const noBindings = sourceOf("---\nid: x1\n---\n");
+    expect(
+      classifyOp({ op: "set", path: ["bindings", 0, "symbol"], value: "Evil.Thing" }, noBindings),
+    ).toBe("contract");
+    expect(classify({ op: "set", path: ["bindings", 0, "file"], value: { evil: true } })).toBe(
+      "contract",
+    );
+    expect(classify({ op: "set", path: ["bindings", 0, "file"], value: [] })).toBe("contract");
+    expect(classify({ op: "set", path: ["bindings", 0, "symbol"], value: "" })).toBe("contract");
+    // `file` is a single path here, so it has no items to replace.
+    expect(classify({ op: "set", path: ["bindings", 0, "file", 0], value: "a.cs" })).toBe(
+      "contract",
+    );
+    const list = sourceOf("---\nbindings:\n  - symbol: A\n    file: [a.cs, b.cs]\n---\n");
+    expect(classifyOp({ op: "delete", path: ["bindings", 0, "file", 1] }, list)).toBe("location");
+    expect(classifyOp({ op: "set", path: ["bindings", 0, "file", 2], value: "c.cs" }, list)).toBe(
+      "location",
+    );
+    expect(classifyOp({ op: "set", path: ["bindings", 0, "file", 5], value: "c.cs" }, list)).toBe(
+      "contract",
+    );
   });
 
   describe("golden edits", () => {
@@ -268,6 +299,69 @@ describe("spec-cst-editor", () => {
       const out = edit([{ op: "set", path: ["links", "pr"], value: 42 }], crlf);
       expect(out).toContain("waivers: []\r\nlinks:\r\n  pr: 42\r\n---\r\n");
       expect(out.replace(/\r\n/g, "")).not.toContain("\n");
+    });
+
+    it("quotes values that a flow collection can't hold plain", () => {
+      const text = [
+        "---",
+        "bindings:",
+        "  - symbol: A",
+        "    file: [src/a.ts]",
+        "    implements: [IFoo]",
+        "rules:",
+        "  - id: t",
+        "    class: test",
+        "    test: { symbol: A.B }",
+        "---",
+        "",
+      ].join("\n");
+      const glob = "src/**/*.{ts,tsx}";
+      const out = (ops: PatchOp[]) => applyPatch(sourceOf(text), ops);
+      expect(out([{ op: "set", path: ["bindings", 0, "file", 0], value: glob }])).toContain(
+        '    file: ["src/**/*.{ts,tsx}"]\n',
+      );
+      expect(out([{ op: "set", path: ["bindings", 0, "file", 1], value: glob }])).toContain(
+        '    file: [src/a.ts, "src/**/*.{ts,tsx}"]\n',
+      );
+      expect(
+        out([{ op: "set", path: ["bindings", 0, "implements", 0], value: "IHandler<A, B>" }]),
+      ).toContain('    implements: ["IHandler<A, B>"]\n');
+      expect(out([{ op: "set", path: ["rules", 0, "test", "symbol"], value: "A, B" }])).toContain(
+        '    test: { symbol: "A, B" }\n',
+      );
+    });
+
+    it("finds list items and keys behind anchors, tags and comments", () => {
+      const text = [
+        "---",
+        "id: x1",
+        "owners:",
+        "  - &o alice",
+        "  - !!str bob",
+        "  - # a note",
+        "    carol",
+        "scope: *o",
+        "&k extra: 1",
+        "---",
+        "",
+      ].join("\n");
+      const out = (ops: PatchOp[]) => applyPatch(sourceOf(text), ops);
+      expect(out([{ op: "set", path: ["id"], value: "x2" }])).toBe(
+        text.replace("id: x1", "id: x2"),
+      );
+      expect(out([{ op: "delete", path: ["owners", 1] }])).toBe(
+        text.replace("  - !!str bob\n", ""),
+      );
+      expect(out([{ op: "delete", path: ["owners", 2] }])).toBe(
+        text.replace("  - # a note\n    carol\n", ""),
+      );
+      expect(out([{ op: "delete", path: ["extra"] }])).toBe(text.replace("&k extra: 1\n", ""));
+    });
+
+    it("refuses, instead of crashing, a frontmatter with too many aliases", () => {
+      expect(() =>
+        applyPatch(sourceOf(ALIAS_BOMB), [{ op: "set", path: ["id"], value: "y" }]),
+      ).toThrow(SpecEditError);
     });
 
     it("refuses edits it can't make safely", () => {

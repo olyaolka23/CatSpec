@@ -114,4 +114,21 @@ describe("body-parser", () => {
     expect(diagnostics).toEqual([]);
     expect(spec!.title).toBe("Logging spec");
   });
+
+  it("gives reference columns from the source, and reads [rule:id](#link) references", () => {
+    const body = parseBody(
+      ["- first line", "  and [rule:nope] here", "- a &amp; [rule:q2]", "- see [rule:y](#y)"].join(
+        "\n",
+      ),
+      1,
+    );
+    expect(body.references).toEqual([
+      { kind: "rule", id: "nope", line: 2, column: 7 },
+      { kind: "rule", id: "q2", line: 3, column: 11 },
+      { kind: "rule", id: "y", line: 4, column: 7 },
+    ]);
+
+    const { diagnostics } = readSpec(withBody(["## Contracts", "- see [rule:y](#y)"]), FILE);
+    expect(diagnostics.map((d) => [d.code, d.actual])).toEqual([["CS0110", "y"]]);
+  });
 });

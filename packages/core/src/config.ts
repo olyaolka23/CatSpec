@@ -11,7 +11,7 @@ import { LineCounter, parseDocument } from "yaml";
 import * as z from "zod";
 
 import { formatPath, locate, schemaIssues } from "./schema-issues.js";
-import { listOf } from "./util.js";
+import { listOf, relativePosix } from "./util.js";
 
 export const CONFIG_FILE = "catspec.yaml";
 
@@ -138,7 +138,15 @@ export function parseConfig(text: string, file = CONFIG_FILE): CatspecConfig {
     );
   }
 
-  const value = (doc.toJS() as unknown) ?? {};
+  let value: unknown;
+  try {
+    value = (doc.toJS() as unknown) ?? {};
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new ConfigError([
+      { file, line: 1, column: 1, key: "", message: `the config can't be read: ${reason}` },
+    ]);
+  }
   const result = ConfigSchema.safeParse(value);
   if (result.success) return result.data;
 
@@ -164,7 +172,10 @@ export function parseConfig(text: string, file = CONFIG_FILE): CatspecConfig {
 
 export interface LoadedConfig {
   config: CatspecConfig;
-  /** Absolute path of the repository root: the config's folder, else the git root, else `cwd`. */
+  /**
+   * Absolute path of the repository root: the folder of the `catspec.yaml` that was found, else
+   * (no config, or `--config`) the git root, else `cwd`.
+   */
   root: string;
   /** Absolute path of the config file, if one was found. */
   file?: string;
@@ -206,9 +217,10 @@ export async function loadConfig(cwd: string, configPath?: string): Promise<Load
       { file, line: 1, column: 1, key: "", message: `config file not found: ${file}` },
     ]);
   }
-  const root = dirname(file);
-  const name = file.slice(root.length + 1);
-  return { config: parseConfig(text, name), root, file };
+  // A config given with --config may live anywhere (e.g. ci/catspec.yaml); the specs are still
+  // found from the repository root.
+  const root = configPath ? (findGitRoot(cwd) ?? resolve(cwd)) : dirname(file);
+  return { config: parseConfig(text, relativePosix(root, file)), root, file };
 }
 
 /** JSON Schema of `catspec.yaml`, for editor autocompletion. */

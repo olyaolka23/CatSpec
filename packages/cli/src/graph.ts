@@ -10,17 +10,23 @@ export type GraphFormat = (typeof GRAPH_FORMATS)[number];
 /** The ids to draw: everything, or `focus` with its transitive dependencies and dependents. */
 export function graphNodes(graph: DependencyGraph, focus?: string): string[] {
   if (focus === undefined) return [...graph.specs.keys()];
-  const keep = new Set<string>([focus]);
-  const walk = (id: string, next: (id: string) => string[]): void => {
-    for (const other of next(id)) {
-      if (keep.has(other)) continue;
-      keep.add(other);
-      walk(other, next);
+  // Two separate walks: a spec reached as a dependency still gets its own dependents visited.
+  const reach = (next: (id: string) => string[]): Set<string> => {
+    const seen = new Set<string>([focus]);
+    const stack = [focus];
+    while (stack.length > 0) {
+      for (const other of next(stack.pop()!)) {
+        if (!seen.has(other)) {
+          seen.add(other);
+          stack.push(other);
+        }
+      }
     }
+    return seen;
   };
-  walk(focus, (id) => graph.dependencies(id));
-  walk(focus, (id) => graph.dependents(id));
-  return [...graph.specs.keys()].filter((id) => keep.has(id));
+  const dependencies = reach((id) => graph.dependencies(id));
+  const dependents = reach((id) => graph.dependents(id));
+  return [...graph.specs.keys()].filter((id) => dependencies.has(id) || dependents.has(id));
 }
 
 export function formatGraph(graph: DependencyGraph, format: GraphFormat, focus?: string): string {

@@ -64,3 +64,16 @@ export function adrLogText(adrIds: string[] = ["ADR-001"], rules = "rules: []\n"
 
 /** The ADR log at its default path, so a repository passes CS0107. */
 export const ADR_LOG = "docs/architecture/adr/test-adr.md";
+
+/** A frontmatter whose aliases expand to millions of nodes ("billion laughs"). */
+export const ALIAS_BOMB = [
+  "---",
+  "id: x1",
+  "a: &a [x, x, x, x, x, x, x, x, x, x]",
+  "b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]",
+  "c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]",
+  "d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]",
+  "e: [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]",
+  "---",
+  "",
+].join("\n");

@@ -22,16 +22,7 @@ import { Command, CommanderError, Option } from "commander";
 
 import { formatGraph, GRAPH_FORMATS, type GraphFormat } from "./graph.js";
 import { initRepository } from "./init.js";
-import {
-  COLORS,
-  EXIT,
-  exitCodeFor,
-  formatJson,
-  formatText,
-  PLAIN,
-  summary,
-  type Style,
-} from "./report.js";
+import { COLORS, EXIT, exitCodeFor, formatJson, formatText, PLAIN, type Style } from "./report.js";
 
 export interface CliIo {
   /** Folder the command runs in (before `--cwd`). */
@@ -275,9 +266,8 @@ function findSpec(model: SpecModel, id: string): Spec {
 function warnAboutErrors(model: SpecModel, opts: GlobalOptions, io: CliIo): void {
   const errors = model.diagnostics.filter((d) => d.severity === "error");
   if (errors.length === 0 || opts.quiet) return;
-  io.stderr.write(
-    `catspec: ${summary({ errors: errors.length, warnings: 0, infos: 0 }).replace(/, 0 warnings$/, "")} in the specs; run \`catspec check --specs-only\`\n`,
-  );
+  const count = `${errors.length} error${errors.length === 1 ? "" : "s"}`;
+  io.stderr.write(`catspec: ${count} in the specs; run \`catspec check --specs-only\`\n`);
 }
 
 interface ListRow {

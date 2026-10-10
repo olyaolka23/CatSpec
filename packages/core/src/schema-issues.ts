@@ -91,7 +91,12 @@ function expandUnion(schema: AnySchema): AnySchema[] {
 export function valueAt(doc: Document, path: PatchPath): unknown {
   const node = doc.getIn(path, true) as Node | undefined | null;
   if (node === undefined || node === null) return undefined;
-  return isScalar(node) ? node.value : (node.toJSON() as unknown);
+  if (isScalar(node)) return node.value;
+  try {
+    return node.toJSON() as unknown;
+  } catch {
+    return undefined; // e.g. too many aliases; the caller reports the document itself
+  }
 }
 
 /**
@@ -136,13 +141,15 @@ export function locate(
 
 /**
  * Converts zod issues for the value at `basePath` (validated by `schema`) into messages. `doc`
- * gives the values that were found; `schema` the keys that are allowed.
+ * gives the values that were found; `schema` the keys that are allowed. `schemaPath` is the path
+ * `schema` validates, when the issues come from a nested schema (a union branch).
  */
 export function schemaIssues(
   issues: readonly z.core.$ZodIssue[],
   doc: Document,
   schema: AnySchema,
   basePath: PatchPath = [],
+  schemaPath: PatchPath = basePath,
 ): SchemaIssue[] {
   const out: SchemaIssue[] = [];
   for (const issue of issues) {
@@ -189,7 +196,7 @@ export function schemaIssues(
         break;
       }
       case "unrecognized_keys": {
-        const allowed = objectKeysAt(schema, path.slice(basePath.length)).filter(
+        const allowed = objectKeysAt(schema, path.slice(schemaPath.length)).filter(
           (k) => !issue.keys.includes(k),
         );
         for (const key of issue.keys) {
@@ -228,7 +235,7 @@ export function schemaIssues(
           (errors) => !errors.some((e) => e.code === "invalid_type" && e.path.length === 0),
         );
         if (branch) {
-          out.push(...schemaIssues(branch, doc, schema, path));
+          out.push(...schemaIssues(branch, doc, schema, path, schemaPath));
         } else {
           const types = issue.errors.flatMap((errors) =>
             errors.flatMap((e) => (e.code === "invalid_type" ? [article(e.expected)] : [])),

@@ -116,11 +116,16 @@ describe("config-loader", () => {
     expect(loaded.config.layout).toBe("feature-folders");
   });
 
-  it("uses --config instead of discovery, and reports a missing file", async () => {
-    const { dir } = await repo({ "config/custom.yaml": "layout: free\n" });
-    const loaded = await loadConfig(dir, "config/custom.yaml");
+  it("uses --config instead of discovery, keeps the repository root, and reports a missing file", async () => {
+    const { dir } = await repo({ "ci/catspec.yaml": "layout: free\nheal:\n  mode: never\n" });
+    await expect(loadConfig(dir, "ci/catspec.yaml")).rejects.toThrow(
+      /^ci\/catspec\.yaml:3:9: heal\.mode/,
+    );
+    const { dir: other } = await repo({ "ci/catspec.yaml": "layout: free\n" });
+    const loaded = await loadConfig(other, "ci/catspec.yaml");
     expect(loaded.config.layout).toBe("free");
-    expect(loaded.root).toBe(join(dir, "config"));
+    expect(loaded.root).toBe(other);
+    expect(loaded.file).toBe(join(other, "ci", "catspec.yaml"));
     await expect(loadConfig(dir, "nope.yaml")).rejects.toThrow(/config file not found/);
   });
 
@@ -144,5 +149,16 @@ describe("config-loader", () => {
     const config = parseConfig("workflow:\n  preset: custom\n  stages: []\n");
     expect(config.workflow).toEqual({ preset: "custom", stages: [] });
     expect(ConfigSchema.shape.workflow).toBeDefined();
+  });
+
+  it("reports a config with too many aliases as a config error", () => {
+    const bomb = [
+      "a: &a [x, x, x, x, x, x, x, x, x, x]",
+      "b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]",
+      "c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]",
+      "d: [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]",
+      "",
+    ].join("\n");
+    expect(issuesOf(bomb)[0]!.message).toContain("can't be read");
   });
 });

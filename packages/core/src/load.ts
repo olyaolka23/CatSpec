@@ -76,6 +76,9 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
   const architectureFiles = files.filter((f) => isArchitecture(f));
   const specFiles = files.filter((f) => isIncluded(f) && !architectureFiles.includes(f));
 
+  /** The specs a diagnostic is about, when it is about more than the one in its file. */
+  const involved = new Map<Diagnostic, Spec[]>();
+
   const read = async (file: string): Promise<Spec | undefined> => {
     const text = await readFile(join(root, file), "utf8");
     const result = readSpec(text, file, options);
@@ -129,8 +132,8 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
     }
   }
 
-  for (const file of specFiles) {
-    const spec = await read(file);
+  // Read in parallel, index in file order (the first file keeps a duplicated id).
+  for (const spec of await Promise.all(specFiles.map(read))) {
     if (spec) addSpec(spec);
   }
 
@@ -141,14 +144,14 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
       [existing, spec],
       [spec, existing],
     ] as const) {
-      diagnostics.push(
-        createDiagnostic("CS0103", {
-          spec: here.id,
-          specLocation: specLocation(here.source, ["id"]),
-          message: `duplicate spec id "${here.id}" in ${here.file} and ${other.file}`,
-          actual: [existing.file, spec.file],
-        }),
-      );
+      const duplicate = createDiagnostic("CS0103", {
+        spec: here.id,
+        specLocation: specLocation(here.source, ["id"]),
+        message: `duplicate spec id "${here.id}" in ${here.file} and ${other.file}`,
+        actual: [existing.file, spec.file],
+      });
+      involved.set(duplicate, [existing, spec]);
+      diagnostics.push(duplicate);
     }
   }
 
@@ -217,15 +220,24 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
   const graph = new DependencyGraph(specs.all());
   diagnostics.push(...graph.diagnostics);
 
-  // Spec errors of deprecated specs are warnings (plan §D8).
-  const lowered = diagnostics.map((d) =>
-    d.severity === "error" &&
-    d.spec &&
-    specs.get(d.spec)?.status === "deprecated" &&
-    d.code.startsWith("CS01")
-      ? { ...d, severity: "warning" as const }
-      : d,
-  );
+  for (const d of graph.diagnostics) {
+    if (d.code === "CS0105" && Array.isArray(d.actual)) {
+      involved.set(
+        d,
+        (d.actual as string[]).flatMap((id) => specs.get(id) ?? []),
+      );
+    }
+  }
+
+  // Spec errors of deprecated specs are warnings (plan §D8), unless the error also involves a
+  // spec that isn't deprecated (a cycle through an implemented spec, a duplicated id).
+  const lowered = diagnostics.map((d) => {
+    if (d.severity !== "error" || !d.code.startsWith("CS01")) return d;
+    const own = (d.specLocation && specs.byFile.get(d.specLocation.file)) ?? undefined;
+    const about = involved.get(d) ?? (own ? [own] : []);
+    const deprecated = about.length > 0 && about.every((s) => s.status === "deprecated");
+    return deprecated ? { ...d, severity: "warning" as const } : d;
+  });
 
   return {
     root,

@@ -148,4 +148,32 @@ describe("spec-loader", () => {
     expect(model.architecture?.file).toBe("docs/architecture/adr/reactive-ast-adr.md");
     expect(model.adrIds).toContain("ADR-003");
   });
+
+  it("keeps an error that also involves a spec that isn't deprecated", async () => {
+    const cycle = await load({
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/a/aa.spec.md": specText("aa", { status: "deprecated", dependsOn: ["bb"] }),
+      "docs/spec/a/bb.spec.md": specText("bb", { status: "implemented", dependsOn: ["aa"] }),
+    });
+    expect(cycle.diagnostics.map((d) => [d.code, d.severity])).toEqual([["CS0105", "error"]]);
+
+    const duplicate = await load({
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/a/login.spec.md": specText("login", { status: "deprecated" }),
+      "docs/spec/b/login.spec.md": specText("login", { status: "ready" }),
+    });
+    expect(duplicate.diagnostics.map((d) => [d.code, d.severity])).toEqual([
+      ["CS0103", "error"],
+      ["CS0103", "error"],
+    ]);
+
+    const allDeprecated = await load({
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/a/aa.spec.md": specText("aa", { status: "deprecated", dependsOn: ["bb"] }),
+      "docs/spec/a/bb.spec.md": specText("bb", { status: "deprecated", dependsOn: ["aa"] }),
+    });
+    expect(allDeprecated.diagnostics.map((d) => [d.code, d.severity])).toEqual([
+      ["CS0105", "warning"],
+    ]);
+  });
 });

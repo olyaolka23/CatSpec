@@ -36,24 +36,34 @@ import { formatPath } from "./schema-issues.js";
  */
 export type EditClass = "location" | "contract";
 
-export function classifyOp(op: PatchOp): EditClass {
+export function classifyOp(op: PatchOp, source: SpecSource): EditClass {
   const [list, index, key, item] = op.path;
   if (list !== "bindings" || typeof index !== "number") return "contract";
-  if (key === "symbol" && op.path.length === 3 && op.op === "set" && typeof op.value === "string") {
-    return "location";
+  // Only an existing binding can be moved; anything that adds a binding changes the contract.
+  const binding = source.document.getIn(["bindings", index], true) as Node | undefined;
+  if (!isMap(binding)) return "contract";
+  const isText = (value: unknown): boolean => typeof value === "string" && value.length > 0;
+
+  if (key === "symbol" && op.path.length === 3) {
+    return op.op === "set" && isText(op.value) && binding.has("symbol") ? "location" : "contract";
   }
-  if (
-    key === "file" &&
-    (op.path.length === 3 || (op.path.length === 4 && typeof item === "number"))
-  ) {
-    return "location";
+  if (key === "file" && op.path.length === 3) {
+    if (op.op === "delete") return "location";
+    const list = Array.isArray(op.value) && op.value.length > 0 && op.value.every(isText);
+    return isText(op.value) || list ? "location" : "contract";
+  }
+  if (key === "file" && op.path.length === 4 && typeof item === "number") {
+    const files = binding.get("file", true) as Node | undefined;
+    if (!isSeq(files)) return "contract";
+    if (op.op === "delete") return item < files.items.length ? "location" : "contract";
+    return item <= files.items.length && isText(op.value) ? "location" : "contract";
   }
   return "contract";
 }
 
 /** A patch is a location edit only when every operation is one. */
-export const classifyPatch = (ops: readonly PatchOp[]): EditClass =>
-  ops.every((op) => classifyOp(op) === "location") ? "location" : "contract";
+export const classifyPatch = (ops: readonly PatchOp[], source: SpecSource): EditClass =>
+  ops.every((op) => classifyOp(op, source) === "location") ? "location" : "contract";
 
 /** An edit that can't be applied without risking the file; nothing is written. */
 export class SpecEditError extends Error {
@@ -72,7 +82,16 @@ export function applyPatch(source: SpecSource, ops: readonly PatchOp[]): string 
 /** Applies `ops` to a YAML document's text, keeping everything the operations don't change. */
 export function editYaml(text: string, ops: readonly PatchOp[], eol: "\n" | "\r\n" = "\n"): string {
   let current = text;
-  for (const op of ops) current = applyOp(current, op, eol);
+  for (const op of ops) {
+    try {
+      current = applyOp(current, op, eol);
+    } catch (error) {
+      if (error instanceof SpecEditError) throw error;
+      // e.g. "Excessive alias count" from the yaml library: refuse instead of crashing.
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new SpecEditError(`can't edit ${formatPath(op.path)}: ${reason}`);
+    }
+  }
   return current;
 }
 
@@ -108,7 +127,8 @@ function applyOp(text: string, op: PatchOp, eol: string): string {
 }
 
 function parseYaml(text: string): Document.Parsed {
-  const doc = parseDocument(text);
+  // Source tokens give the exact start of list items and keys (after anchors, tags, comments).
+  const doc = parseDocument(text, { keepSourceTokens: true });
   if (doc.errors.length > 0) {
     throw new SpecEditError(
       `the frontmatter has YAML errors: ${doc.errors[0]!.message.split("\n")[0]}`,
@@ -188,7 +208,7 @@ class Splicer {
       ? (parent.items[index]!.value as Node | null)
       : (parent.items[index] as Node | null);
     if (isScalar(node) && isScalarValue(value) && !isBlockScalar(node) && node.range) {
-      return this.replaceScalar(node, value);
+      return this.replaceScalar(node, value, parent.flow === true);
     }
     return parent.flow
       ? this.flowReplace(parent, index, key, value)
@@ -235,9 +255,9 @@ class Splicer {
   }
 
   /** Replaces a scalar's text, keeping its quoting style when the new value allows it. */
-  private replaceScalar(node: Scalar, value: unknown): string {
+  private replaceScalar(node: Scalar, value: unknown, inFlow: boolean): string {
     const [start, end] = node.range!;
-    let rendered = renderScalar(value, node.type);
+    let rendered = renderScalar(value, node.type, inFlow);
     if (start === end && this.text[start - 1] === ":") rendered = ` ${rendered}`;
     return this.text.slice(0, start) + rendered + this.text.slice(end);
   }
@@ -255,7 +275,7 @@ class Splicer {
     const lines = isMap(parent) ? this.render({ [String(key)]: value }) : this.render([value]);
     // A comment at the end of the item's first line (`key: []  # note`) stays on that line.
     const comment = trailingComment(this.text, start);
-    if (comment && !lines[0]!.includes("#")) lines[0] += comment;
+    if (comment && trailingComment(lines[0]!, 0) === undefined) lines[0] += comment;
     const endsWithBreak = this.text[end - 1] === "\n";
     const replacement =
       lines.map((line, i) => (i === 0 ? line : " ".repeat(column) + line)).join(this.eol) +
@@ -297,7 +317,9 @@ class Splicer {
   /** Text of one flow collection entry: `value`, or `key: value` in a map. */
   private flowEntry(parent: YAMLMap | YAMLSeq, key: string | number, value: unknown): string {
     const rendered = this.renderFlow(value);
-    return isMap(parent) ? `${renderScalar(String(key), Scalar.PLAIN)}: ${rendered}` : rendered;
+    return isMap(parent)
+      ? `${renderScalar(String(key), Scalar.PLAIN, true)}: ${rendered}`
+      : rendered;
   }
 
   private flowReplace(
@@ -346,7 +368,7 @@ class Splicer {
 
   /** One-line flow YAML for `value`. */
   private renderFlow(value: unknown): string {
-    if (isScalarValue(value)) return renderScalar(value, Scalar.PLAIN);
+    if (isScalarValue(value)) return renderScalar(value, Scalar.PLAIN, true);
     const doc = new Document(value);
     visit(doc, {
       Map: (_, node) => void (node.flow = true),
@@ -386,13 +408,15 @@ const isBlockScalar = (node: Scalar): boolean =>
   node.type === Scalar.BLOCK_LITERAL || node.type === Scalar.BLOCK_FOLDED;
 
 /** Renders a scalar in the style of the value it replaces, quoting only when needed. */
-function renderScalar(value: unknown, type: Scalar["type"]): string {
+function renderScalar(value: unknown, type: Scalar["type"], inFlow: boolean): string {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (typeof value !== "string") return "null";
   if (value.includes("\n") || type === Scalar.QUOTE_DOUBLE) return JSON.stringify(value);
   if (type === Scalar.QUOTE_SINGLE) return `'${value.replace(/'/g, "''")}'`;
   const plain = new Document(value).toString({ lineWidth: 0 }).replace(/\n$/, "");
-  return plain.includes("\n") ? JSON.stringify(value) : plain;
+  // Inside `[...]` or `{...}`, a plain scalar can't contain the flow indicators , [ ] { }.
+  const unsafe = plain.includes("\n") || (inFlow && /[,[\]{}]/.test(plain));
+  return unsafe ? JSON.stringify(value) : plain;
 }
 
 function findPair(map: YAMLMap, key: string | number): number {
@@ -403,6 +427,21 @@ function findPair(map: YAMLMap, key: string | number): number {
 
 /** Offset where item `index` starts: the key of a pair, or the `-` of a list item. */
 function itemStart(text: string, parent: YAMLMap | YAMLSeq, index: number): number {
+  const token = parent.srcToken;
+  if (token?.type === "block-seq") {
+    // Every list item has a `-`; comment-only entries of the token list don't.
+    const items = token.items.filter((it) => it.start.some((t) => t.type === "seq-item-ind"));
+    const dash = items[index]?.start.find((t) => t.type === "seq-item-ind");
+    if (dash) return dash.offset;
+  } else if (token?.type === "block-map" && isMap(parent)) {
+    const key = parent.items[index]?.key as Node | null | undefined;
+    const item = token.items.find((it) => it.key && it.key === key?.srcToken);
+    if (item?.key) {
+      // An anchor, tag or `?` before the key belongs to the item.
+      const prop = item.start.find((t) => !["space", "newline", "comment"].includes(t.type));
+      return prop?.offset ?? item.key.offset;
+    }
+  }
   if (isMap(parent)) {
     const key = parent.items[index]!.key as Node | null;
     if (!key?.range) throw new SpecEditError("can't locate a key in the frontmatter");
@@ -463,7 +502,12 @@ function detectIndentSeq(text: string, doc: Document.Parsed): boolean {
       const key = pair.key as Node | null;
       const value = pair.value as Node | null;
       if (!isSeq(value) || value.flow || !key?.range || value.items.length === 0) return;
-      const dash = itemStart(text, value, 0);
+      let dash: number;
+      try {
+        dash = itemStart(text, value, 0);
+      } catch {
+        return undefined;
+      }
       const keyColumn = key.range[0] - lineStart(text, key.range[0]);
       indented = dash - lineStart(text, dash) > keyColumn;
       return visit.BREAK;

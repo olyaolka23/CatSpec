@@ -79,6 +79,16 @@ export const MemberSchema = z.strictObject({
 /** A member, or its name as shorthand for a name-only member of any kind. */
 export const MemberEntrySchema = z.union([text, MemberSchema]);
 
+const ConstructorSchema = z.strictObject({ requires: textList });
+/**
+ * `constructor` is also the name of a property every JavaScript object inherits, which zod reads
+ * when the key is missing; that inherited function means "not set".
+ */
+const constructorField = z.preprocess(
+  (value) => (typeof value === "function" ? undefined : value),
+  ConstructorSchema.optional(),
+);
+
 export const BindingSchema = z.strictObject({
   id: text.optional().describe("Local id; defaults to the last segment of `symbol`."),
   symbol: text.describe("Qualified name, matched by suffix: Namespace.Type or path#Name."),
@@ -88,7 +98,7 @@ export const BindingSchema = z.strictObject({
   implements: textList.optional(),
   extends: text.optional(),
   attributes: textList.optional(),
-  constructor: z.strictObject({ requires: textList }).optional(),
+  constructor: constructorField,
   members: z.array(MemberEntrySchema).optional(),
   exported: z.boolean().optional(),
 });
@@ -180,9 +190,14 @@ export const RuleSchema = z.discriminatedUnion("class", [
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, { error: "must be a date: YYYY-MM-DD" })
-  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), {
-    error: "must be a valid date",
-  });
+  .refine(
+    (value) => {
+      const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+    },
+    { error: "must be a date that exists" },
+  );
 
 export const WaiverSchema = z.strictObject({
   rule: text,
@@ -292,4 +307,13 @@ export function stripUndefined<T extends object>(value: T): DropUndefined<T> {
 
 /** JSON Schema of the spec frontmatter. */
 export const specJsonSchema = (): Record<string, unknown> =>
-  z.toJSONSchema(SpecFrontmatterSchema, { io: "input", target: "draft-2020-12" });
+  z.toJSONSchema(SpecFrontmatterSchema, {
+    io: "input",
+    target: "draft-2020-12",
+    override: (ctx) => {
+      // The preprocess step of `constructor` has no JSON Schema; describe the value it accepts.
+      if (ctx.zodSchema !== constructorField) return;
+      Object.assign(ctx.jsonSchema, z.toJSONSchema(ConstructorSchema, { io: "input" }));
+      delete ctx.jsonSchema.$schema;
+    },
+  });

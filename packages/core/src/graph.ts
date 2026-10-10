@@ -16,6 +16,8 @@ export class DependencyGraph {
   readonly cycles: string[][] = [];
 
   private readonly edges = new Map<string, string[]>();
+  /** Strongly connected components (each sorted by id); a cycle is a component of 2+ specs. */
+  private readonly components: string[][] = [];
   private readonly reverse = new Map<string, string[]>();
 
   constructor(specs: Iterable<Spec>) {
@@ -85,22 +87,32 @@ export class DependencyGraph {
   }
 
   /**
-   * Specs in dependency order: every spec comes after the specs it depends on. Ties are broken by
-   * id; specs in a cycle come after everything else that doesn't depend on them.
+   * Specs in dependency order: every spec comes after the specs it depends on, the members of a
+   * cycle together. Among the specs that can come next, the smallest id goes first.
    */
   topologicalOrder(): string[] {
-    const remaining = new Map([...this.edges].map(([id, deps]) => [id, deps.length]));
+    const componentOf = new Map<string, number>();
+    this.components.forEach((members, index) => {
+      for (const id of members) componentOf.set(id, index);
+    });
+    const waitingOn = this.components.map(() => new Set<number>());
+    const neededBy = this.components.map(() => new Set<number>());
+    for (const { spec, dependsOn } of this.edgeList()) {
+      const from = componentOf.get(spec)!;
+      const to = componentOf.get(dependsOn)!;
+      if (from === to) continue;
+      waitingOn[from]!.add(to);
+      neededBy[to]!.add(from);
+    }
     const order: string[] = [];
-    while (remaining.size > 0) {
-      let next = [...remaining].filter(([, count]) => count === 0).map(([id]) => id);
-      if (next.length === 0) next = [[...remaining.keys()].sort(compareStrings)[0]!];
-      for (const id of next.sort(compareStrings)) {
-        remaining.delete(id);
-        order.push(id);
-        for (const dependent of this.dependents(id)) {
-          const count = remaining.get(dependent);
-          if (count !== undefined) remaining.set(dependent, Math.max(0, count - 1));
-        }
+    const available = this.components.map((_, i) => i).filter((i) => waitingOn[i]!.size === 0);
+    while (available.length > 0) {
+      available.sort((a, b) => compareStrings(this.components[a]![0]!, this.components[b]![0]!));
+      const next = available.shift()!;
+      order.push(...this.components[next]!);
+      for (const dependent of neededBy[next]!) {
+        waitingOn[dependent]!.delete(next);
+        if (waitingOn[dependent]!.size === 0) available.push(dependent);
       }
     }
     return order;
@@ -113,7 +125,7 @@ export class DependencyGraph {
     const low = new Map<string, number>();
     const stack: string[] = [];
     const onStack = new Set<string>();
-    const components: string[][] = [];
+    const components = this.components;
 
     const connect = (id: string): void => {
       index.set(id, counter);
@@ -137,7 +149,7 @@ export class DependencyGraph {
           onStack.delete(member);
           component.push(member);
         } while (member !== id);
-        components.push(component);
+        components.push(component.sort(compareStrings));
       }
     };
     for (const id of this.edges.keys()) if (!index.has(id)) connect(id);
