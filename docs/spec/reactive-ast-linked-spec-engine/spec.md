@@ -89,7 +89,7 @@ What CatSpec does for its users. How it is built is in [`plan.md`](./plan.md), P
 
 | Area | Requirement |
 |---|---|
-| Platforms | Linux, macOS, Windows; Node ≥ 20; git ≥ 2.30 |
+| Platforms | Linux, macOS, Windows; Node ≥ 22.12; git ≥ 2.30 |
 | Install | `npm i -D catspec` or `npx catspec`; no native compilation |
 | Determinism | same input → byte-identical output and lock files |
 | Robustness | files with parse errors give partial facts + `CS0901`, never a crash |

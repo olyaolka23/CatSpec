@@ -47,7 +47,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-001: TypeScript on Node.js, npm-workspaces monorepo
 
-- **Status:** Accepted · **Date:** 2026-10-09
+- **Status:** Accepted; the Node version is amended by ADR-020 · **Date:** 2026-10-09
 - **Context:** The MCP SDK is first-class in TypeScript; target users install via `npx`.
 - **Decision:** TypeScript (strict, ESM), Node ≥ 20, npm workspaces: `core`, `lang`,
   `lang-typescript`, `lang-csharp`, `cli`, `mcp`, plus the `catspec` meta-package.
@@ -256,7 +256,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-019: Runtime dependencies of `@catspec/core` and `@catspec/cli`
 
-- **Status:** Accepted · **Date:** 2026-10-10 · **Ref:** plan §D11.1, PBI `cli-skeleton`
+- **Status:** Accepted; the `commander` version is amended by ADR-020 · **Date:** 2026-10-10 · **Ref:** plan §D11.1, PBI `cli-skeleton`
 - **Context:** Plan §D11.1 lists `yaml`, `zod`, `remark-parse` and `picomatch` for core.
   `remark-parse` is a unified plugin and needs `unified` to run. The CLI needs an argument
   parser (`commander` in PBI `cli-skeleton`).
@@ -266,3 +266,15 @@ reasoning for ADR-002…ADR-012 is in
   New runtime dependencies need a new ADR.
 - **Consequences:** No native modules; the dependency list is the one in §D11.1 plus `unified`
   and `commander`.
+
+## ADR-020: Node.js 22.12 or newer
+
+- **Status:** Accepted · **Date:** 2026-10-10 · **Amends:** ADR-001, ADR-019
+- **Context:** ADR-001 set Node ≥ 20. Node 20 reached end of life on 2026-04-30 and no longer
+  gets security fixes; the supported lines are Node 22 (until April 2027) and Node 24. Keeping
+  Node 20 also held back dependencies: `commander` 15 needs Node ≥ 22.12 (ADR-019).
+- **Decision:** CatSpec requires Node ≥ 22.12 (the `engines` field of every package); 22.12 is
+  the first Node 22 release that loads ES modules with `require`, which `commander` 15 relies on.
+  CI tests Node 22 and 24, builds target Node 22, and the CLI uses `commander` 15.
+- **Consequences:** Users on Node 20 upgrade Node before installing CatSpec. Dropping a Node
+  line later needs a new ADR.

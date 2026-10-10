@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "exports": {
     ".": {
@@ -29,6 +29,6 @@
     "@catspec/core": "0.0.0",
     "@catspec/lang-csharp": "0.0.0",
     "@catspec/lang-typescript": "0.0.0",
-    "commander": "^14.0.3"
+    "commander": "^15.0.0"
   }
 }
