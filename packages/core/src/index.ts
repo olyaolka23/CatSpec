@@ -3,6 +3,7 @@ export const packageName = "@catspec/core";
 
 export * from "./diagnostics.js";
 export * from "./config.js";
+export * from "./facts.js";
 export {
   frontmatterLocation,
   parseSpecSource,
