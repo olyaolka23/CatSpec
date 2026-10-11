@@ -3,3 +3,4 @@ dist/
 coverage/
 test-results/
 *.tsbuildinfo
+packages/lang-typescript/grammars/

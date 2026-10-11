@@ -17,12 +17,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "grammars"
   ],
   "scripts": {
-    "build": "tsup"
+    "build": "node scripts/build-grammars.js && tsup"
   },
   "dependencies": {
     "@catspec/lang": "0.0.0"
+  },
+  "devDependencies": {
+    "tree-sitter-wasms": "0.1.13"
   }
 }

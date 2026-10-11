@@ -23,6 +23,7 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@catspec/core": "0.0.0"
+    "@catspec/core": "0.0.0",
+    "web-tree-sitter": "0.25.10"
   }
 }
