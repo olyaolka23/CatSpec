@@ -1,0 +1,282 @@
+{
+  "path": "src/properties.ts",
+  "blobSha": "e230ce7ab105ad6aca194b67774a9b218a034bdd",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/properties.ts#Settings",
+      "name": "Settings",
+      "qualifiedName": "Settings",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 10,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/properties.ts#Settings.name",
+          "name": "name",
+          "qualifiedName": "Settings.name",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 27
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 7
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/properties.ts#Settings.id",
+          "name": "id",
+          "qualifiedName": "Settings.id",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 30
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 20
+            },
+            "end": {
+              "line": 3,
+              "column": 22
+            }
+          },
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "number",
+            "name": [
+              "number"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/properties.ts#Settings.instances",
+          "name": "instances",
+          "qualifiedName": "Settings.instances",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 23
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 10
+            },
+            "end": {
+              "line": 4,
+              "column": 19
+            }
+          },
+          "modifiers": [
+            "static"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        },
+        {
+          "id": "src/properties.ts#Settings.extra",
+          "name": "extra",
+          "qualifiedName": "Settings.extra",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 5,
+              "column": 25
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 5,
+              "column": 11
+            },
+            "end": {
+              "line": 5,
+              "column": 16
+            }
+          },
+          "modifiers": [
+            "declare",
+            "optional"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/properties.ts#Settings.timeout",
+          "name": "timeout",
+          "qualifiedName": "Settings.timeout",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 6,
+              "column": 3
+            },
+            "end": {
+              "line": 6,
+              "column": 26
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 6,
+              "column": 10
+            },
+            "end": {
+              "line": 6,
+              "column": 17
+            }
+          },
+          "modifiers": [
+            "public"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "number",
+            "name": [
+              "number"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/properties.ts#Settings.handler",
+          "name": "handler",
+          "qualifiedName": "Settings.handler",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 7,
+              "column": 3
+            },
+            "end": {
+              "line": 9,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 7,
+              "column": 3
+            },
+            "end": {
+              "line": 7,
+              "column": 10
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [
+    {
+      "callee": "console.log",
+      "enclosing": "src/properties.ts#Settings.handler",
+      "range": {
+        "start": {
+          "line": 8,
+          "column": 5
+        },
+        "end": {
+          "line": 8,
+          "column": 23
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

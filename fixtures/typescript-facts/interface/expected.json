@@ -1,0 +1,290 @@
+{
+  "path": "src/interface.ts",
+  "blobSha": "be322e96593a4f166d83260fbaa3bdde8330d672",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/interface.ts#IAuthService",
+      "name": "IAuthService",
+      "qualifiedName": "IAuthService",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 8,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 18
+        },
+        "end": {
+          "line": 1,
+          "column": 30
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [
+        {
+          "text": "IService",
+          "name": [
+            "IService"
+          ],
+          "args": []
+        },
+        {
+          "text": "IDisposable<string>",
+          "name": [
+            "IDisposable"
+          ],
+          "args": [
+            {
+              "text": "string",
+              "name": [
+                "string"
+              ],
+              "args": []
+            }
+          ]
+        }
+      ],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/interface.ts#IAuthService.name",
+          "name": "name",
+          "qualifiedName": "IAuthService.name",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 24
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 12
+            },
+            "end": {
+              "line": 2,
+              "column": 16
+            }
+          },
+          "modifiers": [
+            "readonly"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/interface.ts#IAuthService.timeout",
+          "name": "timeout",
+          "qualifiedName": "IAuthService.timeout",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 19
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 10
+            }
+          },
+          "modifiers": [
+            "optional"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "number",
+            "name": [
+              "number"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/interface.ts#IAuthService.login",
+          "name": "login",
+          "qualifiedName": "IAuthService.login",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 58
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "user",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            },
+            {
+              "name": "password",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "Promise<boolean>",
+            "name": [
+              "Promise"
+            ],
+            "args": [
+              {
+                "text": "boolean",
+                "name": [
+                  "boolean"
+                ],
+                "args": []
+              }
+            ]
+          }
+        },
+        {
+          "id": "src/interface.ts#IAuthService.logout",
+          "name": "logout",
+          "qualifiedName": "IAuthService.logout",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 5,
+              "column": 18
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 5,
+              "column": 9
+            }
+          },
+          "modifiers": [
+            "optional"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [],
+          "returns": {
+            "text": "void",
+            "name": [
+              "void"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/interface.ts#Internal",
+      "name": "Internal",
+      "qualifiedName": "Internal",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 10,
+          "column": 1
+        },
+        "end": {
+          "line": 10,
+          "column": 22
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 10,
+          "column": 11
+        },
+        "end": {
+          "line": 10,
+          "column": 19
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": []
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

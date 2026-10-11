@@ -4,7 +4,7 @@ import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { kebabCase } from "@catspec/core";
+import { kebabCase, type FileFacts } from "@catspec/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { loadFixture } from "../../../test/fixtures.js";
@@ -331,5 +331,53 @@ describe("cli-skeleton", () => {
       nodes: { id: string }[];
     };
     expect(json.nodes.map((n) => n.id)).toEqual(["aa", "bb", "ff"]);
+  });
+});
+
+describe("F2 typescript-language-support", () => {
+  it("[AC-F2-1] show-facts lists class AuthService, exported, with base IAuthService, and validateToken with params [string] returning Promise<boolean>", async () => {
+    const dir = await repo({
+      "src/services/AuthService.ts": [
+        'import { IAuthService } from "./IAuthService";',
+        "",
+        "export class AuthService implements IAuthService {",
+        "  login(user: string) {}",
+        "",
+        "  validateToken(t: string): Promise<boolean> {",
+        "    return Promise.resolve(true);",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    });
+    const result = await catspec(dir, "show-facts", "src/services/AuthService.ts");
+    expect(result.stderr).toBe("");
+    expect(result.code).toBe(0);
+
+    const facts = JSON.parse(result.stdout) as FileFacts;
+    expect(facts.path).toBe("src/services/AuthService.ts");
+    const [service] = facts.symbols;
+    expect(service).toMatchObject({ kind: "class", name: "AuthService", exported: true });
+    expect(service!.bases.map((b) => b.text)).toEqual(["IAuthService"]);
+    const validate = service!.members.find((m) => m.name === "validateToken");
+    expect(validate?.kind).toBe("method");
+    expect(validate?.params?.map((p) => p.type?.text)).toEqual(["string"]);
+    expect(validate?.returns?.text).toBe("Promise<boolean>");
+  });
+
+  it("show-facts reports CS0901 on stderr for a file with a syntax error and still prints its facts", async () => {
+    const dir = await repo({ "src/broken.ts": "export class A {}\nfunction ( {\n" });
+    const result = await catspec(dir, "show-facts", "src/broken.ts");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain("CS0901");
+    expect((JSON.parse(result.stdout) as FileFacts).symbols.map((s) => s.name)).toEqual(["A"]);
+  });
+
+  it("show-facts exits 2 for a missing file or a language without an adapter", async () => {
+    const dir = await repo({ "notes.txt": "hello\n" });
+    expect((await catspec(dir, "show-facts", "src/missing.ts")).code).toBe(2);
+    const unknown = await catspec(dir, "show-facts", "notes.txt");
+    expect(unknown.code).toBe(2);
+    expect(unknown.stderr).toContain("no language adapter for notes.txt");
   });
 });

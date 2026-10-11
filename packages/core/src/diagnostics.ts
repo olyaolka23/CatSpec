@@ -91,6 +91,14 @@ export const CODES = {
       "A rule's `adr` field names a decision that isn't in the architecture spec's ADR log " +
       "(a `## ADR-NNN: <title>` heading). Fix the id or add the decision to the log.",
   },
+  CS0901: {
+    severity: "warning",
+    title: "parse error in file",
+    docs:
+      "A source file has a syntax error at the reported location. CatSpec still uses the " +
+      "declarations it could read before and after the error, so results for that file may be " +
+      "incomplete. Fix the syntax error.",
+  },
 } as const satisfies Record<string, CodeInfo>;
 
 export type DiagnosticCode = keyof typeof CODES;

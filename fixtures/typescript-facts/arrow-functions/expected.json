@@ -1,0 +1,187 @@
+{
+  "path": "src/arrow-functions.ts",
+  "blobSha": "e72b96c46f60dccc30dbae05f3ade014682eb4a0",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/arrow-functions.ts#double",
+      "name": "double",
+      "qualifiedName": "double",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 51
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 20
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "x",
+          "type": {
+            "text": "number",
+            "name": [
+              "number"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "number",
+        "name": [
+          "number"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/arrow-functions.ts#fetchUser",
+      "name": "fetchUser",
+      "qualifiedName": "fetchUser",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 14
+        },
+        "end": {
+          "line": 5,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 14
+        },
+        "end": {
+          "line": 3,
+          "column": 23
+        }
+      },
+      "modifiers": [
+        "async"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "id",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "Promise<User>",
+        "name": [
+          "Promise"
+        ],
+        "args": [
+          {
+            "text": "User",
+            "name": [
+              "User"
+            ],
+            "args": []
+          }
+        ]
+      },
+      "exported": true
+    },
+    {
+      "id": "src/arrow-functions.ts#legacy",
+      "name": "legacy",
+      "qualifiedName": "legacy",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 14
+        },
+        "end": {
+          "line": 9,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 7,
+          "column": 14
+        },
+        "end": {
+          "line": 7,
+          "column": 20
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "a",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [
+    {
+      "callee": "api.get",
+      "enclosing": "src/arrow-functions.ts#fetchUser",
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 10
+        },
+        "end": {
+          "line": 4,
+          "column": 21
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

@@ -1,0 +1,265 @@
+{
+  "path": "src/generics.ts",
+  "blobSha": "7ed7df00914ebadafade711dac9084c112b280a7",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/generics.ts#Cache",
+      "name": "Cache",
+      "qualifiedName": "Cache",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 5,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 19
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [
+        "K",
+        "V"
+      ],
+      "members": [
+        {
+          "id": "src/generics.ts#Cache.get",
+          "name": "get",
+          "qualifiedName": "Cache.get",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 6
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [
+            "T"
+          ],
+          "members": [],
+          "params": [
+            {
+              "name": "key",
+              "type": {
+                "text": "K",
+                "name": [
+                  "K"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "T|undefined",
+            "name": [],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/generics.ts#identity",
+      "name": "identity",
+      "qualifiedName": "identity",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 8
+        },
+        "end": {
+          "line": 9,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 7,
+          "column": 17
+        },
+        "end": {
+          "line": 7,
+          "column": 25
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [
+        "T"
+      ],
+      "members": [],
+      "params": [
+        {
+          "name": "value",
+          "type": {
+            "text": "T",
+            "name": [
+              "T"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "T",
+        "name": [
+          "T"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/generics.ts#Pair",
+      "name": "Pair",
+      "qualifiedName": "Pair",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 11,
+          "column": 8
+        },
+        "end": {
+          "line": 14,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 11,
+          "column": 18
+        },
+        "end": {
+          "line": 11,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [
+        "A",
+        "B"
+      ],
+      "members": [
+        {
+          "id": "src/generics.ts#Pair.first",
+          "name": "first",
+          "qualifiedName": "Pair.first",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 12,
+              "column": 3
+            },
+            "end": {
+              "line": 12,
+              "column": 11
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 12,
+              "column": 3
+            },
+            "end": {
+              "line": 12,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "A",
+            "name": [
+              "A"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/generics.ts#Pair.second",
+          "name": "second",
+          "qualifiedName": "Pair.second",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 13,
+              "column": 3
+            },
+            "end": {
+              "line": 13,
+              "column": 12
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 13,
+              "column": 3
+            },
+            "end": {
+              "line": 13,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "B",
+            "name": [
+              "B"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

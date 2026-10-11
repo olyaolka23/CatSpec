@@ -1,0 +1,350 @@
+{
+  "path": "src/decorators.ts",
+  "blobSha": "0e77c0d47bb7d8304bb6ce3c347572c202ee8799",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/decorators.ts#UsersController",
+      "name": "UsersController",
+      "qualifiedName": "UsersController",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 10,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 2,
+          "column": 14
+        },
+        "end": {
+          "line": 2,
+          "column": 29
+        }
+      },
+      "modifiers": [],
+      "attributes": [
+        {
+          "name": "Controller",
+          "args": [
+            "\"/users\""
+          ],
+          "range": {
+            "start": {
+              "line": 1,
+              "column": 1
+            },
+            "end": {
+              "line": 1,
+              "column": 22
+            }
+          }
+        }
+      ],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/decorators.ts#UsersController.service",
+          "name": "service",
+          "qualifiedName": "UsersController.service",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 52
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 30
+            },
+            "end": {
+              "line": 3,
+              "column": 37
+            }
+          },
+          "modifiers": [
+            "private",
+            "readonly"
+          ],
+          "attributes": [
+            {
+              "name": "Inject",
+              "args": [],
+              "range": {
+                "start": {
+                  "line": 3,
+                  "column": 3
+                },
+                "end": {
+                  "line": 3,
+                  "column": 12
+                }
+              }
+            }
+          ],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "UsersService",
+            "name": [
+              "UsersService"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/decorators.ts#UsersController.find",
+          "name": "find",
+          "qualifiedName": "UsersController.find",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 9,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 7,
+              "column": 3
+            },
+            "end": {
+              "line": 7,
+              "column": 7
+            }
+          },
+          "modifiers": [],
+          "attributes": [
+            {
+              "name": "Get",
+              "args": [
+                "\":id\""
+              ],
+              "range": {
+                "start": {
+                  "line": 5,
+                  "column": 3
+                },
+                "end": {
+                  "line": 5,
+                  "column": 14
+                }
+              }
+            },
+            {
+              "name": "UseGuards",
+              "args": [
+                "AuthGuard",
+                "RolesGuard"
+              ],
+              "range": {
+                "start": {
+                  "line": 6,
+                  "column": 3
+                },
+                "end": {
+                  "line": 6,
+                  "column": 36
+                }
+              }
+            }
+          ],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "id",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": [
+                {
+                  "name": "Param",
+                  "args": [
+                    "\"id\""
+                  ],
+                  "range": {
+                    "start": {
+                      "line": 7,
+                      "column": 8
+                    },
+                    "end": {
+                      "line": 7,
+                      "column": 20
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "returns": {
+            "text": "User",
+            "name": [
+              "User"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/decorators.ts#Plain",
+      "name": "Plain",
+      "qualifiedName": "Plain",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 1
+        },
+        "end": {
+          "line": 13,
+          "column": 15
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 13,
+          "column": 7
+        },
+        "end": {
+          "line": 13,
+          "column": 12
+        }
+      },
+      "modifiers": [],
+      "attributes": [
+        {
+          "name": "Injectable",
+          "args": [],
+          "range": {
+            "start": {
+              "line": 12,
+              "column": 1
+            },
+            "end": {
+              "line": 12,
+              "column": 12
+            }
+          }
+        }
+      ],
+      "bases": [],
+      "typeParams": [],
+      "members": []
+    }
+  ],
+  "imports": [],
+  "calls": [
+    {
+      "callee": "Controller",
+      "enclosing": "src/decorators.ts#UsersController",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 2
+        },
+        "end": {
+          "line": 1,
+          "column": 22
+        }
+      }
+    },
+    {
+      "callee": "Inject",
+      "enclosing": "src/decorators.ts#UsersController.service",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 4
+        },
+        "end": {
+          "line": 3,
+          "column": 12
+        }
+      }
+    },
+    {
+      "callee": "Get",
+      "enclosing": "src/decorators.ts#UsersController.find",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 4
+        },
+        "end": {
+          "line": 5,
+          "column": 14
+        }
+      }
+    },
+    {
+      "callee": "UseGuards",
+      "enclosing": "src/decorators.ts#UsersController.find",
+      "range": {
+        "start": {
+          "line": 6,
+          "column": 4
+        },
+        "end": {
+          "line": 6,
+          "column": 36
+        }
+      }
+    },
+    {
+      "callee": "Param",
+      "enclosing": "src/decorators.ts#UsersController.find",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 9
+        },
+        "end": {
+          "line": 7,
+          "column": 20
+        }
+      }
+    },
+    {
+      "callee": "this.service.find",
+      "enclosing": "src/decorators.ts#UsersController.find",
+      "range": {
+        "start": {
+          "line": 8,
+          "column": 12
+        },
+        "end": {
+          "line": 8,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

@@ -1,0 +1,118 @@
+{
+  "path": "src/dynamic-imports.ts",
+  "blobSha": "c28c68ec098d6deb6696c25dfbb637a73ca8e899",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/dynamic-imports.ts#loadPlugin",
+      "name": "loadPlugin",
+      "qualifiedName": "loadPlugin",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 7,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 23
+        },
+        "end": {
+          "line": 1,
+          "column": 33
+        }
+      },
+      "modifiers": [
+        "async"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "name",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [
+    {
+      "module": "./plugins/default",
+      "kind": "dynamic",
+      "names": [],
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 24
+        },
+        "end": {
+          "line": 2,
+          "column": 51
+        }
+      }
+    },
+    {
+      "module": "legacy",
+      "kind": "require",
+      "names": [],
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 18
+        },
+        "end": {
+          "line": 4,
+          "column": 35
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "callee": "require",
+      "enclosing": "src/dynamic-imports.ts#loadPlugin",
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 18
+        },
+        "end": {
+          "line": 4,
+          "column": 35
+        }
+      }
+    },
+    {
+      "callee": "require",
+      "enclosing": "src/dynamic-imports.ts#loadPlugin",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 20
+        },
+        "end": {
+          "line": 5,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

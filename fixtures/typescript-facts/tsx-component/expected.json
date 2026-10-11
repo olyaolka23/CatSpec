@@ -1,0 +1,281 @@
+{
+  "path": "src/tsx-component.tsx",
+  "blobSha": "2cbb2acf85d0ccb913d9c7aec40a122c6bd4d2c0",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/tsx-component.tsx#ButtonProps",
+      "name": "ButtonProps",
+      "qualifiedName": "ButtonProps",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 8
+        },
+        "end": {
+          "line": 6,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 18
+        },
+        "end": {
+          "line": 3,
+          "column": 29
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/tsx-component.tsx#ButtonProps.label",
+          "name": "label",
+          "qualifiedName": "ButtonProps.label",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 16
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/tsx-component.tsx#ButtonProps.onClick",
+          "name": "onClick",
+          "qualifiedName": "ButtonProps.onClick",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 5,
+              "column": 23
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 5,
+              "column": 3
+            },
+            "end": {
+              "line": 5,
+              "column": 10
+            }
+          },
+          "modifiers": [
+            "optional"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "()=>void",
+            "name": [],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/tsx-component.tsx#Button",
+      "name": "Button",
+      "qualifiedName": "Button",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 8,
+          "column": 8
+        },
+        "end": {
+          "line": 10,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 8,
+          "column": 17
+        },
+        "end": {
+          "line": 8,
+          "column": 23
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "{ label, onClick }",
+          "type": {
+            "text": "ButtonProps",
+            "name": [
+              "ButtonProps"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "JSX.Element",
+        "name": [
+          "JSX",
+          "Element"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/tsx-component.tsx#List",
+      "name": "List",
+      "qualifiedName": "List",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 14
+        },
+        "end": {
+          "line": 18,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 12,
+          "column": 14
+        },
+        "end": {
+          "line": 12,
+          "column": 18
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "{ items }",
+          "type": {
+            "text": "{items:Array<string>}",
+            "name": [],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [
+    {
+      "module": "react",
+      "kind": "static",
+      "names": [
+        {
+          "name": "default",
+          "alias": "React"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 27
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "callee": "onClick",
+      "enclosing": "src/tsx-component.tsx#Button",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 33
+        },
+        "end": {
+          "line": 9,
+          "column": 44
+        }
+      }
+    },
+    {
+      "callee": "format",
+      "enclosing": "src/tsx-component.tsx#Button",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 47
+        },
+        "end": {
+          "line": 9,
+          "column": 60
+        }
+      }
+    },
+    {
+      "callee": "items.map",
+      "enclosing": "src/tsx-component.tsx#List",
+      "range": {
+        "start": {
+          "line": 14,
+          "column": 6
+        },
+        "end": {
+          "line": 16,
+          "column": 7
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

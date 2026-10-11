@@ -1,0 +1,265 @@
+{
+  "path": "src/namespaces.ts",
+  "blobSha": "6a4887ea9ed1e49d06f681b2ec20ed7f5e8be0d0",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/namespaces.ts#Billing",
+      "name": "Billing",
+      "qualifiedName": "Billing",
+      "kind": "module",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 13,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 18
+        },
+        "end": {
+          "line": 1,
+          "column": 25
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/namespaces.ts#Billing.Invoice",
+          "name": "Invoice",
+          "qualifiedName": "Billing.Invoice",
+          "kind": "class",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 10
+            },
+            "end": {
+              "line": 6,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 16
+            },
+            "end": {
+              "line": 2,
+              "column": 23
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [
+            {
+              "id": "src/namespaces.ts#Billing.Invoice.total",
+              "name": "total",
+              "qualifiedName": "Billing.Invoice.total",
+              "kind": "method",
+              "range": {
+                "start": {
+                  "line": 3,
+                  "column": 5
+                },
+                "end": {
+                  "line": 5,
+                  "column": 6
+                }
+              },
+              "nameRange": {
+                "start": {
+                  "line": 3,
+                  "column": 5
+                },
+                "end": {
+                  "line": 3,
+                  "column": 10
+                }
+              },
+              "modifiers": [],
+              "attributes": [],
+              "bases": [],
+              "typeParams": [],
+              "members": [],
+              "params": [],
+              "returns": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              }
+            }
+          ],
+          "exported": true
+        },
+        {
+          "id": "src/namespaces.ts#Billing.Tax",
+          "name": "Tax",
+          "qualifiedName": "Billing.Tax",
+          "kind": "module",
+          "range": {
+            "start": {
+              "line": 8,
+              "column": 10
+            },
+            "end": {
+              "line": 12,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 8,
+              "column": 20
+            },
+            "end": {
+              "line": 8,
+              "column": 23
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [
+            {
+              "id": "src/namespaces.ts#Billing.Tax.rate",
+              "name": "rate",
+              "qualifiedName": "Billing.Tax.rate",
+              "kind": "function",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 12
+                },
+                "end": {
+                  "line": 11,
+                  "column": 6
+                }
+              },
+              "nameRange": {
+                "start": {
+                  "line": 9,
+                  "column": 21
+                },
+                "end": {
+                  "line": 9,
+                  "column": 25
+                }
+              },
+              "modifiers": [],
+              "attributes": [],
+              "bases": [],
+              "typeParams": [],
+              "members": [],
+              "params": [
+                {
+                  "name": "country",
+                  "type": {
+                    "text": "string",
+                    "name": [
+                      "string"
+                    ],
+                    "args": []
+                  },
+                  "modifiers": [],
+                  "attributes": []
+                }
+              ],
+              "returns": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "exported": true
+            }
+          ],
+          "exported": true
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/namespaces.ts#Outer.Inner",
+      "name": "Outer.Inner",
+      "qualifiedName": "Outer.Inner",
+      "kind": "module",
+      "range": {
+        "start": {
+          "line": 15,
+          "column": 1
+        },
+        "end": {
+          "line": 17,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 15,
+          "column": 11
+        },
+        "end": {
+          "line": 15,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/namespaces.ts#Outer.Inner.Shape",
+          "name": "Shape",
+          "qualifiedName": "Outer.Inner.Shape",
+          "kind": "interface",
+          "range": {
+            "start": {
+              "line": 16,
+              "column": 10
+            },
+            "end": {
+              "line": 16,
+              "column": 28
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 16,
+              "column": 20
+            },
+            "end": {
+              "line": 16,
+              "column": 25
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "exported": true
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

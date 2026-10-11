@@ -1,0 +1,108 @@
+{
+  "path": "src/type-alias.ts",
+  "blobSha": "32937c31e57b2fcb4eacc1d17d03c1a95a77ac8f",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/type-alias.ts#UserId",
+      "name": "UserId",
+      "qualifiedName": "UserId",
+      "kind": "type",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 1,
+          "column": 29
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 13
+        },
+        "end": {
+          "line": 1,
+          "column": 19
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    },
+    {
+      "id": "src/type-alias.ts#Result",
+      "name": "Result",
+      "qualifiedName": "Result",
+      "kind": "type",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 8
+        },
+        "end": {
+          "line": 3,
+          "column": 85
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 13
+        },
+        "end": {
+          "line": 3,
+          "column": 19
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [
+        "T",
+        "E"
+      ],
+      "members": [],
+      "exported": true
+    },
+    {
+      "id": "src/type-alias.ts#Handler",
+      "name": "Handler",
+      "qualifiedName": "Handler",
+      "kind": "type",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 1
+        },
+        "end": {
+          "line": 5,
+          "column": 39
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 5,
+          "column": 6
+        },
+        "end": {
+          "line": 5,
+          "column": 13
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": []
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

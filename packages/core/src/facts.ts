@@ -3,6 +3,7 @@
  * file into `FileFacts`; rules and binding resolution read only these facts, never syntax trees,
  * so `core` stays free of Tree-sitter and of every adapter.
  */
+import { createDiagnostic, type Diagnostic } from "./diagnostics.js";
 import { BINDING_KINDS, MEMBER_KINDS } from "./spec-schema.js";
 
 /** Every kind a symbol fact can have: the binding kinds plus the member kinds. */
@@ -77,6 +78,7 @@ export interface SymbolFact {
   bases: TypeRef[];
   typeParams: string[];
   params?: ParamFact[];
+  /** Return type; for a property, its declared type. */
   returns?: TypeRef;
   /** Nested declarations and members. */
   members: SymbolFact[];
@@ -122,7 +124,7 @@ export interface FileFacts {
   symbols: SymbolFact[];
   imports: ImportFact[];
   calls: CallFact[];
-  /** Syntax errors; the facts around them are still extracted. */
+  /** Syntax errors; the facts around them are still extracted (see `parseErrorDiagnostics`). */
   parseErrors: Range[];
 }
 
@@ -140,4 +142,20 @@ export interface LanguageAdapter {
   normalizeType(text: string): TypeRef;
   /** The qualified name of a symbol of `file`. */
   qualify(symbol: SymbolFact, file: SourceFile): string;
+}
+
+/** One CS0901 warning per syntax error of the file, at the error's location. */
+export function parseErrorDiagnostics(facts: FileFacts): Diagnostic[] {
+  return facts.parseErrors.map(({ start, end }) =>
+    createDiagnostic("CS0901", {
+      codeLocation: {
+        file: facts.path,
+        line: start.line,
+        column: start.column,
+        endLine: end.line,
+        endColumn: end.column,
+      },
+      message: "syntax error; the declarations before and after it are still read",
+    }),
+  );
 }

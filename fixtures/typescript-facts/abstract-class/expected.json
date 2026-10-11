@@ -1,0 +1,179 @@
+{
+  "path": "src/abstract-class.ts",
+  "blobSha": "2be836dc518b94a2145117719d6e2447bd7eacae",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/abstract-class.ts#Repository",
+      "name": "Repository",
+      "qualifiedName": "Repository",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 9,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 23
+        },
+        "end": {
+          "line": 1,
+          "column": 33
+        }
+      },
+      "modifiers": [
+        "abstract"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [
+        "T"
+      ],
+      "members": [
+        {
+          "id": "src/abstract-class.ts#Repository.table",
+          "name": "table",
+          "qualifiedName": "Repository.table",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 35
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 22
+            },
+            "end": {
+              "line": 2,
+              "column": 27
+            }
+          },
+          "modifiers": [
+            "protected",
+            "abstract"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/abstract-class.ts#Repository.find",
+          "name": "find",
+          "qualifiedName": "Repository.find",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 52
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 12
+            },
+            "end": {
+              "line": 4,
+              "column": 16
+            }
+          },
+          "modifiers": [
+            "abstract"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "id",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "Promise<T|undefined>",
+            "name": [],
+            "args": []
+          }
+        },
+        {
+          "id": "src/abstract-class.ts#Repository.count",
+          "name": "count",
+          "qualifiedName": "Repository.count",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 6,
+              "column": 3
+            },
+            "end": {
+              "line": 8,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 6,
+              "column": 3
+            },
+            "end": {
+              "line": 6,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [],
+          "returns": {
+            "text": "number",
+            "name": [
+              "number"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

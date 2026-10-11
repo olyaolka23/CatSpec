@@ -1,0 +1,114 @@
+{
+  "path": "src/export-list.ts",
+  "blobSha": "2c67154a1c1aef88937e57f32644f3ce0772e4da",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/export-list.ts#Store",
+      "name": "Store",
+      "qualifiedName": "Store",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 15
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 7
+        },
+        "end": {
+          "line": 1,
+          "column": 12
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    },
+    {
+      "id": "src/export-list.ts#createStore",
+      "name": "createStore",
+      "qualifiedName": "createStore",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 1
+        },
+        "end": {
+          "line": 5,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 10
+        },
+        "end": {
+          "line": 3,
+          "column": 21
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [],
+      "returns": {
+        "text": "Store",
+        "name": [
+          "Store"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/export-list.ts#Options",
+      "name": "Options",
+      "qualifiedName": "Options",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 1
+        },
+        "end": {
+          "line": 7,
+          "column": 21
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 7,
+          "column": 11
+        },
+        "end": {
+          "line": 7,
+          "column": 18
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}
