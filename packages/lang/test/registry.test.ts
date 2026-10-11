@@ -8,6 +8,7 @@ function fakeAdapter(id: string, extensions: string[]): LanguageAdapter {
   return {
     id,
     extensions,
+    version: "1",
     load: () => Promise.resolve(),
     extract: (file): FileFacts => ({
       path: file.path,

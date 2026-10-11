@@ -1,10 +1,12 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createRepo, type TempRepo } from "../../../test/temp-repo.js";
 import {
+  findGitCommonDir,
   ConfigError,
   ConfigSchema,
   defaultConfig,
@@ -160,5 +162,27 @@ describe("config-loader", () => {
       "",
     ].join("\n");
     expect(issuesOf(bomb)[0]!.message).toContain("can't be read");
+  });
+});
+
+describe("findGitCommonDir", () => {
+  it("is .git in a repository, the main .git for a linked worktree, and undefined outside git", async () => {
+    const base = await mkdtemp(join(tmpdir(), "catspec-gitdir-"));
+    try {
+      await mkdir(join(base, "main", ".git", "worktrees", "wt"), { recursive: true });
+      await writeFile(join(base, "main", ".git", "worktrees", "wt", "commondir"), "../..\n");
+      await mkdir(join(base, "wt"));
+      await writeFile(
+        join(base, "wt", ".git"),
+        `gitdir: ${join(base, "main", ".git", "worktrees", "wt")}\n`,
+      );
+      await mkdir(join(base, "plain"));
+
+      expect(findGitCommonDir(join(base, "main"))).toBe(join(base, "main", ".git"));
+      expect(findGitCommonDir(join(base, "wt"))).toBe(join(base, "main", ".git"));
+      expect(findGitCommonDir(join(base, "plain"))).toBeUndefined();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   });
 });

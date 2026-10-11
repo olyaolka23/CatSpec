@@ -134,6 +134,8 @@ export interface LanguageAdapter {
   readonly id: string;
   /** File extensions with the dot, e.g. `.ts`. */
   readonly extensions: readonly string[];
+  /** Adapter and grammar version; cached facts of another version are extracted again. */
+  readonly version: string;
   /** Loads the grammar and compiles the queries. Called once before `extract`. */
   load(): Promise<void>;
   /** Extracts the facts of one file. Pure, so the result can be cached by blob SHA. */

@@ -3,11 +3,15 @@ import type { FileFacts, LanguageAdapter, SourceFile, SymbolFact, TypeRef } from
 import { loadGrammar, parseTypeRef, type Grammar } from "@catspec/lang";
 
 import { extractFacts, typeRefOf } from "./extract.js";
-import { TSX_GRAMMAR, TYPESCRIPT_GRAMMAR } from "./grammar.js";
+import { GRAMMAR_SOURCE, TSX_GRAMMAR, TYPESCRIPT_GRAMMAR } from "./grammar.js";
+
+/** Version of the facts this adapter extracts; change it when the extraction changes. */
+const FACTS_VERSION = 1;
 
 export class TypeScriptAdapter implements LanguageAdapter {
   readonly id = "typescript";
   readonly extensions = [".ts", ".tsx", ".mts", ".cts"] as const;
+  readonly version = `typescript-facts-${FACTS_VERSION}+${GRAMMAR_SOURCE}`;
 
   private typescript?: Grammar;
   private tsx?: Grammar;
