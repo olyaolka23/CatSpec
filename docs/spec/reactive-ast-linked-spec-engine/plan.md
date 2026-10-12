@@ -592,7 +592,7 @@ interface FileFacts {
 }
 
 interface SymbolFact {
-  id: string;                   // `${path}#${qualifiedName}` (+ `(${arity})` for overloads)
+  id: string;                   // `${path}#${qualifiedName}` (+ `(${arity})` for overload signatures, + `#${n}` when arities repeat; the implementation keeps the plain id)
   name: string; qualifiedName: string;
   kind: SymbolKind; range: Range; nameRange: Range;
   modifiers: string[]; attributes: AttributeFact[];
