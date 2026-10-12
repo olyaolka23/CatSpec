@@ -130,7 +130,10 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
   const paramsOf = (node: Node | null): ParamFact[] =>
     (node?.namedChildren ?? [])
       .filter(
-        (p): p is Node => p?.type === "required_parameter" || p?.type === "optional_parameter",
+        (p): p is Node =>
+          (p?.type === "required_parameter" || p?.type === "optional_parameter") &&
+          // A `this` parameter only types `this`; it isn't part of the call signature.
+          p.childForFieldName("pattern")?.type !== "this",
       )
       .map((param) => {
         const pattern = param.childForFieldName("pattern");
@@ -188,6 +191,11 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
       : rangeOf(node);
   };
 
+  /** Callables with a body; the others are overload signatures or declarations. */
+  const implementations = new Set<SymbolFact>();
+  /** Top-level `const f = () => …` that become symbols only if `export { f }` exports them. */
+  const exportCandidates = new Set<SymbolFact>();
+
   const symbol = (
     scope: Scope,
     kind: SymbolKind,
@@ -225,12 +233,14 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
     signature: Node = node,
   ): SymbolFact => {
     const returnType = signature.childForFieldName("return_type");
-    return symbol(scope, kind, node, nameNode, {
+    const fact = symbol(scope, kind, node, nameNode, {
       typeParams: typeParamsOf(signature),
       params: paramsOf(signature.childForFieldName("parameters")),
       ...(returnType ? { returns: typeRefOf(returnType) } : {}),
       ...extra,
     });
+    if (signature.childForFieldName("body")) implementations.add(fact);
+    return fact;
   };
 
   /** Members of a class or interface body; decorators precede the member they decorate. */
@@ -415,21 +425,24 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
         return;
       }
       case "lexical_declaration": {
-        // Exported `const f = () => …` and `const f = function () {…}` are functions.
-        if (!exportStatement) return;
+        // Exported `const f = () => …` and `const f = function () {…}` are functions, also when
+        // a later `export { f }` exports them.
+        const exportedHere = exportStatement !== undefined || exportedInError;
+        if (!exportedHere && scope.prefix !== "") return;
         for (const declarator of node.namedChildren) {
           const value = declarator?.childForFieldName("value");
           const name = declarator?.childForFieldName("name");
           if (!value || !name || name.type !== "identifier") continue;
           if (value.type !== "arrow_function" && value.type !== "function_expression") continue;
-          callable(
+          const fact = callable(
             scope,
             "function",
             declarator!,
             name,
-            { modifiers: modifiersOf(value), exported: true },
+            { modifiers: modifiersOf(value), ...(exportedHere ? { exported: true } : {}) },
             value,
           );
+          if (!exportedHere) exportCandidates.add(fact);
         }
         return;
       }
@@ -452,7 +465,9 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
   const symbols: SymbolFact[] = [];
   visit(rootNode, { prefix: "", members: symbols });
   markLocalExports(rootNode, symbols);
-  disambiguateOverloads(symbols);
+  const kept = symbols.filter((fact) => !exportCandidates.has(fact) || fact.exported);
+  symbols.splice(0, symbols.length, ...kept);
+  disambiguateOverloads(symbols, implementations);
 
   return {
     path: file.path,
@@ -499,25 +514,24 @@ function markLocalExports(root: Node, symbols: SymbolFact[]): void {
 }
 
 /**
- * Overloads: when a scope declares a function or method name more than once, the signatures
- * without a body get `(${arity})` appended to their id; the implementation keeps the plain id.
- * In an interface every signature is suffixed.
+ * Overloads: when a scope declares a function or method more than once (a static and an
+ * instance method of the same name are different members), the declarations without a body get
+ * `(${arity})` appended to their id; the implementation, the one with a body, keeps the plain id.
  */
-function disambiguateOverloads(symbols: SymbolFact[], inInterface = false): void {
-  const byName = new Map<string, SymbolFact[]>();
+function disambiguateOverloads(symbols: SymbolFact[], implementations: Set<SymbolFact>): void {
+  const groups = new Map<string, SymbolFact[]>();
   for (const fact of symbols) {
-    if (fact.kind === "function" || fact.kind === "method") {
-      byName.set(fact.qualifiedName, [...(byName.get(fact.qualifiedName) ?? []), fact]);
-    }
+    if (fact.kind !== "function" && fact.kind !== "method") continue;
+    const key = `${fact.modifiers.includes("static") ? "static " : ""}${fact.qualifiedName}`;
+    groups.set(key, [...(groups.get(key) ?? []), fact]);
   }
-  for (const group of byName.values()) {
+  for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const implementation = inInterface ? undefined : group[group.length - 1];
     for (const fact of group) {
-      if (fact !== implementation) fact.id = `${fact.id}(${fact.params?.length ?? 0})`;
+      if (!implementations.has(fact)) fact.id = `${fact.id}(${fact.params?.length ?? 0})`;
     }
   }
-  for (const fact of symbols) disambiguateOverloads(fact.members, fact.kind === "interface");
+  for (const fact of symbols) disambiguateOverloads(fact.members, implementations);
 }
 
 function importsOf(grammar: Grammar, root: Node, rangeOf: (node: Node) => Range): ImportFact[] {

@@ -5,7 +5,7 @@
  * in memory for the run.
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { pid } from "node:process";
 
 import {
@@ -90,7 +90,11 @@ export class FactsProvider {
 
   facts(adapter: LanguageAdapter, file: SourceFile): FileFacts {
     const cached = this.cache.get(adapter.id, file.blobSha, adapter.version);
-    if (cached) return cached.path === file.path ? cached : relocate(cached, file.path);
+    // An adapter may parse by extension (TypeScript uses another grammar for `.tsx`), so facts
+    // of the same content under another extension are extracted again.
+    if (cached && extname(cached.path) === extname(file.path)) {
+      return cached.path === file.path ? cached : relocate(cached, file.path);
+    }
     const facts = withoutBodyTokens(adapter.extract(file));
     this.cache.set(adapter.id, adapter.version, facts);
     return facts;

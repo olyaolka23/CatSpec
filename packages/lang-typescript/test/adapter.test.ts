@@ -112,6 +112,40 @@ describe("TypeScript adapter", () => {
     });
   });
 
+  it("gives overload signatures an arity suffix and keeps the plain id for the one with a body", () => {
+    const ids = (text: string): string[] =>
+      facts(text).symbols.flatMap((s) => [s.id, ...s.members.map((m) => m.id)]);
+    // A static and an instance method of the same name are not overloads.
+    expect(ids("class C {\n  static m(a: number) {}\n  m() {}\n}\n")).toEqual([
+      "src/file.ts#C",
+      "src/file.ts#C.m",
+      "src/file.ts#C.m",
+    ]);
+    // Without an implementation every signature is suffixed.
+    expect(ids("declare function f(a: string): void;\ndeclare function f(): void;\n")).toEqual([
+      "src/file.ts#f(1)",
+      "src/file.ts#f(0)",
+    ]);
+    // The implementation is the one with a body, wherever it is.
+    expect(ids("function f(): void;\nfunction f(a?: string) {}\n")).toEqual([
+      "src/file.ts#f(0)",
+      "src/file.ts#f",
+    ]);
+  });
+
+  it("does not count a `this` parameter", () => {
+    const [f] = facts("function f(this: Window, a: string) {}\n").symbols;
+    expect(f!.params?.map((p) => p.name)).toEqual(["a"]);
+  });
+
+  it("reads a const arrow function exported by a later export list, and skips unexported ones", () => {
+    const { symbols, calls } = facts("const f = () => g();\nconst h = () => 1;\nexport { f };\n");
+    expect(symbols.map((s) => [s.id, s.kind, s.exported])).toEqual([
+      ["src/file.ts#f", "function", true],
+    ]);
+    expect(calls).toMatchObject([{ callee: "g", enclosing: "src/file.ts#f" }]);
+  });
+
   it("uses the TSX grammar for .tsx files", () => {
     const tsx = "export const App = () => <div>{greet()}</div>;\n";
     expect(facts(tsx, "src/App.tsx").parseErrors).toEqual([]);

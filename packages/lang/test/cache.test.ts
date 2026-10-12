@@ -126,6 +126,14 @@ describe("parse cache", () => {
     expect(copy.calls[0]?.enclosing).toBe("lib/copy.fake#A");
   });
 
+  it("extracts the same content again under another extension, which may use another grammar", () => {
+    const provider = new FactsProvider(new MemoryFactsCache());
+    const adapter = countingAdapter("1");
+    provider.facts(adapter, file("src/a.ts", "A"));
+    expect(provider.facts(adapter, file("src/b.tsx", "A")).path).toBe("src/b.tsx");
+    expect(adapter.parsed).toBe(2);
+  });
+
   it("treats an unreadable cache entry as a miss", async () => {
     const dir = join(await repo(false), "cache");
     mkdirSync(join(dir, "fake"), { recursive: true });
