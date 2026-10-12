@@ -516,7 +516,8 @@ function markLocalExports(root: Node, symbols: SymbolFact[]): void {
 /**
  * Overloads: when a scope declares a function or method more than once (a static and an
  * instance method of the same name are different members), the declarations without a body get
- * `(${arity})` appended to their id; the implementation, the one with a body, keeps the plain id.
+ * `(${arity})` appended to their id, plus `#${n}` (1-based, in source order) when several have the
+ * same arity; the implementation, the one with a body, keeps the plain id.
  */
 function disambiguateOverloads(symbols: SymbolFact[], implementations: Set<SymbolFact>): void {
   const groups = new Map<string, SymbolFact[]>();
@@ -527,8 +528,17 @@ function disambiguateOverloads(symbols: SymbolFact[], implementations: Set<Symbo
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    for (const fact of group) {
-      if (!implementations.has(fact)) fact.id = `${fact.id}(${fact.params?.length ?? 0})`;
+    const signatures = group.filter((fact) => !implementations.has(fact));
+    const byArity = new Map<number, SymbolFact[]>();
+    for (const fact of signatures) {
+      const arity = fact.params?.length ?? 0;
+      byArity.set(arity, [...(byArity.get(arity) ?? []), fact]);
+    }
+    // Signatures of the same arity are numbered in source order: `f(1)#1`, `f(1)#2`.
+    for (const [arity, same] of byArity) {
+      same.forEach((fact, i) => {
+        fact.id = `${fact.id}(${arity})${same.length > 1 ? `#${i + 1}` : ""}`;
+      });
     }
   }
   for (const fact of symbols) disambiguateOverloads(fact.members, implementations);

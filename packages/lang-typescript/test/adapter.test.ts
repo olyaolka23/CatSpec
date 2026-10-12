@@ -126,6 +126,12 @@ describe("TypeScript adapter", () => {
       "src/file.ts#f(1)",
       "src/file.ts#f(0)",
     ]);
+    // Signatures of the same arity are numbered.
+    expect(
+      ids(
+        "function f(a: string): void;\nfunction f(a: number): void;\nfunction f(): void;\nfunction f(a?: any) {}\n",
+      ),
+    ).toEqual(["src/file.ts#f(1)#1", "src/file.ts#f(1)#2", "src/file.ts#f(0)", "src/file.ts#f"]);
     // The implementation is the one with a body, wherever it is.
     expect(ids("function f(): void;\nfunction f(a?: string) {}\n")).toEqual([
       "src/file.ts#f(0)",
