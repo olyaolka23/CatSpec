@@ -23,6 +23,7 @@ import { Command, CommanderError, Option } from "commander";
 import { formatGraph, GRAPH_FORMATS, type GraphFormat } from "./graph.js";
 import { initRepository } from "./init.js";
 import { COLORS, EXIT, exitCodeFor, formatJson, formatText, PLAIN, type Style } from "./report.js";
+import { showFacts, UnknownLanguageError } from "./show-facts.js";
 
 export interface CliIo {
   /** Folder the command runs in (before `--cwd`). */
@@ -202,6 +203,35 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       if (options.focus !== undefined) findSpec(model, options.focus);
       out.stdout.write(formatGraph(model.graph, options.format, options.focus));
       warnAboutErrors(model, opts, out);
+    });
+
+  program
+    .command("show-facts", { hidden: true })
+    .description("debug: print the facts CatSpec extracts from a source file, as JSON")
+    .argument("<file>", "source file")
+    .action(async (file: string, _options: unknown, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const { config, root } = await loadConfig(cwd, opts.config);
+      const { facts, diagnostics } = await showFacts(root, cwd, config, file).catch(
+        (error: unknown) => {
+          if (error instanceof UnknownLanguageError) throw new UsageError(error.message);
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            throw new UsageError(`no such file: ${file}`);
+          }
+          throw error;
+        },
+      );
+      out.stdout.write(`${JSON.stringify(facts, null, 2)}\n`);
+      if (diagnostics.length > 0 && !opts.quiet) {
+        out.stderr.write(
+          formatText(diagnostics, {
+            style: styleFor(opts, out),
+            verbose: Boolean(opts.verbose),
+          }),
+        );
+      }
+      exitCode = exitCodeFor(diagnostics);
     });
 
   try {

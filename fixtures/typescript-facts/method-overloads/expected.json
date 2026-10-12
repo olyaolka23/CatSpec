@@ -1,0 +1,386 @@
+{
+  "path": "src/method-overloads.ts",
+  "blobSha": "648ae075a41ece63e84a3616e19d5e3e514761f7",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/method-overloads.ts#Formatter",
+      "name": "Formatter",
+      "qualifiedName": "Formatter",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 7,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 23
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/method-overloads.ts#Formatter.format(1)",
+          "name": "format",
+          "qualifiedName": "Formatter.format",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 32
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "value",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/method-overloads.ts#Formatter.format(2)",
+          "name": "format",
+          "qualifiedName": "Formatter.format",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 48
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "value",
+              "type": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            },
+            {
+              "name": "digits",
+              "type": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/method-overloads.ts#Formatter.format",
+          "name": "format",
+          "qualifiedName": "Formatter.format",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 6,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "value",
+              "type": {
+                "text": "string|number",
+                "name": [],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            },
+            {
+              "name": "digits",
+              "type": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "optional": true,
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/method-overloads.ts#IFormatter",
+      "name": "IFormatter",
+      "qualifiedName": "IFormatter",
+      "kind": "interface",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 8
+        },
+        "end": {
+          "line": 12,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 9,
+          "column": 18
+        },
+        "end": {
+          "line": 9,
+          "column": 28
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/method-overloads.ts#IFormatter.format(1)",
+          "name": "format",
+          "qualifiedName": "IFormatter.format",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 10,
+              "column": 3
+            },
+            "end": {
+              "line": 10,
+              "column": 32
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 10,
+              "column": 3
+            },
+            "end": {
+              "line": 10,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "value",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/method-overloads.ts#IFormatter.format(2)",
+          "name": "format",
+          "qualifiedName": "IFormatter.format",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 11,
+              "column": 3
+            },
+            "end": {
+              "line": 11,
+              "column": 48
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 11,
+              "column": 3
+            },
+            "end": {
+              "line": 11,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "value",
+              "type": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            },
+            {
+              "name": "digits",
+              "type": {
+                "text": "number",
+                "name": [
+                  "number"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [
+    {
+      "callee": "String",
+      "enclosing": "src/method-overloads.ts#Formatter.format",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 12
+        },
+        "end": {
+          "line": 5,
+          "column": 25
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

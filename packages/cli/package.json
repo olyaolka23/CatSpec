@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@catspec/core": "0.0.0",
+    "@catspec/lang": "0.0.0",
     "@catspec/lang-csharp": "0.0.0",
     "@catspec/lang-typescript": "0.0.0",
     "commander": "^15.0.0"

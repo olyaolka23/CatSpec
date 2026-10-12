@@ -1,0 +1,209 @@
+{
+  "path": "src/function-overloads.ts",
+  "blobSha": "4f88cdf5675949948e21950773a0abd1a6356cb3",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/function-overloads.ts#parse(1)",
+      "name": "parse",
+      "qualifiedName": "parse",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 1,
+          "column": 44
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 17
+        },
+        "end": {
+          "line": 1,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "text",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "Value",
+        "name": [
+          "Value"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/function-overloads.ts#parse(2)",
+      "name": "parse",
+      "qualifiedName": "parse",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 8
+        },
+        "end": {
+          "line": 2,
+          "column": 62
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 2,
+          "column": 17
+        },
+        "end": {
+          "line": 2,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "text",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        },
+        {
+          "name": "reviver",
+          "type": {
+            "text": "Reviver",
+            "name": [
+              "Reviver"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "Value",
+        "name": [
+          "Value"
+        ],
+        "args": []
+      },
+      "exported": true
+    },
+    {
+      "id": "src/function-overloads.ts#parse",
+      "name": "parse",
+      "qualifiedName": "parse",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 8
+        },
+        "end": {
+          "line": 5,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 17
+        },
+        "end": {
+          "line": 3,
+          "column": 22
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [
+        {
+          "name": "text",
+          "type": {
+            "text": "string",
+            "name": [
+              "string"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "attributes": []
+        },
+        {
+          "name": "reviver",
+          "type": {
+            "text": "Reviver",
+            "name": [
+              "Reviver"
+            ],
+            "args": []
+          },
+          "modifiers": [],
+          "optional": true,
+          "attributes": []
+        }
+      ],
+      "returns": {
+        "text": "Value",
+        "name": [
+          "Value"
+        ],
+        "args": []
+      },
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [
+    {
+      "callee": "decode",
+      "enclosing": "src/function-overloads.ts#parse",
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 10
+        },
+        "end": {
+          "line": 4,
+          "column": 31
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

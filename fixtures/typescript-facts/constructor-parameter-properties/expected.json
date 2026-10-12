@@ -1,0 +1,254 @@
+{
+  "path": "src/constructor-parameter-properties.ts",
+  "blobSha": "05a6e5c81d794c4a7fecdc46fc21efd9c820a397",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/constructor-parameter-properties.ts#AuthService",
+      "name": "AuthService",
+      "qualifiedName": "AuthService",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 8,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 14
+        },
+        "end": {
+          "line": 1,
+          "column": 25
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/constructor-parameter-properties.ts#AuthService.constructor",
+          "name": "constructor",
+          "qualifiedName": "AuthService.constructor",
+          "kind": "constructor",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 7,
+              "column": 7
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 14
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "log",
+              "type": {
+                "text": "ILogger",
+                "name": [
+                  "ILogger"
+                ],
+                "args": []
+              },
+              "modifiers": [
+                "private"
+              ],
+              "attributes": []
+            },
+            {
+              "name": "config",
+              "type": {
+                "text": "Config",
+                "name": [
+                  "Config"
+                ],
+                "args": []
+              },
+              "modifiers": [
+                "public",
+                "readonly"
+              ],
+              "attributes": []
+            },
+            {
+              "name": "repo",
+              "type": {
+                "text": "IUserRepository",
+                "name": [
+                  "IUserRepository"
+                ],
+                "args": []
+              },
+              "modifiers": [
+                "protected"
+              ],
+              "optional": true,
+              "attributes": []
+            },
+            {
+              "name": "plain",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ]
+        },
+        {
+          "id": "src/constructor-parameter-properties.ts#AuthService.log",
+          "name": "log",
+          "qualifiedName": "AuthService.log",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 5
+            },
+            "end": {
+              "line": 3,
+              "column": 25
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 13
+            },
+            "end": {
+              "line": 3,
+              "column": 16
+            }
+          },
+          "modifiers": [
+            "private"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "ILogger",
+            "name": [
+              "ILogger"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/constructor-parameter-properties.ts#AuthService.config",
+          "name": "config",
+          "qualifiedName": "AuthService.config",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 5
+            },
+            "end": {
+              "line": 4,
+              "column": 35
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 21
+            },
+            "end": {
+              "line": 4,
+              "column": 27
+            }
+          },
+          "modifiers": [
+            "public",
+            "readonly"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "Config",
+            "name": [
+              "Config"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/constructor-parameter-properties.ts#AuthService.repo",
+          "name": "repo",
+          "qualifiedName": "AuthService.repo",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 5,
+              "column": 5
+            },
+            "end": {
+              "line": 5,
+              "column": 37
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 5,
+              "column": 15
+            },
+            "end": {
+              "line": 5,
+              "column": 19
+            }
+          },
+          "modifiers": [
+            "protected",
+            "optional"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "returns": {
+            "text": "IUserRepository",
+            "name": [
+              "IUserRepository"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

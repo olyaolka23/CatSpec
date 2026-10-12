@@ -31,7 +31,7 @@ in the feature files.
 
 - [x] F0 [`repo-scaffolding`](./features/repo-scaffolding.md)
 - [ ] F1 [`spec-model`](./features/spec-model.md)
-- [ ] F2 [`typescript-language-support`](./features/typescript-language-support.md)
+- [x] F2 [`typescript-language-support`](./features/typescript-language-support.md)
 - [ ] F3 [`rule-engine-and-check`](./features/rule-engine-and-check.md)
 - [ ] F4 [`csharp-language-support`](./features/csharp-language-support.md)
 - [ ] F5 [`git-integration-and-hook`](./features/git-integration-and-hook.md)
@@ -592,7 +592,7 @@ interface FileFacts {
 }
 
 interface SymbolFact {
-  id: string;                   // `${path}#${qualifiedName}` (+ `(${arity})` for overloads)
+  id: string;                   // `${path}#${qualifiedName}` (+ `(${arity})` for overload signatures, + `#${n}` when arities repeat; the implementation keeps the plain id)
   name: string; qualifiedName: string;
   kind: SymbolKind; range: Range; nameRange: Range;
   modifiers: string[]; attributes: AttributeFact[];

@@ -1,0 +1,126 @@
+{
+  "path": "src/export-default.ts",
+  "blobSha": "1e6d8a1244fd757b714e133e601477b895927076",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/export-default.ts#App",
+      "name": "App",
+      "qualifiedName": "App",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 16
+        },
+        "end": {
+          "line": 3,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 22
+        },
+        "end": {
+          "line": 1,
+          "column": 25
+        }
+      },
+      "modifiers": [
+        "default"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/export-default.ts#App.render",
+          "name": "render",
+          "qualifiedName": "App.render",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 20
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 9
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [],
+          "returns": {
+            "text": "void",
+            "name": [
+              "void"
+            ],
+            "args": []
+          }
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/export-default.ts#bootstrap",
+      "name": "bootstrap",
+      "qualifiedName": "bootstrap",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 16
+        },
+        "end": {
+          "line": 5,
+          "column": 45
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 5,
+          "column": 25
+        },
+        "end": {
+          "line": 5,
+          "column": 34
+        }
+      },
+      "modifiers": [
+        "default"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [],
+      "returns": {
+        "text": "void",
+        "name": [
+          "void"
+        ],
+        "args": []
+      },
+      "exported": true
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

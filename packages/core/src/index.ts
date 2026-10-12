@@ -3,6 +3,7 @@ export const packageName = "@catspec/core";
 
 export * from "./diagnostics.js";
 export * from "./config.js";
+export * from "./facts.js";
 export {
   frontmatterLocation,
   parseSpecSource,
@@ -25,4 +26,12 @@ export {
   type EditClass,
 } from "./spec-editor.js";
 export { formatPath } from "./schema-issues.js";
-export { didYouMean, globMatcher, kebabCase, listFiles, LineIndex, toPosix } from "./util.js";
+export {
+  didYouMean,
+  gitBlobSha,
+  globMatcher,
+  kebabCase,
+  listFiles,
+  LineIndex,
+  toPosix,
+} from "./util.js";

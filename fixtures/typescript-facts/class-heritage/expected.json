@@ -1,0 +1,203 @@
+{
+  "path": "src/class-heritage.ts",
+  "blobSha": "f6bd2b2714986462163a4b669e7cded5121d5042",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/class-heritage.ts#UserHandler",
+      "name": "UserHandler",
+      "qualifiedName": "UserHandler",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 8
+        },
+        "end": {
+          "line": 3,
+          "column": 99
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 3,
+          "column": 14
+        },
+        "end": {
+          "line": 3,
+          "column": 25
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [
+        {
+          "text": "Base<User>",
+          "name": [
+            "Base"
+          ],
+          "args": [
+            {
+              "text": "User",
+              "name": [
+                "User"
+              ],
+              "args": []
+            }
+          ]
+        },
+        {
+          "text": "IHandler<Events.UserUpdated>",
+          "name": [
+            "IHandler"
+          ],
+          "args": [
+            {
+              "text": "Events.UserUpdated",
+              "name": [
+                "Events",
+                "UserUpdated"
+              ],
+              "args": []
+            }
+          ]
+        },
+        {
+          "text": "Disposable",
+          "name": [
+            "Disposable"
+          ],
+          "args": []
+        }
+      ],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    },
+    {
+      "id": "src/class-heritage.ts#Plain",
+      "name": "Plain",
+      "qualifiedName": "Plain",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 8
+        },
+        "end": {
+          "line": 5,
+          "column": 35
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 5,
+          "column": 14
+        },
+        "end": {
+          "line": 5,
+          "column": 19
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [
+        {
+          "text": "Base",
+          "name": [
+            "Base"
+          ],
+          "args": []
+        }
+      ],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    },
+    {
+      "id": "src/class-heritage.ts#Qualified",
+      "name": "Qualified",
+      "qualifiedName": "Qualified",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 8
+        },
+        "end": {
+          "line": 7,
+          "column": 62
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 7,
+          "column": 14
+        },
+        "end": {
+          "line": 7,
+          "column": 23
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [
+        {
+          "text": "lib.Component<Props, State>",
+          "name": [
+            "lib",
+            "Component"
+          ],
+          "args": [
+            {
+              "text": "Props",
+              "name": [
+                "Props"
+              ],
+              "args": []
+            },
+            {
+              "text": "State",
+              "name": [
+                "State"
+              ],
+              "args": []
+            }
+          ]
+        }
+      ],
+      "typeParams": [],
+      "members": [],
+      "exported": true
+    }
+  ],
+  "imports": [
+    {
+      "module": "./contracts",
+      "kind": "static",
+      "names": [
+        {
+          "name": "Base"
+        },
+        {
+          "name": "IHandler"
+        },
+        {
+          "name": "Events"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 54
+        }
+      }
+    }
+  ],
+  "calls": [],
+  "parseErrors": []
+}

@@ -1,0 +1,314 @@
+{
+  "path": "src/calls.ts",
+  "blobSha": "7d61d2e09bf34504c9bbb73d4607666062a5a6d3",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/calls.ts#AuthService",
+      "name": "AuthService",
+      "qualifiedName": "AuthService",
+      "kind": "class",
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 8
+        },
+        "end": {
+          "line": 13,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 5,
+          "column": 14
+        },
+        "end": {
+          "line": 5,
+          "column": 25
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/calls.ts#AuthService.login",
+          "name": "login",
+          "qualifiedName": "AuthService.login",
+          "kind": "method",
+          "range": {
+            "start": {
+              "line": 6,
+              "column": 3
+            },
+            "end": {
+              "line": 10,
+              "column": 4
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 6,
+              "column": 3
+            },
+            "end": {
+              "line": 6,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": [],
+          "params": [
+            {
+              "name": "user",
+              "type": {
+                "text": "string",
+                "name": [
+                  "string"
+                ],
+                "args": []
+              },
+              "modifiers": [],
+              "attributes": []
+            }
+          ],
+          "returns": {
+            "text": "void",
+            "name": [
+              "void"
+            ],
+            "args": []
+          }
+        },
+        {
+          "id": "src/calls.ts#AuthService.audit",
+          "name": "audit",
+          "qualifiedName": "AuthService.audit",
+          "kind": "property",
+          "range": {
+            "start": {
+              "line": 12,
+              "column": 3
+            },
+            "end": {
+              "line": 12,
+              "column": 32
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 12,
+              "column": 11
+            },
+            "end": {
+              "line": 12,
+              "column": 16
+            }
+          },
+          "modifiers": [
+            "private"
+          ],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/calls.ts#helper",
+      "name": "helper",
+      "qualifiedName": "helper",
+      "kind": "function",
+      "range": {
+        "start": {
+          "line": 15,
+          "column": 8
+        },
+        "end": {
+          "line": 19,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 15,
+          "column": 17
+        },
+        "end": {
+          "line": 15,
+          "column": 23
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [],
+      "params": [],
+      "returns": {
+        "text": "void",
+        "name": [
+          "void"
+        ],
+        "args": []
+      },
+      "exported": true
+    }
+  ],
+  "imports": [
+    {
+      "module": "./logger",
+      "kind": "static",
+      "names": [
+        {
+          "name": "logger"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 35
+        }
+      }
+    }
+  ],
+  "calls": [
+    {
+      "callee": "logger.info",
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 1
+        },
+        "end": {
+          "line": 3,
+          "column": 29
+        }
+      }
+    },
+    {
+      "callee": "console.log",
+      "enclosing": "src/calls.ts#AuthService.login",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 5
+        },
+        "end": {
+          "line": 7,
+          "column": 22
+        }
+      }
+    },
+    {
+      "callee": "this.audit.record",
+      "enclosing": "src/calls.ts#AuthService.login",
+      "range": {
+        "start": {
+          "line": 8,
+          "column": 5
+        },
+        "end": {
+          "line": 8,
+          "column": 30
+        }
+      }
+    },
+    {
+      "callee": "validate(user)?.then",
+      "enclosing": "src/calls.ts#AuthService.login",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 5
+        },
+        "end": {
+          "line": 9,
+          "column": 41
+        }
+      }
+    },
+    {
+      "callee": "validate",
+      "enclosing": "src/calls.ts#AuthService.login",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 5
+        },
+        "end": {
+          "line": 9,
+          "column": 19
+        }
+      }
+    },
+    {
+      "callee": "notify",
+      "enclosing": "src/calls.ts#AuthService.login",
+      "range": {
+        "start": {
+          "line": 9,
+          "column": 32
+        },
+        "end": {
+          "line": 9,
+          "column": 40
+        }
+      }
+    },
+    {
+      "callee": "createAudit",
+      "enclosing": "src/calls.ts#AuthService.audit",
+      "range": {
+        "start": {
+          "line": 12,
+          "column": 19
+        },
+        "end": {
+          "line": 12,
+          "column": 32
+        }
+      }
+    },
+    {
+      "callee": "setTimeout",
+      "enclosing": "src/calls.ts#helper",
+      "range": {
+        "start": {
+          "line": 16,
+          "column": 3
+        },
+        "end": {
+          "line": 18,
+          "column": 9
+        }
+      }
+    },
+    {
+      "callee": "run",
+      "enclosing": "src/calls.ts#helper",
+      "range": {
+        "start": {
+          "line": 17,
+          "column": 5
+        },
+        "end": {
+          "line": 17,
+          "column": 10
+        }
+      }
+    }
+  ],
+  "parseErrors": []
+}

@@ -1,4 +1,5 @@
 /** Small helpers shared by the spec model: text positions, paths and "did you mean". */
+import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
@@ -119,3 +120,9 @@ export async function listFiles(root: string): Promise<string[]> {
 /** A matcher for root-relative POSIX paths against globs (dot-files excluded). */
 export const globMatcher = (patterns: string | readonly string[]): ((path: string) => boolean) =>
   picomatch(typeof patterns === "string" ? patterns : [...patterns], { dot: false });
+
+/** The git blob SHA-1 of a file's content: the same id `git hash-object` prints. */
+export const gitBlobSha = (content: string | Uint8Array): string => {
+  const bytes = typeof content === "string" ? Buffer.from(content, "utf8") : content;
+  return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+};

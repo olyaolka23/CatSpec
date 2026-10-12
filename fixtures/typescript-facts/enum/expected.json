@@ -1,0 +1,232 @@
+{
+  "path": "src/enum.ts",
+  "blobSha": "17ddcc615f2f3f0b01625476b276bd85c459712f",
+  "lang": "typescript",
+  "symbols": [
+    {
+      "id": "src/enum.ts#Color",
+      "name": "Color",
+      "qualifiedName": "Color",
+      "kind": "enum",
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 8
+        },
+        "end": {
+          "line": 5,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 1,
+          "column": 13
+        },
+        "end": {
+          "line": 1,
+          "column": 18
+        }
+      },
+      "modifiers": [],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/enum.ts#Color.Red",
+          "name": "Red",
+          "qualifiedName": "Color.Red",
+          "kind": "field",
+          "range": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 10
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 2,
+              "column": 3
+            },
+            "end": {
+              "line": 2,
+              "column": 6
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        },
+        {
+          "id": "src/enum.ts#Color.Green",
+          "name": "Green",
+          "qualifiedName": "Color.Green",
+          "kind": "field",
+          "range": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 8
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 3,
+              "column": 3
+            },
+            "end": {
+              "line": 3,
+              "column": 8
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        },
+        {
+          "id": "src/enum.ts#Color.Blue",
+          "name": "Blue",
+          "qualifiedName": "Color.Blue",
+          "kind": "field",
+          "range": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 16
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 4,
+              "column": 3
+            },
+            "end": {
+              "line": 4,
+              "column": 7
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        }
+      ],
+      "exported": true
+    },
+    {
+      "id": "src/enum.ts#Direction",
+      "name": "Direction",
+      "qualifiedName": "Direction",
+      "kind": "enum",
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 1
+        },
+        "end": {
+          "line": 10,
+          "column": 2
+        }
+      },
+      "nameRange": {
+        "start": {
+          "line": 7,
+          "column": 12
+        },
+        "end": {
+          "line": 7,
+          "column": 21
+        }
+      },
+      "modifiers": [
+        "const"
+      ],
+      "attributes": [],
+      "bases": [],
+      "typeParams": [],
+      "members": [
+        {
+          "id": "src/enum.ts#Direction.Up",
+          "name": "Up",
+          "qualifiedName": "Direction.Up",
+          "kind": "field",
+          "range": {
+            "start": {
+              "line": 8,
+              "column": 3
+            },
+            "end": {
+              "line": 8,
+              "column": 5
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 8,
+              "column": 3
+            },
+            "end": {
+              "line": 8,
+              "column": 5
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        },
+        {
+          "id": "src/enum.ts#Direction.Down",
+          "name": "Down",
+          "qualifiedName": "Direction.Down",
+          "kind": "field",
+          "range": {
+            "start": {
+              "line": 9,
+              "column": 3
+            },
+            "end": {
+              "line": 9,
+              "column": 7
+            }
+          },
+          "nameRange": {
+            "start": {
+              "line": 9,
+              "column": 3
+            },
+            "end": {
+              "line": 9,
+              "column": 7
+            }
+          },
+          "modifiers": [],
+          "attributes": [],
+          "bases": [],
+          "typeParams": [],
+          "members": []
+        }
+      ]
+    }
+  ],
+  "imports": [],
+  "calls": [],
+  "parseErrors": []
+}

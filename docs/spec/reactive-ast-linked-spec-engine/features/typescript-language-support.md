@@ -43,17 +43,17 @@ Feature: F2 typescript-language-support
 ```
 
 ## Definition of Done (feature)
-- [ ] all PBIs meet the PBI checklist
-- [ ] `@AC-F2-1..3` are automated and pass in CI on 3 OSes
-- [ ] requirements review done; differences approved by the owner
-- [ ] owner approved closing the feature and ticking it in plan §1 Progress
+- [x] all PBIs meet the PBI checklist
+- [x] `@AC-F2-1..3` are automated and pass in CI on 3 OSes
+- [x] requirements review done; differences approved by the owner
+- [x] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `adapter-interface`
 Defines the language-independent "facts" model and the plug-in interface every language adapter implements.
 - depends on: `cli-skeleton`
 - refs: §D11.2, ADR-003
-- [ ] `LanguageAdapter`, `FileFacts`, `SymbolFact`, `ImportFact`, `CallFact` types **in `core`**
-- [ ] adapter registry in `lang`; language chosen by extension + `languages.*.include/exclude`
+- [x] `LanguageAdapter`, `FileFacts`, `SymbolFact`, `ImportFact`, `CallFact` types **in `core`**
+- [x] adapter registry in `lang`; language chosen by extension + `languages.*.include/exclude`
 
 ```gherkin
   @AC-adapter-interface-1
@@ -73,9 +73,9 @@ Defines the language-independent "facts" model and the plug-in interface every l
 Loads Tree-sitter and the language grammars as WASM files, so CatSpec runs everywhere without native builds.
 - depends on: `adapter-interface`
 - refs: §D11.1, ADR-002
-- [ ] `web-tree-sitter` initialised once; grammar `.wasm` loaded from the adapter package
-- [ ] `scripts/build-grammars`: build pinned grammar releases to WASM (interim: prebuilt `tree-sitter-wasms`, pinned)
-- [ ] query runner: compile `.scm` once per language; typed capture iteration
+- [x] `web-tree-sitter` initialised once; grammar `.wasm` loaded from the adapter package
+- [x] `scripts/build-grammars`: build pinned grammar releases to WASM (interim: prebuilt `tree-sitter-wasms`, pinned)
+- [x] query runner: compile `.scm` once per language; typed capture iteration
 
 ```gherkin
   @AC-tree-sitter-runtime-1
@@ -95,8 +95,8 @@ Loads Tree-sitter and the language grammars as WASM files, so CatSpec runs every
 Compares type names the way people write them, e.g. `IMessageHandler<UserUpdatedEvent>` matches `Contracts.IMessageHandler<Events.UserUpdatedEvent>`.
 - depends on: `adapter-interface`
 - refs: §D11.5, analysis F-5
-- [ ] parse type text like `A.B<C.D, E>` into a tree; segment-wise suffix matching
-- [ ] qualified-name suffix matching for symbols
+- [x] parse type text like `A.B<C.D, E>` into a tree; segment-wise suffix matching
+- [x] qualified-name suffix matching for symbols
 
 ```gherkin
   @AC-type-normaliser-1
@@ -115,12 +115,12 @@ Compares type names the way people write them, e.g. `IMessageHandler<UserUpdated
 Extracts the facts from TypeScript and TSX files: declarations, members, decorators, imports and calls.
 - depends on: `tree-sitter-runtime`, `type-normaliser`
 - refs: §D11.2
-- [ ] declarations: class, interface, type alias, enum, function, exported const arrow functions, methods, properties, constructor params (incl. parameter properties), getters / setters, overloads
-- [ ] modifiers, decorators (name + args), `export` / `export default`, `implements` / `extends`, generics
-- [ ] imports (static, `import type`, literal `import()`, literal `require`); re-exports recorded, not resolved
-- [ ] calls (callee text + enclosing symbol); qualified names `path#Outer.Inner`
-- [ ] type normalisation (`Array<T>` ≡ `T[]`, whitespace, `readonly` params); partial facts + CS0901 on parse errors
-- [ ] hidden debug command `catspec show-facts <file>`
+- [x] declarations: class, interface, type alias, enum, function, exported const arrow functions, methods, properties, constructor params (incl. parameter properties), getters / setters, overloads
+- [x] modifiers, decorators (name + args), `export` / `export default`, `implements` / `extends`, generics
+- [x] imports (static, `import type`, literal `import()`, literal `require`); re-exports recorded, not resolved
+- [x] calls (callee text + enclosing symbol); qualified names `path#Outer.Inner`
+- [x] type normalisation (`Array<T>` ≡ `T[]`, whitespace, `readonly` params); partial facts + CS0901 on parse errors
+- [x] hidden debug command `catspec show-facts <file>`
 
 ```gherkin
   @AC-typescript-adapter-1
@@ -146,8 +146,8 @@ Extracts the facts from TypeScript and TSX files: declarations, members, decorat
 Makes repeated checks fast by caching facts by file content, and finds symbols anywhere in the repo.
 - depends on: `typescript-adapter`
 - refs: §D11.7, analysis F-16
-- [ ] cache `FileFacts` by git blob SHA in `<git-common-dir>/catspec/cache/<lang>/`, keyed by adapter + grammar version; in-memory fallback outside git
-- [ ] lazy repo-wide symbol index (name → symbol ids)
+- [x] cache `FileFacts` by git blob SHA in `<git-common-dir>/catspec/cache/<lang>/`, keyed by adapter + grammar version; in-memory fallback outside git
+- [x] lazy repo-wide symbol index (name → symbol ids)
 
 ```gherkin
   @AC-parse-cache-and-index-1

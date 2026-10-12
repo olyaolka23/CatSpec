@@ -1,0 +1,150 @@
+{
+  "path": "src/imports.ts",
+  "blobSha": "e6081b24ea3e676de3460dd90e2e5e95bb9727df",
+  "lang": "typescript",
+  "symbols": [],
+  "imports": [
+    {
+      "module": "./named",
+      "kind": "static",
+      "names": [
+        {
+          "name": "A"
+        },
+        {
+          "name": "B",
+          "alias": "C"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 37
+        }
+      }
+    },
+    {
+      "module": "./types",
+      "kind": "type",
+      "names": [
+        {
+          "name": "IUser"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 2,
+          "column": 1
+        },
+        "end": {
+          "line": 2,
+          "column": 38
+        }
+      }
+    },
+    {
+      "module": "./default",
+      "kind": "static",
+      "names": [
+        {
+          "name": "default",
+          "alias": "Default"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 3,
+          "column": 1
+        },
+        "end": {
+          "line": 3,
+          "column": 33
+        }
+      }
+    },
+    {
+      "module": "./mixed",
+      "kind": "static",
+      "names": [
+        {
+          "name": "default",
+          "alias": "Mixed"
+        },
+        {
+          "name": "Other"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 4,
+          "column": 1
+        },
+        "end": {
+          "line": 4,
+          "column": 40
+        }
+      }
+    },
+    {
+      "module": "../utils",
+      "kind": "static",
+      "names": [
+        {
+          "name": "*",
+          "alias": "utils"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 5,
+          "column": 1
+        },
+        "end": {
+          "line": 5,
+          "column": 35
+        }
+      }
+    },
+    {
+      "module": "./side-effect",
+      "kind": "static",
+      "names": [],
+      "range": {
+        "start": {
+          "line": 6,
+          "column": 1
+        },
+        "end": {
+          "line": 6,
+          "column": 24
+        }
+      }
+    },
+    {
+      "module": "fs",
+      "kind": "require",
+      "names": [
+        {
+          "name": "*",
+          "alias": "fs"
+        }
+      ],
+      "range": {
+        "start": {
+          "line": 7,
+          "column": 1
+        },
+        "end": {
+          "line": 7,
+          "column": 27
+        }
+      }
+    }
+  ],
+  "calls": [],
+  "parseErrors": []
+}

@@ -278,3 +278,16 @@ reasoning for ADR-002…ADR-012 is in
   CI tests Node 22 and 24, builds target Node 22, and the CLI uses `commander` 15.
 - **Consequences:** Users on Node 20 upgrade Node before installing CatSpec. Dropping a Node
   line later needs a new ADR.
+
+## ADR-021: Tree-sitter runtime and grammar WASM
+
+- **Status:** Accepted · **Date:** 2026-10-11 · **Ref:** ADR-002, plan §D11.1, PBI `tree-sitter-runtime`
+- **Context:** ADR-002 chooses `web-tree-sitter` with pinned grammar WASM files, and ADR-019
+  requires an ADR for each new runtime dependency. `scripts/build-grammars` doesn't exist yet;
+  plan §4 (Risks) names the prebuilt `tree-sitter-wasms` package as the interim grammar source.
+- **Decision:** `@catspec/lang` depends on `web-tree-sitter`, pinned to an exact version checked
+  to load the grammars (0.25.10; later releases can't load the `tree-sitter-wasms` builds).
+  `tree-sitter-wasms@0.1.13` is a pinned devDependency of `@catspec/lang-typescript`; its build
+  copies only `tree-sitter-typescript.wasm` and `tree-sitter-tsx.wasm` into the published package.
+- **Consequences:** No native builds, and the adapter package stays small. Replacing the interim
+  grammars with our own build needs a new ADR.

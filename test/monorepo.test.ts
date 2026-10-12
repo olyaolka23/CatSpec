@@ -1,5 +1,5 @@
 import { spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -120,6 +120,29 @@ describe("monorepo", () => {
         .filter((dep) => workspaceNames.has(dep));
       for (const dep of internal) {
         expect(allowed[dir], `${pkg.name} must not depend on ${dep}`).toContain(dep);
+      }
+    }
+  });
+
+  it("declares every workspace package a package's sources import, so the build doesn't bundle it", () => {
+    const sourcesOf = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? sourcesOf(join(dir, entry.name))
+          : entry.name.endsWith(".ts")
+            ? [join(dir, entry.name)]
+            : [],
+      );
+    for (const [dir, name] of PACKAGES) {
+      const pkg = readJson<PackageJson>(join(root, "packages", dir, "package.json"));
+      const declared = new Set(Object.keys(pkg.dependencies ?? {}));
+      for (const file of sourcesOf(join(root, "packages", dir, "src"))) {
+        const text = readFileSync(file, "utf8");
+        for (const [, imported] of text.matchAll(/\bfrom\s+"(@catspec\/[a-z-]+|catspec)"/g)) {
+          expect(declared, `${name} imports ${imported} in ${relative(root, file)}`).toContain(
+            imported,
+          );
+        }
       }
     }
   });

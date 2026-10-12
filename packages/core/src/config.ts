@@ -3,7 +3,7 @@
  * repository without a config works. The `workflow` section is kept as written and validated by
  * the workflow profiles (plan §D17).
  */
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
@@ -187,6 +187,24 @@ export function findGitRoot(dir: string): string | undefined {
     if (existsSync(join(current, ".git"))) return current;
     if (dirname(current) === current) return undefined;
   }
+}
+
+/**
+ * The git common directory of the repository at `root` (where `.git` is): `.git` itself, or for a
+ * linked worktree the main repository's `.git`, so every worktree shares one cache. Read from
+ * the files git writes, without running git. Undefined outside a git repository.
+ */
+export function findGitCommonDir(root: string): string | undefined {
+  const dotGit = join(root, ".git");
+  if (!existsSync(dotGit)) return undefined;
+  let gitDir = dotGit;
+  if (statSync(dotGit).isFile()) {
+    const pointer = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, "utf8"));
+    if (!pointer) return undefined;
+    gitDir = resolve(root, pointer[1]!);
+  }
+  const commonDir = join(gitDir, "commondir");
+  return existsSync(commonDir) ? resolve(gitDir, readFileSync(commonDir, "utf8").trim()) : gitDir;
 }
 
 /**
