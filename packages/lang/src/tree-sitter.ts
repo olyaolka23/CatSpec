@@ -104,6 +104,58 @@ export class Grammar {
   }
 }
 
+/** The error of a query that doesn't compile; `offset` is where in the query source. */
+export class QuerySyntaxError extends Error {
+  constructor(
+    message: string,
+    readonly offset?: number,
+  ) {
+    super(message);
+    this.name = "QuerySyntaxError";
+  }
+}
+
+/**
+ * Compiles a user-written query (a `query` rule, plan §D6.3) for `grammar`, once per source.
+ * Throws `QuerySyntaxError` when it doesn't compile.
+ */
+export function userQuery(grammar: Grammar, source: string): Query {
+  let cached = userQueries.get(grammar);
+  if (!cached) userQueries.set(grammar, (cached = new Map<string, Query | QuerySyntaxError>()));
+  let query = cached.get(source);
+  if (query instanceof QuerySyntaxError) throw query;
+  if (!query) {
+    try {
+      query = new Query(grammar.language, source);
+    } catch (error) {
+      const failure = error as Error & { index?: number };
+      const syntaxError = new QuerySyntaxError(
+        failure.message,
+        typeof failure.index === "number" ? failure.index : undefined,
+      );
+      cached.set(source, syntaxError);
+      throw syntaxError;
+    }
+    cached.set(source, query);
+  }
+  return query;
+}
+
+const userQueries = new WeakMap<Grammar, Map<string, Query | QuerySyntaxError>>();
+
+/** The nodes a user query reports: its `@hit` captures, else each match's first capture. */
+export function queryHits(query: Query, node: Node): Node[] {
+  const hits: Node[] = [];
+  const hasHit = query.captureNames.includes("hit");
+  for (const match of query.matches(node)) {
+    const capture = hasHit
+      ? match.captures.filter((c) => c.name === "hit")
+      : match.captures.slice(0, 1);
+    hits.push(...capture.map((c) => c.node));
+  }
+  return hits;
+}
+
 const grammars = new Map<string, Promise<Grammar>>();
 
 /** Loads a grammar WASM file once per process (`web-tree-sitter` is initialised first). */

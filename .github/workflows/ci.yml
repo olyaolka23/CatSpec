@@ -43,6 +43,9 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      # CatSpec checks its own repository: the ADR log's rules (PBI `dogfood-specs`).
+      - name: CatSpec check
+        run: node packages/cli/dist/bin.js check
       - name: Acceptance coverage
         if: ${{ !cancelled() }}
         run: npm run check:acceptance

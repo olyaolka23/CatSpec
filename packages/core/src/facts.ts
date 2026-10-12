@@ -144,6 +144,17 @@ export interface LanguageAdapter {
   normalizeType(text: string): TypeRef;
   /** The qualified name of a symbol of `file`. */
   qualify(symbol: SymbolFact, file: SourceFile): string;
+  /**
+   * Compiles the raw Tree-sitter query of a `query` rule (plan §D6.3; the only place rules see
+   * syntax, ADR-003). Returns the error message, or undefined when the query compiles. An adapter
+   * without it doesn't support `query` rules (CS0130).
+   */
+  checkQuery?(query: string): string | undefined;
+  /**
+   * Runs a compiled query on a file: the range of each `@hit` capture, or of each match's first
+   * capture when the query has no `@hit`.
+   */
+  runQuery?(file: SourceFile, query: string): Range[];
 }
 
 /** One CS0901 warning per syntax error of the file, at the error's location. */

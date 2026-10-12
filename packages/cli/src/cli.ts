@@ -1,28 +1,54 @@
 /**
- * The `catspec` command line (plan §D10), PBI `cli-skeleton`: `init`, `check --specs-only`,
- * `list`, `show` and `graph`.
+ * The `catspec` command line (plan §D10), PBIs `cli-skeleton`, `status-and-waivers` and
+ * `check-command`: `init`, `check`, `status`, `coverage`, `list`, `show` and `graph`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
 import { existsSync, statSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
+  applyPatch,
+  checkCode,
   ConfigError,
+  coverage,
   didYouMean,
   findGitRoot,
+  globMatcher,
   loadConfig,
   loadSpecModel,
+  queryDiagnostics,
+  runTestCommand,
+  sortDiagnostics,
   SPEC_STATUSES,
+  SpecEditError,
+  statusGate,
+  toPosix,
+  type Diagnostic,
+  type ItemResult,
   type Spec,
   type SpecModel,
+  type SpecStatus,
 } from "@catspec/core";
-import { Command, CommanderError, Option } from "commander";
+import { Argument, Command, CommanderError, Option } from "commander";
+
+import { emptyCodebase, loadCodebase } from "./codebase.js";
 
 import { formatGraph, GRAPH_FORMATS, type GraphFormat } from "./graph.js";
 import { initRepository } from "./init.js";
-import { COLORS, EXIT, exitCodeFor, formatJson, formatText, PLAIN, type Style } from "./report.js";
+import {
+  COLORS,
+  EXIT,
+  exitCodeFor,
+  formatAgentReport,
+  formatCoverage,
+  formatJson,
+  formatText,
+  PLAIN,
+  type Style,
+} from "./report.js";
 import { showFacts, UnknownLanguageError } from "./show-facts.js";
 
 export interface CliIo {
@@ -120,36 +146,152 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
 
   program
     .command("check")
-    .description("validate the specs; with --specs-only, the spec files only (no code)")
+    .description(
+      "check the code against the specs: bindings, contracts and rules, by spec status; " +
+        "--specs-only checks the spec files only, --spec <id> reports one spec until DONE",
+    )
+    .argument("[paths...]", "only report diagnostics for these files or folders")
     .option(
       "--specs-only",
-      "check spec files only: schema, ids, dependencies, references, layout, ADR ids",
+      "check spec files only: schema, ids, dependencies, references, queries, layout, ADR ids",
+    )
+    .option(
+      "--spec <id...>",
+      "check only these specs as if implemented; prints expected / found / fix and DONE or NOT DONE",
+    )
+    .option("--run-tests", "run the tests of test rules with tests.command from catspec.yaml")
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(
+      async (
+        paths: string[],
+        options: {
+          specsOnly?: boolean;
+          spec?: string[];
+          runTests?: boolean;
+          format: "text" | "json";
+        },
+        command: Command,
+      ) => {
+        const started = performance.now();
+        const { model, style, opts } = await load(command);
+        for (const id of options.spec ?? []) findSpec(model, id);
+        if (options.specsOnly && options.runTests) {
+          throw new UsageError("--run-tests can't be used with --specs-only");
+        }
+        const testCommand = model.config.tests.command;
+        if (options.runTests && testCommand === undefined) {
+          throw new UsageError("--run-tests needs tests.command in catspec.yaml");
+        }
+
+        let diagnostics: Diagnostic[];
+        let items: ItemResult[] = [];
+        let checked: Spec[];
+        if (options.specsOnly) {
+          const codebase = await emptyCodebase(model.config);
+          const selected = options.spec ? new Set(options.spec) : undefined;
+          diagnostics = sortDiagnostics(
+            [
+              ...model.diagnostics,
+              ...queryDiagnostics(model, (lang) => codebase.adapter(lang)),
+            ].filter((d) => !selected || (d.spec !== undefined && selected.has(d.spec))),
+          );
+          checked = model.specs.all().filter((s) => !selected || selected.has(s.id));
+        } else {
+          const codebase = await loadCodebase(model.root, model.config);
+          const result = await checkCode(model, codebase, {
+            ...(options.spec ? { specs: options.spec, mode: "full" as const } : {}),
+            ...(options.runTests && testCommand !== undefined
+              ? { runTest: (symbol: string) => runTestCommand(model.root, testCommand, symbol) }
+              : {}),
+          });
+          diagnostics = result.diagnostics;
+          items = result.items;
+          checked = options.spec ? result.checked : model.specs.all();
+        }
+        if (paths.length > 0) {
+          const cwd = workingDirectory(out.cwd, opts.cwd);
+          diagnostics = diagnostics.filter((d) => inPaths(d, paths, cwd, model.root));
+        }
+
+        if (options.format === "json") {
+          out.stdout.write(
+            formatJson(
+              diagnostics,
+              checked.length,
+              options.spec ? { items, done: exitCodeFor(diagnostics) === EXIT.ok } : {},
+            ),
+          );
+        } else if (options.spec && !options.specsOnly) {
+          out.stdout.write(formatAgentReport({ specs: checked, items, diagnostics }, style));
+        } else {
+          out.stdout.write(
+            formatText(diagnostics, {
+              style,
+              quiet: Boolean(opts.quiet),
+              verbose: Boolean(opts.verbose),
+              specs: checked.map((s) => ({ id: s.id, file: s.file })),
+              durationMs: performance.now() - started,
+            }),
+          );
+        }
+        exitCode = exitCodeFor(diagnostics);
+      },
+    );
+
+  program
+    .command("status")
+    .description(
+      "change a spec's status: ready needs its dependencies to exist, in-progress and " +
+        "implemented need them implemented and passing, implemented needs its own contracts to pass",
+    )
+    .argument("<spec>", "spec id")
+    .addArgument(new Argument("<status>", "the new status").choices(SPEC_STATUSES))
+    .option("--force", "skip the dependency gate (an implemented spec must still pass)")
+    .action(
+      async (id: string, target: SpecStatus, options: { force?: boolean }, command: Command) => {
+        const { model, style, opts } = await load(command);
+        const spec = findSpec(model, id);
+        if (!spec.valid) {
+          throw new UsageError(`${spec.file} has errors; run \`catspec check --specs-only\``);
+        }
+        if (spec.status === target) {
+          if (!opts.quiet) out.stdout.write(`${spec.id} is already ${target}\n`);
+          return;
+        }
+        const codebase = await loadCodebase(model.root, model.config);
+        const gate = await statusGate(
+          model,
+          codebase,
+          spec,
+          target,
+          options.force ? { force: true } : {},
+        );
+        if (!gate.allowed) {
+          out.stdout.write(formatText(gate.diagnostics, { style }));
+          out.stderr.write(`catspec: refused: ${spec.id} stays ${spec.status}\n`);
+          exitCode = EXIT.errors;
+          return;
+        }
+        const text = applyPatch(spec.source, [{ op: "set", path: ["status"], value: target }]);
+        await writeFile(join(model.root, spec.file), text, "utf8");
+        if (!opts.quiet) out.stdout.write(`${spec.id}: ${spec.status} → ${target}\n`);
+      },
+    );
+
+  program
+    .command("coverage")
+    .description(
+      "contract satisfaction, enforcement coverage (manual rules and unenforced prose count " +
+        "against it) and reverse coverage (source files bound by a spec)",
     )
     .addOption(formatOption(["text", "json"], "text"))
-    .action(async (options: { specsOnly?: boolean; format: "text" | "json" }, command: Command) => {
-      if (!options.specsOnly) {
-        throw new UsageError(
-          "checking code against specs is not available yet; run `catspec check --specs-only`",
-        );
-      }
-      const started = performance.now();
+    .action(async (options: { format: "text" | "json" }, command: Command) => {
       const { model, style, opts } = await load(command);
-      const diagnostics = model.diagnostics;
-      const specs = model.specs.all();
-      if (options.format === "json") {
-        out.stdout.write(formatJson(diagnostics, specs.length));
-      } else {
-        out.stdout.write(
-          formatText(diagnostics, {
-            style,
-            quiet: Boolean(opts.quiet),
-            verbose: Boolean(opts.verbose),
-            specs: specs.map((s) => ({ id: s.id, file: s.file })),
-            durationMs: performance.now() - started,
-          }),
-        );
-      }
-      exitCode = exitCodeFor(diagnostics);
+      const codebase = await loadCodebase(model.root, model.config);
+      const report = await coverage(model, codebase);
+      if (options.format === "json") out.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+      else out.stdout.write(formatCoverage(report, style));
+      warnAboutErrors(model, opts, out);
     });
 
   program
@@ -253,7 +395,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       }
       return EXIT.usage;
     }
-    if (error instanceof UsageError) {
+    if (error instanceof UsageError || error instanceof SpecEditError) {
       out.stderr.write(`catspec: ${error.message}\n`);
       return EXIT.usage;
     }
@@ -281,6 +423,23 @@ function styleFor(opts: GlobalOptions, io: CliIo): Style {
   const enabled =
     opts.color && io.env.NO_COLOR === undefined && (forced || io.stdout.isTTY === true);
   return enabled ? COLORS : PLAIN;
+}
+
+/** True when a diagnostic's code or spec location is under one of `paths` (files, folders or globs). */
+function inPaths(d: Diagnostic, paths: string[], cwd: string, root: string): boolean {
+  const targets = paths.map((p) => {
+    const rel = toPosix(relative(root, resolve(cwd, p)));
+    return rel === "" ? "." : rel;
+  });
+  const glob = globMatcher(targets);
+  const files = [d.codeLocation?.file, d.specLocation?.file].filter(
+    (f): f is string => f !== undefined,
+  );
+  return files.some(
+    (file) =>
+      glob(file) ||
+      targets.some((t) => t === "." || file === t || (!isAbsolute(t) && file.startsWith(`${t}/`))),
+  );
 }
 
 function findSpec(model: SpecModel, id: string): Spec {

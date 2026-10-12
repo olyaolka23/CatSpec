@@ -91,6 +91,168 @@ export const CODES = {
       "A rule's `adr` field names a decision that isn't in the architecture spec's ADR log " +
       "(a `## ADR-NNN: <title>` heading). Fix the id or add the decision to the log.",
   },
+  CS0130: {
+    severity: "error",
+    title: "invalid query",
+    docs:
+      "A `query` rule's Tree-sitter query doesn't compile for its language (for example unbalanced " +
+      "parentheses or an unknown node type), or no language adapter is installed for its `lang`. " +
+      "Queries are compiled when the specs load, before any code is read. Fix the query at the " +
+      "reported line.",
+  },
+  CS0201: {
+    severity: "error",
+    title: "binding not found",
+    docs:
+      "No declaration in the code matches the binding's `symbol` (and `kind`). CatSpec looks in " +
+      "the files of the `file` hint first, then in every source file, so a moved file is still " +
+      "found. The message suggests close names of the same kind, in the hinted files first. Fix " +
+      "the symbol, restore the code, or run `catspec sync` after a rename.",
+  },
+  CS0202: {
+    severity: "error",
+    title: "binding ambiguous",
+    docs:
+      "More than one declaration matches the binding's `symbol` and they aren't C# `partial` " +
+      "parts of one type. The message lists every location. Qualify the symbol " +
+      "(`Namespace.Type` or `path/to/module#Name`) or add a `file` hint.",
+  },
+  CS0203: {
+    severity: "error",
+    title: "member missing",
+    docs:
+      "The bound declaration has no member with the name a `members` entry requires. The message " +
+      "suggests the closest existing members with their location. Add the member, rename it back, " +
+      "mark the entry `optional: true`, or update the spec.",
+  },
+  CS0204: {
+    severity: "error",
+    title: "base type missing",
+    docs:
+      "The bound declaration doesn't directly extend or implement a type listed in `implements` " +
+      "or `extends`. Types match by qualified-name suffix and generic arguments. Add the base " +
+      "type or update the spec.",
+  },
+  CS0205: {
+    severity: "error",
+    title: "signature mismatch",
+    docs:
+      "A member exists but its kind, parameter types, return type or modifiers differ from the " +
+      "spec. The message shows the expected and the found signature. `*` in `params` matches any " +
+      "type.",
+  },
+  CS0206: {
+    severity: "error",
+    title: "attribute missing",
+    docs:
+      "The declaration or member lacks a C# attribute or TypeScript decorator that the spec " +
+      "requires in `attributes`. Names match without a trailing `Attribute`; arguments are " +
+      "compared only when the spec gives them.",
+  },
+  CS0207: {
+    severity: "error",
+    title: "constructor dependency missing",
+    docs:
+      "No constructor of the bound class takes every type in `constructor.requires` (dependency " +
+      "injection). The message names the missing types for the closest constructor.",
+  },
+  CS0208: {
+    severity: "error",
+    title: "visibility or export mismatch",
+    docs:
+      "`exported` requires the declaration to be exported (TypeScript) or `public` (C#), or not, " +
+      "or a member lacks a required visibility modifier (`public`, `private`, `protected`, " +
+      "`internal`).",
+  },
+  CS0220: {
+    severity: "warning",
+    title: "unresolvable",
+    docs:
+      "CatSpec can't decide the check from syntax alone, for example a base type that is a type " +
+      "alias, a parameter without a type annotation, or a class without its own constructor that " +
+      "inherits one. It is never reported as a failure of the contract; its severity is " +
+      "`enforcement.unresolvable` (`warn` or `error`). Write the type explicitly to make it " +
+      "checkable.",
+  },
+  CS0400: {
+    severity: "info",
+    title: "waived",
+    docs:
+      "A rule violation covered by a waiver (`waivers` in the spec, with a reason and an " +
+      "optional `until` date). It doesn't fail the check. The message keeps the original code " +
+      "and text.",
+  },
+  CS0401: {
+    severity: "error",
+    title: "waiver expired",
+    docs:
+      "A waiver's `until` date has passed. The violations it covered are reported again. Fix " +
+      "them and remove the waiver, or extend `until` with a reason.",
+  },
+  CS0502: {
+    severity: "error",
+    title: "dependencies not satisfied",
+    docs:
+      "`catspec status` refuses the transition: `ready` needs every `depends_on` spec to exist, " +
+      "`in-progress` and `implemented` need them `implemented` with passing contracts. The " +
+      "message names each dependency and why. `--force` skips this gate.",
+  },
+  CS0601: {
+    severity: "error",
+    title: "forbidden call",
+    docs:
+      "A `forbid_call` rule matched a call in its scope (`within` a binding or member, the " +
+      "spec's files, or `paths`). `*` in the pattern matches any text. Remove the call or add a " +
+      "waiver with a reason.",
+  },
+  CS0602: {
+    severity: "error",
+    title: "required call missing",
+    docs: "A `require_call` rule found no matching call in its scope. Add the call.",
+  },
+  CS0603: {
+    severity: "error",
+    title: "forbidden import",
+    docs:
+      "A file matching the rule's `from` imports a module that `forbid_import` forbids, or that " +
+      "`allow_import_only` doesn't allow. Relative imports are resolved to repository paths " +
+      "before they are matched. Remove the import or move the code.",
+  },
+  CS0604: {
+    severity: "error",
+    title: "naming rule violated",
+    docs:
+      "A declaration whose kind and name match a `naming` rule doesn't satisfy its " +
+      "`implements`, `extends`, `attributes` or `in_path` requirement.",
+  },
+  CS0605: {
+    severity: "error",
+    title: "symbol must not exist",
+    docs:
+      "A `must_not_exist` rule found a declaration it forbids (usually a deprecated API). Remove " +
+      "it or rename it.",
+  },
+  CS0610: {
+    severity: "error",
+    title: "query match",
+    docs:
+      "A `query` rule with `expect: absent` matched, or one with `expect: present` found " +
+      "nothing, in its scope.",
+  },
+  CS0620: {
+    severity: "error",
+    title: "test missing",
+    docs:
+      "A `test` rule names a test symbol that doesn't exist in the code. Write the test or fix " +
+      "the symbol.",
+  },
+  CS0621: {
+    severity: "error",
+    title: "test failed",
+    docs:
+      "With `--run-tests`, the `tests.command` of `catspec.yaml` failed for a `test` rule. The " +
+      "command runs without a shell; `{test}` in it is replaced with the test symbol.",
+  },
   CS0901: {
     severity: "warning",
     title: "parse error in file",
@@ -147,6 +309,8 @@ export interface Diagnostic {
   suggestions?: Suggestion[];
   ruleId?: string;
   bindingId?: string;
+  /** The contract item checked, e.g. `binding:auth.login` or `rule:no-console` (ratchet, F5). */
+  item?: string;
 }
 
 export type DiagnosticInit = Omit<Diagnostic, "code" | "severity"> & { severity?: Severity };

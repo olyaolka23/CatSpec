@@ -225,6 +225,7 @@ describe("CI workflow", () => {
       "npm run lint",
       "npm run typecheck",
       "npm test",
+      "node packages/cli/dist/bin.js check",
       "npm run check:acceptance",
     ]);
     const setupNode = job.steps.find((s) => s.uses?.startsWith("actions/setup-node"));

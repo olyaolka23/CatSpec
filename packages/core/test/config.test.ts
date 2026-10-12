@@ -48,6 +48,8 @@ const PLAN_D4_DEFAULTS = {
     csharp: { include: ["src/**/*.cs"], exclude: ["**/obj/**", "**/bin/**", "**/*.g.cs"] },
   },
   enforcement: { drift: "warn", unresolvable: "warn", unenforced_prose: "warn" },
+  // `tests.command` (no default) is named by PBI `query-and-test-rules` (F3).
+  tests: {},
   heal: { mode: "suggest", threshold: 0.8 },
   hook: { stage_generated: true },
   refactor: { detect_threshold: 10, allow_wip: false },
