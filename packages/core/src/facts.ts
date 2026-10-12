@@ -64,7 +64,7 @@ export interface ParamFact {
 }
 
 export interface SymbolFact {
-  /** `${path}#${qualifiedName}`, plus `(${arity})` for overloads. */
+  /** `${path}#${qualifiedName}`, plus `(${arity})` for overload signatures and `#${n}` when arities repeat. */
   id: string;
   name: string;
   /** Name qualified by its enclosing declarations, e.g. `Outer.Inner.method`. */
