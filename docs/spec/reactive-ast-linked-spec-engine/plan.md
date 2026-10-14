@@ -233,7 +233,13 @@ refactor:
 mcp:
   allow_location_edits: true
   allow_contract_edits: false   # F-13
+tests:
+  command: ["npx", "vitest", "run", "-t", "{test}"]  # string or argv list; `{test}` = test name
 ```
+
+`tests.command` is what `catspec check --run-tests` runs for each `test` rule (CS0621 on
+failure). It is run with `execFile`, never through a shell; a string is split on whitespace.
+`{test}` is replaced by the rule's test symbol. The test passes when the command exits with 0.
 
 The config is validated with the same schema library as specs; a JSON Schema is
 published for editor autocompletion. All keys have defaults; `catspec init`
@@ -475,7 +481,8 @@ draft ──► ready ──► in-progress ──► implemented ──► depr
 | spec errors (schema, DAG; `check --specs-only`) | **error** | **error** | **error** | warning |
 
 - `ready` requires all `depends_on` to exist; `in-progress` requires them to be **satisfied** (status `implemented` and passing), unless `--force`.
-- `implemented` can only be set when the spec's enforceable contracts pass (CLI and MCP enforce this).
+- `implemented` can only be set when the spec's enforceable contracts pass (CLI and MCP enforce this), and also requires the dependency gate.
+- `--force` skips only the dependency gate (CS0502). It never lets `implemented` be set while contracts fail.
 
 ---
 
@@ -581,6 +588,8 @@ interface LanguageAdapter {
   extract(file: SourceFile): FileFacts;               // pure, cacheable by blob sha
   normalizeType(text: string): TypeRef;               // language-specific normalisation
   qualify(symbol: SymbolFact, file: SourceFile): string; // qualified name
+  checkQuery?(query: string): string | undefined;     // compile error, or undefined (ADR-022)
+  runQuery?(file: SourceFile, query: string): Range[]; // `@hit` ranges, else first capture
 }
 
 interface FileFacts {
@@ -605,7 +614,9 @@ interface SymbolFact {
 ```
 
 Rules operate **only** on `FileFacts`, never on raw trees (except `query` rules), so
-the rule engine is language-agnostic and testable without grammars.
+the rule engine is language-agnostic and testable without grammars. `query` rules reach
+syntax only through the optional `checkQuery` / `runQuery` methods (ADR-022); an adapter
+without them doesn't support `query` rules (CS0130).
 
 ### D11.3 Check pipeline
 
@@ -640,6 +651,8 @@ Both small and large renames go through `catspec sync`; for large refactorings s
 1. Expand `file` hint (glob) within the language include set; collect symbols whose qualified name ends with `symbol` (segment-wise suffix match).
 2. If none: lock file `resolved` path; then repo-wide search (lazy symbol index of the language's include set).
 3. 0 matches → `CS0201 not found` (+ did-you-mean via Damerau-Levenshtein over same-kind names, ≤ 3 suggestions). >1 non-partial match → `CS0202 ambiguous`. C# `partial` matches → merged.
+4. A symbol with the right name but the wrong kind is reported as `CS0201` ("no class X; found interface X"); a member of the wrong kind as `CS0205`.
+5. Member did-you-mean: when edit distance finds nothing, members sharing a camelCase word with the missing name are suggested (`validateToken` → `checkToken`).
 
 ### D11.6 Spec editing (CST)
 

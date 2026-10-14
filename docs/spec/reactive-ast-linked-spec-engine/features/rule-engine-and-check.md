@@ -66,7 +66,7 @@ Finds the code symbol a binding points to, even if the file has moved, and sugge
 - depends on: `parse-cache-and-index`, `spec-loader`
 - refs: §D11.5, ADR-005
 - [ ] resolution order: `file` hint → lock-file path (from F5) → repo-wide index
-- [ ] CS0201 not found with did-you-mean (Damerau-Levenshtein, same kind, same file first); CS0202 ambiguous
+- [x] CS0201 not found with did-you-mean (Damerau-Levenshtein, same kind, same file first); CS0202 ambiguous
 
 ```gherkin
   @AC-binding-resolver-1
@@ -87,10 +87,10 @@ Finds the code symbol a binding points to, even if the file has moved, and sugge
 Checks a resolved symbol against its binding: kind, visibility, base types, attributes, members, signatures and constructor dependencies.
 - depends on: `binding-resolver`
 - refs: §D5.3, §D11.5, analysis F-5
-- [ ] kind, exported / visibility, `implements` / `extends` (normalised suffix), attributes / decorators
-- [ ] members: existence, kind, positional params with `*`, returns, modifiers, `optional`
-- [ ] `constructor.requires`; CS0220 when syntax can't decide
-- [ ] every check emits its own item id (`binding:auth.login`) for the ratchet (F5)
+- [x] kind, exported / visibility, `implements` / `extends` (normalised suffix), attributes / decorators
+- [x] members: existence, kind, positional params with `*`, returns, modifiers, `optional`
+- [x] `constructor.requires`; CS0220 when syntax can't decide
+- [x] every check emits its own item id (`binding:auth.login`) for the ratchet (F5)
 
 ```gherkin
   @AC-contract-evaluator-1
@@ -118,8 +118,8 @@ Checks a resolved symbol against its binding: kind, visibility, base types, attr
 Implements the rule catalogue: forbidden and required calls, import boundaries, naming rules and deprecated symbols.
 - depends on: `contract-evaluator`
 - refs: §D6.2
-- [ ] `forbid_call`, `require_call`, `forbid_import`, `allow_import_only`, `naming`, `must_not_exist`
-- [ ] `within` (binding / member ranges) and `paths` scoping
+- [x] `forbid_call`, `require_call`, `forbid_import`, `allow_import_only`, `naming`, `must_not_exist`
+- [x] `within` (binding / member ranges) and `paths` scoping
 
 ```gherkin
   @AC-structural-rules-1
@@ -141,8 +141,8 @@ Implements the rule catalogue: forbidden and required calls, import boundaries, 
 Supports raw Tree-sitter queries as an escape hatch, and rules that require a linked test to exist (and optionally pass).
 - depends on: `contract-evaluator`
 - refs: §D6.1, §D6.3, analysis F-2
-- [ ] `query` rules: compiled at spec load (CS0130 invalid), `expect: absent|present` (CS0610)
-- [ ] `test` rules: test symbol must exist (CS0620); `--run-tests` runs `tests.command` via `execFile` (CS0621)
+- [x] `query` rules: compiled at spec load (CS0130 invalid), `expect: absent|present` (CS0610)
+- [x] `test` rules: test symbol must exist (CS0620); `--run-tests` runs `tests.command` via `execFile` (CS0621)
 
 ```gherkin
   @AC-query-and-test-rules-1
@@ -170,7 +170,7 @@ Supports raw Tree-sitter queries as an escape hatch, and rules that require a li
 Applies the rules in the ADR log's frontmatter to the whole repository.
 - depends on: `structural-rules`
 - refs: §D6.4, analysis F-12
-- [ ] rules from the architecture spec apply repo-wide; a `draft` architecture spec is not enforced
+- [x] rules from the architecture spec apply repo-wide; a `draft` architecture spec is not enforced
 
 ```gherkin
   @AC-architecture-rules-1
@@ -190,9 +190,9 @@ Applies the rules in the ADR log's frontmatter to the whole repository.
 Makes enforcement depend on a spec's status, supports waivers with a reason and expiry, and provides the `status` command.
 - depends on: `contract-evaluator`, `dependency-graph`
 - refs: §D6.5, §D8, analysis F-4, F-17
-- [ ] enforcement matrix by status (the ratchet arrives in F5)
-- [ ] waivers with reason and `until` (CS0400 waived, CS0401 expired)
-- [ ] `catspec status <spec> <status> [--force]`: `implemented` only if `check --spec` passes; `in-progress` only if dependencies are implemented (CS0502)
+- [x] enforcement matrix by status (the ratchet arrives in F5)
+- [x] waivers with reason and `until` (CS0400 waived, CS0401 expired)
+- [x] `catspec status <spec> <status> [--force]`: `implemented` only if `check --spec` passes; `in-progress` only if dependencies are implemented (CS0502)
 
 ```gherkin
   @AC-status-and-waivers-1
@@ -218,10 +218,10 @@ Makes enforcement depend on a spec's status, supports waivers with a reason and 
 The main `catspec check` command, plus the agent-friendly `--spec` report and the `coverage` report.
 - depends on: `structural-rules`, `query-and-test-rules`, `status-and-waivers`
 - refs: §D10, §D11.3, analysis F-3, F-14
-- [ ] `catspec check [paths] [--spec <id>…] [--specs-only]` over the working tree
-- [ ] `--spec`: expected / found / fix per item, ends with DONE / NOT DONE, exit 0 = done
-- [ ] `catspec coverage`: contract satisfaction, enforcement coverage, reverse coverage; `manual` rules and CS0111 counted
-- [ ] diagnostic message snapshot tests (wording is UX)
+- [x] `catspec check [paths] [--spec <id>…] [--specs-only]` over the working tree
+- [x] `--spec`: expected / found / fix per item, ends with DONE / NOT DONE, exit 0 = done
+- [x] `catspec coverage`: contract satisfaction, enforcement coverage, reverse coverage; `manual` rules and CS0111 counted
+- [x] diagnostic message snapshot tests (wording is UX)
 
 ```gherkin
   @AC-check-command-1
@@ -242,9 +242,9 @@ The main `catspec check` command, plus the agent-friendly `--spec` report and th
 CatSpec starts checking its own repository: the ADR rules are enforced and the first machine specs are added.
 - depends on: `check-command`, `architecture-rules`
 - refs: plan §0 (dogfooding), ADR-003
-- [ ] `catspec.yaml` for this repo; propose switching the ADR log frontmatter from `draft` to enforced (owner approval, Rule 3)
-- [ ] propose the first machine specs in the epic folder, e.g. `core-public-api.spec.md` binding `LanguageAdapter` and `FileFacts` (owner approval, Rule 3)
-- [ ] `catspec check` runs in this repo's CI
+- [x] `catspec.yaml` for this repo; propose switching the ADR log frontmatter from `draft` to enforced (owner approval, Rule 3)
+- [x] propose the first machine specs in the epic folder, e.g. `core-public-api.spec.md` binding `LanguageAdapter` and `FileFacts` (owner approval, Rule 3)
+- [x] `catspec check` runs in this repo's CI
 
 ```gherkin
   @AC-dogfood-specs-1
