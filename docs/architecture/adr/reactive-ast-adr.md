@@ -3,7 +3,7 @@ catspec: 1
 id: architecture
 title: CatSpec architecture
 type: architecture
-status: draft            # becomes enforced once CatSpec can check itself (plan M3)
+status: implemented      # enforced: `catspec check` runs on this repo in CI (F3)
 rules:
   - id: core-has-no-parser-dependency
     adr: ADR-003
@@ -294,7 +294,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-022: Query rules run through optional adapter methods
 
-- **Status:** Proposed · **Date:** 2026-10-14 · **Refines:** ADR-003 · **Ref:** plan §D6.3, §D11.2, PBI `query-and-test-rules`
+- **Status:** Accepted · **Date:** 2026-10-14 · **Refines:** ADR-003 · **Ref:** plan §D6.3, §D11.2, PBI `query-and-test-rules`
 - **Context:** ADR-003 keeps syntax trees out of `@catspec/core`: rules read `FileFacts`, and only
   `query` rules see raw trees, "via the adapter". The `LanguageAdapter` interface in plan §D11.2
   has no method for that, and a `query` rule's Tree-sitter query must be compiled when the specs
