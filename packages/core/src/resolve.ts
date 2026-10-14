@@ -19,6 +19,8 @@ export interface ResolvedBinding {
   file: FileFacts;
   /** The files of every part. */
   files: string[];
+  /** The declarations merged into `symbol`, each with its file; one unless C# `partial`. */
+  parts: { symbol: SymbolFact; file: FileFacts }[];
 }
 
 export interface BindingResolution {
@@ -141,6 +143,7 @@ export function resolveBinding(
       symbol: parts.length === 1 ? parts[0]!.symbol : mergePartials(parts.map((p) => p.symbol)),
       file: parts[0]!.file,
       files: [...new Set(parts.map((p) => p.file.path))],
+      parts: parts.map(({ symbol, file }) => ({ symbol, file })),
     },
     diagnostics: [],
   };

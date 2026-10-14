@@ -329,13 +329,21 @@ function scopeOf(rule: Rule, context: RuleContext): Scope | undefined {
   if (!resolved) return undefined;
   const memberName =
     within.length > bindingId!.length ? within.slice(bindingId!.length + 1) : undefined;
-  const targets = memberName
-    ? resolved.symbol.members.filter((m) => m.name === memberName)
-    : [resolved.symbol];
-  if (targets.length === 0) return undefined; // the missing member is CS0203
-  const ranges = new Map([[resolved.file.path, targets.map((t) => t.range)]]);
-  const file = context.codebase.files.find((f) => f.path === resolved.file.path);
-  return { files: narrow(file ? [file] : []), ranges };
+  // Each part of a C# partial type is in its own file, with its own members.
+  const ranges = new Map<string, Range[]>();
+  for (const part of resolved.parts) {
+    const targets = memberName
+      ? part.symbol.members.filter((m) => m.name === memberName)
+      : [part.symbol];
+    if (targets.length === 0) continue;
+    ranges.set(part.file.path, [
+      ...(ranges.get(part.file.path) ?? []),
+      ...targets.map((t) => t.range),
+    ]);
+  }
+  if (ranges.size === 0) return undefined; // the missing member is CS0203
+  const files = context.codebase.files.filter((f) => ranges.has(f.path));
+  return { files: narrow(files), ranges };
 }
 
 /**

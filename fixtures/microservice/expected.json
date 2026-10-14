@@ -1,0 +1,29 @@
+{
+  "correct": { "exitCode": 0, "diagnostics": [] },
+  "broken": {
+    "exitCode": 1,
+    "diagnostics": [
+      {
+        "code": "CS0603",
+        "spec": "architecture",
+        "file": "src/Domain/User.cs",
+        "line": 1,
+        "message": "src/Domain/User.cs imports Infrastructure.Persistence; rule \"domain-no-infrastructure\" forbids imports from src/Domain/** to Infrastructure.*, ADR-001"
+      },
+      {
+        "code": "CS0203",
+        "spec": "user-sync-handler",
+        "file": "src/Services/Identity/Handlers/UserUpdatedHandler.Handle.cs",
+        "line": 6,
+        "message": "member HandleAsync missing in Identity.Handlers.UserUpdatedHandler"
+      },
+      {
+        "code": "CS0601",
+        "spec": "user-sync-handler",
+        "file": "src/Services/Identity/Handlers/UserUpdatedHandler.Handle.cs",
+        "line": 15,
+        "message": "call to Console.WriteLine is forbidden by rule \"no-console\" (Console.WriteLine)"
+      }
+    ]
+  }
+}

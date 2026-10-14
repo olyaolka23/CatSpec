@@ -4,3 +4,4 @@ coverage/
 test-results/
 *.tsbuildinfo
 packages/lang-typescript/grammars/
+packages/lang-csharp/grammars/

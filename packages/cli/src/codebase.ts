@@ -13,10 +13,14 @@ import {
   type LanguageAdapter,
 } from "@catspec/core";
 import { AdapterRegistry, FactsProvider, factsCacheFor, repositoryFacts } from "@catspec/lang";
+import { CSharpAdapter } from "@catspec/lang-csharp";
 import { TypeScriptAdapter } from "@catspec/lang-typescript";
 
 /** The language adapters the CLI ships with. */
-export const defaultAdapters = (): LanguageAdapter[] => [new TypeScriptAdapter()];
+export const defaultAdapters = (): LanguageAdapter[] => [
+  new TypeScriptAdapter(),
+  new CSharpAdapter(),
+];
 
 /** The adapters, loaded, for checks that need no code (`check --specs-only` compiles queries). */
 export async function loadAdapters(config: CatspecConfig): Promise<AdapterRegistry> {
