@@ -59,6 +59,18 @@ export const ConfigSchema = z
         unenforced_prose: z.enum(["off", "warn"]).default("warn"),
       })
       .prefault({}),
+    tests: z
+      .strictObject({
+        command: z
+          .union([z.string().min(1), globList.min(1)])
+          .optional()
+          .describe(
+            "Test command run by `check --run-tests` for each test rule, without a shell: a " +
+              "string split at spaces, or a list of arguments. `{test}` is replaced with the " +
+              "test symbol.",
+          ),
+      })
+      .prefault({}),
     heal: z
       .strictObject({
         mode: z.enum(["off", "suggest", "auto"]).default("suggest"),

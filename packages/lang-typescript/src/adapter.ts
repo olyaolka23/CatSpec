@@ -1,6 +1,21 @@
 /** The TypeScript/TSX language adapter (plan §D11.2, PBI `typescript-adapter`). */
-import type { FileFacts, LanguageAdapter, SourceFile, SymbolFact, TypeRef } from "@catspec/core";
-import { loadGrammar, parseTypeRef, type Grammar } from "@catspec/lang";
+import {
+  LineIndex,
+  type FileFacts,
+  type LanguageAdapter,
+  type Range,
+  type SourceFile,
+  type SymbolFact,
+  type TypeRef,
+} from "@catspec/core";
+import {
+  loadGrammar,
+  parseTypeRef,
+  queryHits,
+  QuerySyntaxError,
+  userQuery,
+  type Grammar,
+} from "@catspec/lang";
 
 import { extractFacts, typeRefOf } from "./extract.js";
 import { GRAMMAR_SOURCE, TSX_GRAMMAR, TYPESCRIPT_GRAMMAR } from "./grammar.js";
@@ -39,6 +54,42 @@ export class TypeScriptAdapter implements LanguageAdapter {
 
   qualify(symbol: SymbolFact): string {
     return symbol.qualifiedName;
+  }
+
+  /**
+   * Compiles a `query` rule's query. It is valid when either grammar compiles it: a query on JSX
+   * nodes compiles only for TSX, and then runs on `.tsx` files only.
+   */
+  checkQuery(query: string): string | undefined {
+    let message: string | undefined;
+    for (const path of ["query.ts", "query.tsx"]) {
+      try {
+        userQuery(this.grammarFor(path), query);
+        return undefined;
+      } catch (error) {
+        if (!(error instanceof QuerySyntaxError)) throw error;
+        message ??= error.message;
+      }
+    }
+    return message;
+  }
+
+  runQuery(file: SourceFile, query: string): Range[] {
+    const grammar = this.grammarFor(file.path);
+    let compiled;
+    try {
+      compiled = userQuery(grammar, query);
+    } catch (error) {
+      if (error instanceof QuerySyntaxError) return [];
+      throw error;
+    }
+    const lines = new LineIndex(file.text);
+    return grammar.withTree(file.text, (tree) =>
+      queryHits(compiled, tree.rootNode).map((node) => ({
+        start: lines.position(node.startIndex),
+        end: lines.position(node.endIndex),
+      })),
+    );
   }
 
   private grammarFor(path: string): Grammar {

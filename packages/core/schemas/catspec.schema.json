@@ -92,6 +92,20 @@
       },
       "additionalProperties": false
     },
+    "tests": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "command": {
+          "description": "Test command run by `check --run-tests` for each test rule, without a shell: a string split at spaces, or a list of arguments. `{test}` is replaced with the test symbol.",
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "minItems": 1, "type": "array", "items": { "type": "string", "minLength": 1 } }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "heal": {
       "default": {},
       "type": "object",

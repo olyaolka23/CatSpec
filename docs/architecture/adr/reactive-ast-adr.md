@@ -291,3 +291,20 @@ reasoning for ADR-002…ADR-012 is in
   copies only `tree-sitter-typescript.wasm` and `tree-sitter-tsx.wasm` into the published package.
 - **Consequences:** No native builds, and the adapter package stays small. Replacing the interim
   grammars with our own build needs a new ADR.
+
+## ADR-022: Query rules run through optional adapter methods
+
+- **Status:** Proposed · **Date:** 2026-10-14 · **Refines:** ADR-003 · **Ref:** plan §D6.3, §D11.2, PBI `query-and-test-rules`
+- **Context:** ADR-003 keeps syntax trees out of `@catspec/core`: rules read `FileFacts`, and only
+  `query` rules see raw trees, "via the adapter". The `LanguageAdapter` interface in plan §D11.2
+  has no method for that, and a `query` rule's Tree-sitter query must be compiled when the specs
+  load (CS0130), before any code is parsed.
+- **Decision:** `LanguageAdapter` gets two optional methods. `checkQuery(query)` compiles a query
+  and returns the error message, or undefined when it compiles. `runQuery(file, query)` returns
+  the ranges of the `@hit` captures, or of each match's first capture when the query has no
+  `@hit`. Core calls only these; it never imports Tree-sitter. An adapter without them doesn't
+  support `query` rules, which is reported as CS0130. Each `query` rule names its language
+  (`lang`, required), so a query is compiled and run only by that language's adapter.
+- **Consequences:** Core stays free of Tree-sitter, and adding a language with query support
+  means implementing two methods. Queries are compiled once per grammar and cached. The
+  `core-public-api` spec binds both methods as optional members of `LanguageAdapter`.

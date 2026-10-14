@@ -9,13 +9,10 @@ import {
   type CatspecConfig,
   type Diagnostic,
   type FileFacts,
-  type LanguageAdapter,
 } from "@catspec/core";
 import { AdapterRegistry } from "@catspec/lang";
-import { TypeScriptAdapter } from "@catspec/lang-typescript";
 
-/** The language adapters the CLI ships with. */
-export const defaultAdapters = (): LanguageAdapter[] => [new TypeScriptAdapter()];
+import { defaultAdapters } from "./codebase.js";
 
 export class UnknownLanguageError extends Error {}
 

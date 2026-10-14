@@ -7,9 +7,14 @@ import {
   compareStrings,
   countDiagnostics,
   sortDiagnostics,
+  type CoverageReport,
   type Diagnostic,
   type DiagnosticCounts,
+  type ItemResult,
+  type Location,
+  type Ratio,
   type Severity,
+  type Spec,
 } from "@catspec/core";
 
 /** Exit codes (plan §D10). */
@@ -129,6 +134,9 @@ export function formatText(
       const prefix = `  ${where ? `${style.dim(where)}  ` : ""}`;
       lines.push(`${prefix}${colour(d.severity, d.code)} ${d.message}`);
       const indent = " ".repeat(2 + (where ? where.length + 2 : 0) + d.code.length + 1);
+      if (d.specLocation && d.codeLocation) {
+        lines.push(`${indent}${style.dim(`at ${locationText(d.codeLocation)}`)}`);
+      }
       for (const suggestion of d.suggestions ?? []) {
         lines.push(`${indent}${style.dim(`↳ ${suggestion.message}`)}`);
       }
@@ -156,11 +164,100 @@ export const summary = (counts: DiagnosticCounts): string =>
   (counts.infos > 0 ? `, ${plural(counts.infos, "info")}` : "");
 
 /** JSON report: every diagnostic with its code, severity, locations and message, and a summary. */
-export function formatJson(diagnostics: readonly Diagnostic[], specCount?: number): string {
+export function formatJson(
+  diagnostics: readonly Diagnostic[],
+  specCount?: number,
+  extra: { items?: readonly ItemResult[]; done?: boolean } = {},
+): string {
   const counts = countDiagnostics(diagnostics);
   const report = {
     diagnostics: sortDiagnostics(diagnostics),
     summary: { ...counts, ...(specCount === undefined ? {} : { specs: specCount }) },
+    ...extra,
   };
   return `${JSON.stringify(report, null, 2)}\n`;
+}
+
+const locationText = (at: Location): string => `${at.file}:${at.line}:${at.column}`;
+
+/** A diagnostic's expected or actual value as one line. */
+function valueText(value: unknown): string {
+  if (value === undefined) return "-";
+  if (typeof value === "string") return value.split(/\r?\n/).join(" ⏎ ");
+  if (Array.isArray(value)) return value.length > 0 ? value.map(valueText).join(", ") : "none";
+  return JSON.stringify(value);
+}
+
+export interface AgentReportInput {
+  specs: readonly Spec[];
+  items: readonly ItemResult[];
+  diagnostics: readonly Diagnostic[];
+}
+
+/**
+ * The `check --spec` report (plan §D10, analysis F-14): for every failing item what was expected,
+ * what was found and how to fix it, then the passing items, a summary, and `DONE` or `NOT DONE` as
+ * the last line. Done means no errors.
+ */
+export function formatAgentReport(input: AgentReportInput, style: Style = PLAIN): string {
+  const lines: string[] = [];
+  const shown = sortDiagnostics(input.diagnostics.filter((d) => d.severity !== "info"));
+  for (const spec of input.specs) {
+    lines.push(`${style.bold(`spec ${spec.id}`)}  ${style.dim(`${spec.file} (${spec.status})`)}`);
+  }
+  for (const d of shown) {
+    const mark = d.severity === "error" ? style.red("✖") : style.yellow("⚠");
+    const what = d.item ?? d.spec ?? d.specLocation?.file ?? d.codeLocation?.file ?? "repository";
+    lines.push(`${mark} ${what}  ${d.code} ${d.message}`);
+    lines.push(`    expected: ${valueText(d.expected)}`);
+    lines.push(`    found:    ${valueText(d.actual)}`);
+    const where = [d.specLocation, d.codeLocation].filter((l): l is Location => l !== undefined);
+    if (where.length > 0) lines.push(`    where:    ${where.map(locationText).join("  ")}`);
+    const fixes = (d.suggestions ?? []).map((s) => s.message);
+    lines.push(`    fix:      ${fixes.length > 0 ? fixes.join("; ") : `see ${d.code}`}`);
+  }
+  for (const item of input.items) {
+    if (item.passed) lines.push(`${style.green("✔")} ${item.item}`);
+    else if (!item.enforceable) lines.push(`${style.dim("○")} ${item.item} (manual, not checked)`);
+  }
+  const enforceable = input.items.filter((i) => i.enforceable);
+  const passed = enforceable.filter((i) => i.passed).length;
+  const counts = countDiagnostics(shown);
+  lines.push(`${passed} of ${plural(enforceable.length, "item")} pass; ${summary(counts)}`);
+  lines.push(counts.errors === 0 ? style.green("DONE") : style.red("NOT DONE"));
+  return `${lines.join("\n")}\n`;
+}
+
+const percent = (r: Ratio): string => `${r.percent}%`;
+
+/** The `catspec coverage` report. */
+export function formatCoverage(report: CoverageReport, style: Style = PLAIN): string {
+  const { satisfaction, enforcement, reverse } = report;
+  const lines = [
+    `${style.bold("contract satisfaction")}  ${percent(satisfaction)}  (${satisfaction.count} of ${plural(satisfaction.total, "enforceable item")} pass)`,
+    `${style.bold("enforcement coverage")}   ${percent(enforcement)}  (${enforcement.count} enforceable, ${enforcement.manual} manual, ${enforcement.unenforcedProse} unenforced prose)`,
+    `${style.bold("reverse coverage")}       ${percent(reverse)}  (${reverse.count} of ${plural(reverse.total, "source file")} bound by a spec)`,
+  ];
+  if (report.specs.length > 0) {
+    lines.push("");
+    const rows = [
+      ["SPEC", "STATUS", "SATISFIED", "ENFORCEABLE", "MANUAL", "PROSE"],
+      ...report.specs.map((s) => [
+        s.spec,
+        s.status,
+        `${s.satisfaction.count}/${s.satisfaction.total}`,
+        String(s.enforceable),
+        String(s.manual),
+        String(s.unenforcedProse),
+      ]),
+    ];
+    const widths = rows[0]!.map((_, c) => Math.max(...rows.map((r) => r[c]!.length)));
+    rows.forEach((row, i) => {
+      const line = row
+        .map((cell, c) => (c === row.length - 1 ? cell : cell.padEnd(widths[c]!)))
+        .join("  ");
+      lines.push(i === 0 ? style.bold(line) : line);
+    });
+  }
+  return `${lines.join("\n")}\n`;
 }

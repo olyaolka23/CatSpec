@@ -60,32 +60,5 @@ export function parseTypeRef(text: string): TypeRef {
 const format = (name: string[], args: TypeRef[]): string =>
   name.join(".") + (args.length > 0 ? `<${args.map((arg) => arg.text).join(", ")}>` : "");
 
-/** True when `suffix` equals the last segments of `name`. */
-export function isSegmentSuffix(suffix: readonly string[], name: readonly string[]): boolean {
-  if (suffix.length === 0 || suffix.length > name.length) return false;
-  const offset = name.length - suffix.length;
-  return suffix.every((segment, i) => segment === name[offset + i]);
-}
-
-/**
- * True when the type found in code satisfies the expected one: the expected name is a
- * segment-wise suffix of the found name and the generic arguments match pairwise, recursively.
- * Types without a name match only by equal normalised text.
- */
-export function typeMatches(expected: TypeRef, found: TypeRef): boolean {
-  if (expected.name.length === 0 || found.name.length === 0) {
-    return expected.name.length === found.name.length && expected.text === found.text;
-  }
-  return (
-    isSegmentSuffix(expected.name, found.name) &&
-    expected.args.length === found.args.length &&
-    expected.args.every((arg, i) => typeMatches(arg, found.args[i]!))
-  );
-}
-
-/**
- * True when a symbol's qualified name (`Outer.Inner.method`) ends with the expected name
- * (`Inner.method`), segment by segment: `Handler` doesn't match `MyHandler`.
- */
-export const nameMatches = (expected: string, qualifiedName: string): boolean =>
-  isSegmentSuffix(expected.split("."), qualifiedName.split("."));
+// Name and type matching moved to `@catspec/core`, which the rule engine needs; re-exported here.
+export { isSegmentSuffix, nameMatches, typeMatches } from "@catspec/core";

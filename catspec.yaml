@@ -1,0 +1,7 @@
+# CatSpec checks its own repository (plan §0 "Dogfooding", PBI `dogfood-specs`): the global rules
+# in the ADR log's frontmatter apply to the package sources, and CI runs `catspec check`.
+version: 1
+languages:
+  typescript:
+    include: ["packages/*/src/**/*.ts"]
+    exclude: ["**/*.d.ts", "**/node_modules/**"]
