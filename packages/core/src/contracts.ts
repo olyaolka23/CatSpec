@@ -45,6 +45,9 @@ export function evaluateContract(
   const { binding, symbol, file } = resolved;
   const diagnostics: Diagnostic[] = [];
   const where = codeLocation(file.path, symbol.nameRange);
+  /** The file a member is declared in: the file of its part, for a C# partial type. */
+  const pathOf = (member: SymbolFact): string =>
+    resolved.parts.find((p) => p.symbol.members.includes(member))?.file.path ?? file.path;
   const subject = `${symbol.kind} ${symbol.qualifiedName}`;
   const normalize = (text: string): TypeRef =>
     context.adapter?.normalizeType(text) ?? plainType(text);
@@ -95,12 +98,20 @@ export function evaluateContract(
   }
 
   // implements / extends: direct base types, by qualified-name suffix.
-  const bases = symbol.bases.map((b) => ({ base: b, variants: baseVariants(b, file) }));
+  const bases = symbol.bases.map((b) => ({
+    base: b,
+    variants: resolved.parts.flatMap((p) => baseVariants(b, p.file)),
+  }));
   const foundBases = symbol.bases.length > 0 ? listOf(symbol.bases.map((b) => b.text)) : "none";
-  const checkBase = (expectedText: string, path: (string | number)[], verb: string): void => {
+  const checkBase = (
+    expectedText: string,
+    path: (string | number)[],
+    verb: string,
+    candidates = bases,
+  ): void => {
     const expected = normalize(expectedText);
-    if (bases.some(({ variants }) => variants.some((v) => typeMatches(expected, v)))) return;
-    const unsure = bases.filter(({ variants }) =>
+    if (candidates.some(({ variants }) => variants.some((v) => typeMatches(expected, v)))) return;
+    const unsure = candidates.filter(({ variants }) =>
       variants.some((v) => undecidableBase(v, context)),
     );
     if (unsure.length > 0) {
@@ -128,7 +139,45 @@ export function evaluateContract(
     });
   };
   binding.implements?.forEach((t, i) => checkBase(t, ["implements", i], "implement"));
-  if (binding.extends !== undefined) checkBase(binding.extends, ["extends"], "extend");
+  // C# doesn't mark the base class in a base list. A class or record has at most one, first in
+  // the base list of the part that declares it, and a struct has none. An interface extends
+  // every interface in its base list. Syntax can't tell a first base named like an interface
+  // (`IFoo`, but also `IOException`) from a base class, so a match on one is CS0220.
+  const csharpClass = file.lang === "csharp" && symbol.kind !== "interface";
+  const extendable = !csharpClass
+    ? bases
+    : symbol.kind === "struct"
+      ? []
+      : bases.filter(({ base }) =>
+          resolved.parts.some((p) => p.symbol.bases[0]?.text === base.text),
+        );
+  if (binding.extends !== undefined) {
+    const expected = normalize(binding.extends);
+    const interfaceLike = csharpClass
+      ? extendable.find(
+          ({ base, variants }) =>
+            /^I[A-Z]/.test(base.name.at(-1) ?? "") &&
+            variants.some((v) => typeMatches(expected, v)),
+        )
+      : undefined;
+    if (interfaceLike) {
+      report(
+        "CS0220",
+        ["extends"],
+        item,
+        `can't tell whether ${subject} extends ${expected.text}: ${interfaceLike.base.text} comes first in its base list but may be an interface`,
+        {
+          expected: expected.text,
+          actual: symbol.bases.map((b) => b.text),
+          suggestions: [
+            { message: `use implements: [${expected.text}] if it is an interface, or waive this` },
+          ],
+        },
+      );
+    } else {
+      checkBase(binding.extends, ["extends"], "extend", extendable);
+    }
+  }
 
   // attributes / decorators.
   binding.attributes?.forEach((text, i) => {
@@ -200,7 +249,7 @@ export function evaluateContract(
         );
       } else {
         report("CS0207", [...path, i], item, `${subject}: constructor dependency ${type} missing`, {
-          codeLocation: codeLocation(file.path, best.ctor.nameRange),
+          codeLocation: codeLocation(pathOf(best.ctor), best.ctor.nameRange),
           expected: type,
           actual: found,
           suggestions: [
@@ -234,7 +283,7 @@ export function evaluateContract(
           actual: close.length > 0 ? close.map((c) => signatureText(c)) : "nothing",
           suggestions: [
             ...close.map((c) => ({
-              message: `did you mean ${c.name}? (${formatLocation(file.path, c.nameRange)})`,
+              message: `did you mean ${c.name}? (${formatLocation(pathOf(c), c.nameRange)})`,
             })),
             { message: `add ${member.name} to ${symbol.name}, or update the spec` },
           ],
@@ -250,7 +299,7 @@ export function evaluateContract(
     const best = results.reduce((a, b) =>
       b.mismatches.length + b.unsure.length < a.mismatches.length + a.unsure.length ? b : a,
     );
-    const at = codeLocation(file.path, best.candidate.nameRange);
+    const at = codeLocation(pathOf(best.candidate), best.candidate.nameRange);
     const found = signatureText(best.candidate);
     const visibility = best.mismatches.filter((m) => m.code === "CS0208");
     const signature = best.mismatches.filter((m) => m.code !== "CS0208");

@@ -1,2 +1,5 @@
-/** Package name; placeholder export until the package gets its first feature. */
+/** Package name. */
 export const packageName = "@catspec/lang-csharp";
+
+export { CSharpAdapter } from "./adapter.js";
+export { CSHARP_GRAMMAR, GRAMMAR_SOURCE } from "./grammar.js";

@@ -218,7 +218,7 @@ function evaluateStructural(
         if (!inScope(file.path, imp.range)) continue;
         const targets = importTargets(file.path, imp.module);
         const listed = targets.some(to);
-        const violation = forbid ? listed : !listed && !isStdlib(imp.module);
+        const violation = forbid ? listed : !listed && !isStdlib(imp.module, file.lang);
         if (!violation) continue;
         report(
           "CS0603",
@@ -284,7 +284,7 @@ function evaluateStructural(
   if (rule.must_not_exist) {
     const { symbol: pattern, kind } = rule.must_not_exist;
     for (const { symbol, file } of entriesIn(scope, table, inScope)) {
-      if (kind && symbol.kind !== kind) continue;
+      if (kind ? symbol.kind !== kind : symbol.kind === "constructor") continue;
       if (!qualifiedNameMatches(pattern, symbol.qualifiedName)) continue;
       report(
         "CS0605",
@@ -329,18 +329,29 @@ function scopeOf(rule: Rule, context: RuleContext): Scope | undefined {
   if (!resolved) return undefined;
   const memberName =
     within.length > bindingId!.length ? within.slice(bindingId!.length + 1) : undefined;
-  const targets = memberName
-    ? resolved.symbol.members.filter((m) => m.name === memberName)
-    : [resolved.symbol];
-  if (targets.length === 0) return undefined; // the missing member is CS0203
-  const ranges = new Map([[resolved.file.path, targets.map((t) => t.range)]]);
-  const file = context.codebase.files.find((f) => f.path === resolved.file.path);
-  return { files: narrow(file ? [file] : []), ranges };
+  // Each part of a C# partial type is in its own file, with its own members.
+  const ranges = new Map<string, Range[]>();
+  for (const part of resolved.parts) {
+    const targets = memberName
+      ? part.symbol.members.filter((m) => m.name === memberName)
+      : [part.symbol];
+    if (targets.length === 0) continue;
+    ranges.set(part.file.path, [
+      ...(ranges.get(part.file.path) ?? []),
+      ...targets.map((t) => t.range),
+    ]);
+  }
+  if (ranges.size === 0) return undefined; // the missing member is CS0203
+  const files = context.codebase.files.filter((f) => ranges.has(f.path));
+  return { files: narrow(files), ranges };
 }
 
 /**
  * Names a call matches by: the callee as written, and with its first segment resolved through
  * the file's imports (`exec` imported from `node:child_process` is also `child_process.exec`).
+ * An import of every name without an alias (C# `using System;`, `using static System.Console;`)
+ * also prefixes the callee with the module. In C#, names starting with `System.` also match
+ * without it, as types do.
  */
 export function calleeNames(callee: string, file: FileFacts): string[] {
   const names = [callee];
@@ -348,6 +359,10 @@ export function calleeNames(callee: string, file: FileFacts): string[] {
   for (const imp of file.imports) {
     const module = imp.module.replace(/^node:/, "");
     for (const imported of imp.names) {
+      if (imported.name === "*" && imported.alias === undefined && imp.kind !== "reexport") {
+        names.push(`${module}.${callee}`);
+        continue;
+      }
       if ((imported.alias ?? imported.name) !== head) continue;
       const name =
         imported.name === "*" || imported.name === "default"
@@ -355,6 +370,9 @@ export function calleeNames(callee: string, file: FileFacts): string[] {
           : [module, imported.name, ...rest];
       names.push(name.join("."));
     }
+  }
+  if (file.lang === "csharp") {
+    for (const name of [...names]) if (name.startsWith("System.")) names.push(name.slice(7));
   }
   return names;
 }
@@ -387,6 +405,8 @@ export function importTargets(fromFile: string, module: string): string[] {
 
 const BUILTINS = new Set(builtinModules);
 
-/** Node.js built-in modules (`fs`, `node:fs`). */
-const isStdlib = (module: string): boolean =>
-  module.startsWith("node:") || BUILTINS.has(module.split("/")[0]!);
+/** Node.js built-in modules (`fs`, `node:fs`); in C#, the `System` namespaces. */
+const isStdlib = (module: string, lang: string): boolean =>
+  lang === "csharp"
+    ? module === "System" || module.startsWith("System.")
+    : module.startsWith("node:") || BUILTINS.has(module.split("/")[0]!);

@@ -19,6 +19,8 @@ export interface ResolvedBinding {
   file: FileFacts;
   /** The files of every part. */
   files: string[];
+  /** The declarations merged into `symbol`, each with its file; one unless C# `partial`. */
+  parts: { symbol: SymbolFact; file: FileFacts }[];
 }
 
 export interface BindingResolution {
@@ -141,6 +143,7 @@ export function resolveBinding(
       symbol: parts.length === 1 ? parts[0]!.symbol : mergePartials(parts.map((p) => p.symbol)),
       file: parts[0]!.file,
       files: [...new Set(parts.map((p) => p.file.path))],
+      parts: parts.map(({ symbol, file }) => ({ symbol, file })),
     },
     diagnostics: [],
   };
@@ -148,24 +151,26 @@ export function resolveBinding(
 
 /**
  * Overload signatures and their implementation are one declaration: entries with the same file,
- * qualified name and `static`-ness form a group, the implementation (plain id) first.
+ * qualified name and `static`-ness form a group, the implementation (plain id) first. C#
+ * overloads all have bodies, so each is a declaration of its own. Every other declaration is its
+ * own group, also when it shares an id (C# partial parts in one file).
  */
 function groupOverloads(entries: SymbolEntry[]): SymbolEntry[][] {
-  const groups = new Map<string, SymbolEntry[]>();
+  const isImplementation = (e: SymbolEntry): boolean =>
+    e.symbol.id === `${e.file.path}#${e.symbol.qualifiedName}`;
+  const groups = new Map<string | SymbolEntry, SymbolEntry[]>();
   for (const entry of entries) {
     const { symbol, file } = entry;
     const callable = symbol.kind === "function" || symbol.kind === "method";
     const key = callable
       ? `${file.path}\0${symbol.qualifiedName}\0${symbol.modifiers.includes("static")}`
-      : symbol.id;
+      : entry;
     groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
-  return [...groups.values()].map((group) =>
-    [...group].sort(
-      (a, b) =>
-        Number(b.symbol.id === `${b.file.path}#${b.symbol.qualifiedName}`) -
-        Number(a.symbol.id === `${a.file.path}#${a.symbol.qualifiedName}`),
-    ),
+  return [...groups.values()].flatMap((group) =>
+    group[0]!.file.lang !== "csharp"
+      ? [[...group].sort((a, b) => Number(isImplementation(b)) - Number(isImplementation(a)))]
+      : group.map((entry) => [entry]),
   );
 }
 

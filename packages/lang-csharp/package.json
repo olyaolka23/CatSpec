@@ -17,12 +17,17 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "grammars"
   ],
   "scripts": {
-    "build": "tsup"
+    "build": "node scripts/build-grammars.js && tsup"
   },
   "dependencies": {
+    "@catspec/core": "0.0.0",
     "@catspec/lang": "0.0.0"
+  },
+  "devDependencies": {
+    "tree-sitter-c-sharp": "0.23.5"
   }
 }
