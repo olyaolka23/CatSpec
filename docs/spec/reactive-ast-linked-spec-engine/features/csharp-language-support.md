@@ -77,7 +77,7 @@ Extracts attributes, base types, `using` directives and calls from C#.
 - depends on: `csharp-declarations`
 - refs: §D5.3, analysis F-5
 - [ ] modifiers incl. `partial`, `async`, `override`; attributes with argument text
-- [ ] base list → `bases`; documented `extends` heuristic
+- [ ] base list → `bases`; documented `extends` heuristic (plan §D11.5 item 6)
 - [ ] `using` / `global using` as imports; alias map used to normalise base names in the same file
 - [ ] calls: invocation and member-access text
 

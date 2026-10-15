@@ -613,6 +613,9 @@ interface SymbolFact {
 }
 ```
 
+C# overloads all have bodies, so every overload gets `(${arity})` (and `#${n}` when arities
+repeat); a binding to an overloaded C# method is CS0202.
+
 Rules operate **only** on `FileFacts`, never on raw trees (except `query` rules), so
 the rule engine is language-agnostic and testable without grammars. `query` rules reach
 syntax only through the optional `checkQuery` / `runQuery` methods (ADR-022); an adapter
@@ -653,6 +656,7 @@ Both small and large renames go through `catspec sync`; for large refactorings s
 3. 0 matches → `CS0201 not found` (+ did-you-mean via Damerau-Levenshtein over same-kind names, ≤ 3 suggestions). >1 non-partial match → `CS0202 ambiguous`. C# `partial` matches → merged.
 4. A symbol with the right name but the wrong kind is reported as `CS0201` ("no class X; found interface X"); a member of the wrong kind as `CS0205`.
 5. Member did-you-mean: when edit distance finds nothing, members sharing a camelCase word with the missing name are suggested (`validateToken` → `checkToken`).
+6. C# (syntactic heuristics, ADR-002): a type's base class can only be the first base of a part's base list, and a struct has none; when `extends` matches a first base named like an interface (`I` + capital, e.g. `IFoo` or `IOException`), the result is CS0220, not CS0204. Declarations without an access modifier get C#'s default (`internal` types, `private` members, `public` interface members). Delegates have kind `type`; operators, indexers and finalizers are not extracted.
 
 ### D11.6 Spec editing (CST)
 

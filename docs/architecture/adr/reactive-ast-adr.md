@@ -308,3 +308,14 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** Core stays free of Tree-sitter, and adding a language with query support
   means implementing two methods. Queries are compiled once per grammar and cached. The
   `core-public-api` spec binds both methods as optional members of `LanguageAdapter`.
+
+## ADR-023: C# grammar WASM
+
+- **Status:** Accepted · **Date:** 2026-10-15 · **Ref:** ADR-002, ADR-021, PBI `csharp-declarations`
+- **Context:** ADR-021 takes the TypeScript grammars from the pinned `tree-sitter-wasms@0.1.13`.
+  Its C# build (tree-sitter-c-sharp 0.20) can't parse C# 12 primary constructors, which F4 requires.
+- **Decision:** `tree-sitter-c-sharp@0.23.5`, which ships its own WASM build, is a pinned
+  devDependency of `@catspec/lang-csharp`. Its build copies only `tree-sitter-c_sharp.wasm` into
+  the published package. The build was checked to load in `web-tree-sitter` 0.25.10 (ADR-021).
+- **Consequences:** No native builds. Upgrading the C# grammar is a change to that pin and the
+  adapter version. Replacing it with our own build needs a new ADR.
