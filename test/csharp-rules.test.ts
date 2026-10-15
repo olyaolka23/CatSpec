@@ -171,12 +171,19 @@ describe("C# review findings", () => {
     expect(codes(result.diagnostics)).toEqual([]);
   });
 
-  it("extends: an interface-named first base or a struct base isn't a base class", async () => {
+  it("extends: an interface-named first base is undecidable, and a struct has no base class", async () => {
     const onClass = await check({
       ...spec("    symbol: H\n    extends: IFoo\n"),
       "src/H.cs": "class H : IFoo { }\n",
     });
-    expect(codes(onClass.diagnostics)).toEqual(["CS0204"]);
+    expect(codes(onClass.diagnostics)).toEqual(["CS0220"]);
+    // A real base class whose name looks like an interface's is never a false CS0204.
+    const ioException = await check({
+      ...spec("    symbol: StorageError\n    extends: IOException\n"),
+      "src/StorageError.cs": "class StorageError : System.IO.IOException { }\n",
+    });
+    expect(codes(ioException.diagnostics)).toEqual(["CS0220"]);
+    expect(ioException.diagnostics[0]!.severity).toBe("warning");
     const onStruct = await check({
       ...spec("    symbol: S\n    extends: Base\n"),
       "src/S.cs": "struct S : Base { }\n",

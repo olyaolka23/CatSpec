@@ -140,20 +140,43 @@ export function evaluateContract(
   };
   binding.implements?.forEach((t, i) => checkBase(t, ["implements", i], "implement"));
   // C# doesn't mark the base class in a base list. A class or record has at most one, first in
-  // the base list of the part that declares it; a first base named like an interface (`IFoo`)
-  // isn't one, and a struct has none. An interface extends every interface in its base list.
-  const extendable =
-    file.lang !== "csharp" || symbol.kind === "interface"
-      ? bases
-      : symbol.kind === "struct"
-        ? []
-        : bases.filter(
-            ({ base }) =>
-              resolved.parts.some((p) => p.symbol.bases[0]?.text === base.text) &&
-              !/^I[A-Z]/.test(base.name.at(-1) ?? ""),
-          );
+  // the base list of the part that declares it, and a struct has none. An interface extends
+  // every interface in its base list. Syntax can't tell a first base named like an interface
+  // (`IFoo`, but also `IOException`) from a base class, so a match on one is CS0220.
+  const csharpClass = file.lang === "csharp" && symbol.kind !== "interface";
+  const extendable = !csharpClass
+    ? bases
+    : symbol.kind === "struct"
+      ? []
+      : bases.filter(({ base }) =>
+          resolved.parts.some((p) => p.symbol.bases[0]?.text === base.text),
+        );
   if (binding.extends !== undefined) {
-    checkBase(binding.extends, ["extends"], "extend", extendable);
+    const expected = normalize(binding.extends);
+    const interfaceLike = csharpClass
+      ? extendable.find(
+          ({ base, variants }) =>
+            /^I[A-Z]/.test(base.name.at(-1) ?? "") &&
+            variants.some((v) => typeMatches(expected, v)),
+        )
+      : undefined;
+    if (interfaceLike) {
+      report(
+        "CS0220",
+        ["extends"],
+        item,
+        `can't tell whether ${subject} extends ${expected.text}: ${interfaceLike.base.text} comes first in its base list but may be an interface`,
+        {
+          expected: expected.text,
+          actual: symbol.bases.map((b) => b.text),
+          suggestions: [
+            { message: `use implements: [${expected.text}] if it is an interface, or waive this` },
+          ],
+        },
+      );
+    } else {
+      checkBase(binding.extends, ["extends"], "extend", extendable);
+    }
   }
 
   // attributes / decorators.
