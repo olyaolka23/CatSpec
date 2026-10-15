@@ -54,9 +54,9 @@ Feature: F4 csharp-language-support
 Parses C# declarations: namespaces, types and their members, including newer C# syntax.
 - depends on: `check-command`
 - refs: §D11.2
-- [ ] pinned `tree-sitter-c-sharp` → WASM
-- [ ] namespaces (block + file-scoped), class / struct / record / interface / enum, nested types
-- [ ] methods, properties, fields, events, constructors incl. primary constructors (C# 12)
+- [x] pinned `tree-sitter-c-sharp` → WASM
+- [x] namespaces (block + file-scoped), class / struct / record / interface / enum, nested types
+- [x] methods, properties, fields, events, constructors incl. primary constructors (C# 12)
 
 ```gherkin
   @AC-csharp-declarations-1
@@ -76,10 +76,10 @@ Parses C# declarations: namespaces, types and their members, including newer C# 
 Extracts attributes, base types, `using` directives and calls from C#.
 - depends on: `csharp-declarations`
 - refs: §D5.3, analysis F-5
-- [ ] modifiers incl. `partial`, `async`, `override`; attributes with argument text
-- [ ] base list → `bases`; documented `extends` heuristic (plan §D11.5 item 6)
-- [ ] `using` / `global using` as imports; alias map used to normalise base names in the same file
-- [ ] calls: invocation and member-access text
+- [x] modifiers incl. `partial`, `async`, `override`; attributes with argument text
+- [x] base list → `bases`; documented `extends` heuristic (plan §D11.5 item 6)
+- [x] `using` / `global using` as imports; alias map used to normalise base names in the same file
+- [x] calls: invocation and member-access text
 
 ```gherkin
   @AC-csharp-attributes-bases-imports-1
@@ -100,8 +100,8 @@ Extracts attributes, base types, `using` directives and calls from C#.
 Merges partial classes and normalises C# type spellings.
 - depends on: `csharp-attributes-bases-imports`
 - refs: §D11.5
-- [ ] merge `partial` declarations across the binding's file set
-- [ ] type normalisation: `global::`, nullable `T?`, optional `System.` prefix, generic arity, tuples, arrays
+- [x] merge `partial` declarations across the binding's file set
+- [x] type normalisation: `global::`, nullable `T?`, optional `System.` prefix, generic arity, tuples, arrays
 
 ```gherkin
   @AC-csharp-partials-and-types-1
@@ -119,8 +119,8 @@ Merges partial classes and normalises C# type spellings.
 Proves C# support end to end on a small "microservice" fixture built from the requirements' example.
 - depends on: `csharp-partials-and-types`
 - refs: spec §5 (AC-1, AC-6)
-- [ ] fixture "microservice" with the requirements' `UserUpdatedHandler` example spec
-- [ ] run `@AC-F4-1..3` against it
+- [x] fixture "microservice" with the requirements' `UserUpdatedHandler` example spec
+- [x] run `@AC-F4-1..3` against it
 
 ```gherkin
   @AC-csharp-acceptance-1
