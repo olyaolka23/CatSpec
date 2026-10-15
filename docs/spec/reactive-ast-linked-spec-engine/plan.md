@@ -30,7 +30,7 @@ Tick a feature only when every item of its feature checklist (in its feature fil
 in the feature files.
 
 - [x] F0 [`repo-scaffolding`](./features/repo-scaffolding.md)
-- [ ] F1 [`spec-model`](./features/spec-model.md)
+- [x] F1 [`spec-model`](./features/spec-model.md)
 - [x] F2 [`typescript-language-support`](./features/typescript-language-support.md)
 - [ ] F3 [`rule-engine-and-check`](./features/rule-engine-and-check.md)
 - [ ] F4 [`csharp-language-support`](./features/csharp-language-support.md)
