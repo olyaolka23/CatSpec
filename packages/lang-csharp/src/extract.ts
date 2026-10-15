@@ -5,9 +5,8 @@
  * file yields partial facts.
  *
  * Namespaces aren't symbols: they qualify the names of the types in them, so the types of a file
- * are its top-level symbols (`Identity.Handlers.UserUpdatedHandler`). Modifiers are the ones
- * written in the code; C#'s implicit defaults (`private` members, `public` interface members) are
- * not added.
+ * are its top-level symbols (`Identity.Handlers.UserUpdatedHandler`). A declaration without an
+ * access modifier gets C#'s default one (see `addImplicitVisibility`).
  */
 import {
   LineIndex,
@@ -22,10 +21,10 @@ import {
   type SymbolKind,
   type TypeRef,
 } from "@catspec/core";
-import { parseTypeRef, type Grammar, type Node } from "@catspec/lang";
+import type { Grammar, Node } from "@catspec/lang";
 
 import { CALLS, USINGS } from "./queries.js";
-import { compact, typeRefOf, typeText } from "./types.js";
+import { compact, typeRefOf, typeText, type AliasResolver } from "./types.js";
 
 /** Type declarations and the symbol kind of each. */
 const TYPE_DECLARATIONS: Readonly<Record<string, SymbolKind>> = {
@@ -54,7 +53,9 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
     end: lines.position(node.endIndex),
   });
 
-  const { imports, aliases } = usingsOf(grammar, rootNode, rangeOf);
+  const { imports, alias } = usingsOf(grammar, rootNode, rangeOf);
+  /** A type node's `TypeRef`, with the `using` aliases in scope there replaced. */
+  const typeRef = (node: Node): TypeRef => typeRefOf(node, alias);
 
   const attributesOf = (node: Node): AttributeFact[] =>
     node.namedChildren
@@ -91,7 +92,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
         const name = child.childForFieldName("name");
         params.push({
           name: name?.text ?? "",
-          ...(type ? { type: typeRefOf(type) } : {}),
+          ...(type ? { type: typeRef(type) } : {}),
           modifiers: modifiersOf(child),
           ...(child.children.some((c) => c?.type === "=") ? { optional: true } : {}),
           attributes: attributesOf(child),
@@ -100,7 +101,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
         pending = {};
       } else if (pending) {
         const field = list.fieldNameForChild(i);
-        if (field === "type") pending.type = typeRefOf(child);
+        if (field === "type") pending.type = typeRef(child);
         else if (field === "name") {
           params.push({
             name: child.text,
@@ -116,18 +117,16 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
     return params;
   };
 
+  /** Type parameters; only methods and delegates have them in a `type_parameters` field. */
   const typeParamsOf = (node: Node): string[] =>
-    (node.childForFieldName("type_parameters")?.namedChildren ?? [])
+    (
+      (
+        node.childForFieldName("type_parameters") ??
+        node.namedChildren.find((c) => c?.type === "type_parameter_list")
+      )?.namedChildren ?? []
+    )
       .filter((p): p is Node => p?.type === "type_parameter")
       .map((p) => p.childForFieldName("name")?.text ?? p.text);
-
-  /** A base type, with a `using` alias of the same file replaced by what it names. */
-  const baseRef = (node: Node): TypeRef => {
-    const text = typeText(node);
-    const head = /^[^.<]+/.exec(text)?.[0] ?? text;
-    const target = aliases.get(head);
-    return parseTypeRef(target === undefined ? text : target + text.slice(head.length));
-  };
 
   /** The base list in source order; C# names the base class, if any, first. */
   const basesOf = (node: Node): TypeRef[] => {
@@ -139,8 +138,11 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
           ? (c.childForFieldName("type") ?? c.namedChildren[0]!)
           : c,
       )
-      .map(baseRef);
+      .map(typeRef);
   };
+
+  /** Members declared as `void IFoo.Run()`. */
+  const explicitImplementations = new Set<SymbolFact>();
 
   const symbol = (
     scope: Scope,
@@ -166,6 +168,9 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
       ...extra,
     };
     scope.members.push(fact);
+    if (node.namedChildren.some((c) => c?.type === "explicit_interface_specifier")) {
+      explicitImplementations.add(fact);
+    }
     return fact;
   };
 
@@ -183,7 +188,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
       symbol(scope, kind, member, name, {
         modifiers: modifiersOf(member),
         attributes: attributesOf(member),
-        ...(type ? { returns: typeRefOf(type) } : {}),
+        ...(type ? { returns: typeRef(type) } : {}),
       });
     }
   };
@@ -206,11 +211,14 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
         case "method_declaration": {
           if (!nameNode) break;
           const returns = member.childForFieldName("returns") ?? member.childForFieldName("type");
+          const modifiers = modifiersOf(member);
           symbol(scope, "method", member, nameNode, {
             ...common(),
+            // A partial method's declaration and implementation are one method.
+            ...(modifiers.includes("partial") ? { partial: true } : {}),
             typeParams: typeParamsOf(member),
             params: paramsOf(member.childForFieldName("parameters")),
-            ...(returns ? { returns: typeRefOf(returns) } : {}),
+            ...(returns ? { returns: typeRef(returns) } : {}),
           });
           break;
         }
@@ -233,7 +241,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
             nameNode,
             {
               ...common(),
-              ...(type ? { returns: typeRefOf(type) } : {}),
+              ...(type ? { returns: typeRef(type) } : {}),
             },
           );
           break;
@@ -264,7 +272,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
         attributes: attributesOf(node),
         typeParams: typeParamsOf(node),
         params: paramsOf(node.childForFieldName("parameters")),
-        ...(returns ? { returns: typeRefOf(returns) } : {}),
+        ...(returns ? { returns: typeRef(returns) } : {}),
       });
       return;
     }
@@ -281,14 +289,23 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
     const primary = node.namedChildren.find((c) => c?.type === "parameter_list");
     const primaryParams = primary ? paramsOf(primary) : [];
     if (primary) {
-      symbol(members, "constructor", primary, nameNode, { params: primaryParams });
+      // It has the type's own accessibility; `public` stands for that.
+      symbol(members, "constructor", primary, nameNode, {
+        modifiers: ["public"],
+        params: primaryParams,
+      });
     }
 
     const body = node.childForFieldName("body");
     if (kind === "enum") {
       for (const member of body?.namedChildren ?? []) {
         const name = member?.type === "enum_member_declaration" && member.childForFieldName("name");
-        if (name) symbol(members, "field", member, name, { attributes: attributesOf(member) });
+        if (name) {
+          symbol(members, "field", member, name, {
+            modifiers: ["public"],
+            attributes: attributesOf(member),
+          });
+        }
       }
     } else if (body?.type === "declaration_list") {
       visitMembers(body, fact);
@@ -352,6 +369,7 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
 
   const symbols: SymbolFact[] = [];
   visit(rootNode, { prefix: "", members: symbols });
+  addImplicitVisibility(symbols, undefined, explicitImplementations);
   disambiguateOverloads(symbols);
 
   return {
@@ -368,34 +386,77 @@ export function extractFacts(grammar: Grammar, rootNode: Node, file: SourceFile)
 /** A namespace name as written, without whitespace and `global::`. */
 const namespaceName = (node: Node): string => compact(node.text).replace(/^global::/, "");
 
+const ACCESS = new Set(["public", "private", "protected", "internal", "file"]);
+
 /**
- * `using` directives as imports: the namespace or type as written, without `global::`. An alias
- * (`using Handler = Contracts.IMessageHandler<UserUpdatedEvent>;`) is the import of everything
- * named by its target, under the alias (`*` as `Handler`), and goes into the file's alias map with
- * the normalised target type.
+ * C#'s default accessibility, added to declarations that don't write one: `internal` for
+ * top-level types, `public` for interface members, `private` for other members and nested types.
+ * Explicit interface implementations (`void IFoo.Run()`) have no accessibility and get none.
+ */
+function addImplicitVisibility(
+  symbols: SymbolFact[],
+  owner: SymbolFact | undefined,
+  explicitImplementations: ReadonlySet<SymbolFact>,
+): void {
+  for (const fact of symbols) {
+    if (
+      !fact.modifiers.some((m) => ACCESS.has(m)) &&
+      !explicitImplementations.has(fact) &&
+      !(fact.kind === "constructor" && fact.modifiers.includes("static"))
+    ) {
+      fact.modifiers.push(!owner ? "internal" : owner.kind === "interface" ? "public" : "private");
+    }
+    addImplicitVisibility(fact.members, fact, explicitImplementations);
+  }
+}
+
+/**
+ * `using` directives as imports: the namespace or type as written, without `global::`, importing
+ * every name (`*`). An alias (`using Handler = Contracts.IMessageHandler<UserUpdatedEvent>;`)
+ * imports them under the alias (`*` as `Handler`) and is resolved in the types of the file, within
+ * the namespace body it is declared in.
  */
 function usingsOf(
   grammar: Grammar,
   root: Node,
   rangeOf: (node: Node) => Range,
-): { imports: ImportFact[]; aliases: Map<string, string> } {
+): { imports: ImportFact[]; alias: AliasResolver } {
   const imports: ImportFact[] = [];
-  const aliases = new Map<string, string>();
+  /** Each alias with the span it applies to: its namespace body, or the whole file. */
+  const aliases: { name: string; target: string; start: number; end: number }[] = [];
   const query = grammar.query(USINGS.source, USINGS.captures);
   for (const { node } of query.captures(root)) {
     // `using Alias = Target;`: the alias is the `name` field; the target is the last named child.
     const alias = node.childForFieldName("name")?.text;
     const target = node.namedChildren.filter((c): c is Node => c !== null).at(-1);
     if (!target) continue;
-    if (alias) aliases.set(alias, typeText(target));
+    if (alias) {
+      const scope = node.parent?.type === "declaration_list" ? node.parent : root;
+      aliases.push({
+        name: alias,
+        target: typeText(target),
+        start: scope.startIndex,
+        end: scope.endIndex,
+      });
+    }
     imports.push({
       module: compact(target.text).replace(/^global::/, ""),
       kind: "static",
-      names: alias ? [{ name: "*", alias }] : [],
+      // `using N;` and `using static T;` bring every name of N or T into scope.
+      names: [alias ? { name: "*", alias } : { name: "*" }],
       range: rangeOf(node),
     });
   }
-  return { imports, aliases };
+  const alias: AliasResolver = (name, at) => {
+    let found: (typeof aliases)[number] | undefined;
+    for (const entry of aliases) {
+      if (entry.name !== name || at.startIndex < entry.start || at.endIndex > entry.end) continue;
+      // The innermost namespace wins.
+      if (!found || entry.end - entry.start < found.end - found.start) found = entry;
+    }
+    return found?.target;
+  };
+  return { imports, alias };
 }
 
 /**
@@ -452,7 +513,7 @@ function callsOf(
         undefined,
       );
     calls.push({
-      callee: compact(node.text),
+      callee: compact(node.text).replace(/^global::/, ""),
       ...(enclosing ? { enclosing: enclosing.id } : {}),
       range,
     });

@@ -218,7 +218,7 @@ function evaluateStructural(
         if (!inScope(file.path, imp.range)) continue;
         const targets = importTargets(file.path, imp.module);
         const listed = targets.some(to);
-        const violation = forbid ? listed : !listed && !isStdlib(imp.module);
+        const violation = forbid ? listed : !listed && !isStdlib(imp.module, file.lang);
         if (!violation) continue;
         report(
           "CS0603",
@@ -284,7 +284,7 @@ function evaluateStructural(
   if (rule.must_not_exist) {
     const { symbol: pattern, kind } = rule.must_not_exist;
     for (const { symbol, file } of entriesIn(scope, table, inScope)) {
-      if (kind && symbol.kind !== kind) continue;
+      if (kind ? symbol.kind !== kind : symbol.kind === "constructor") continue;
       if (!qualifiedNameMatches(pattern, symbol.qualifiedName)) continue;
       report(
         "CS0605",
@@ -349,6 +349,9 @@ function scopeOf(rule: Rule, context: RuleContext): Scope | undefined {
 /**
  * Names a call matches by: the callee as written, and with its first segment resolved through
  * the file's imports (`exec` imported from `node:child_process` is also `child_process.exec`).
+ * An import of every name without an alias (C# `using System;`, `using static System.Console;`)
+ * also prefixes the callee with the module. In C#, names starting with `System.` also match
+ * without it, as types do.
  */
 export function calleeNames(callee: string, file: FileFacts): string[] {
   const names = [callee];
@@ -356,6 +359,10 @@ export function calleeNames(callee: string, file: FileFacts): string[] {
   for (const imp of file.imports) {
     const module = imp.module.replace(/^node:/, "");
     for (const imported of imp.names) {
+      if (imported.name === "*" && imported.alias === undefined && imp.kind !== "reexport") {
+        names.push(`${module}.${callee}`);
+        continue;
+      }
       if ((imported.alias ?? imported.name) !== head) continue;
       const name =
         imported.name === "*" || imported.name === "default"
@@ -363,6 +370,9 @@ export function calleeNames(callee: string, file: FileFacts): string[] {
           : [module, imported.name, ...rest];
       names.push(name.join("."));
     }
+  }
+  if (file.lang === "csharp") {
+    for (const name of [...names]) if (name.startsWith("System.")) names.push(name.slice(7));
   }
   return names;
 }
@@ -395,6 +405,8 @@ export function importTargets(fromFile: string, module: string): string[] {
 
 const BUILTINS = new Set(builtinModules);
 
-/** Node.js built-in modules (`fs`, `node:fs`). */
-const isStdlib = (module: string): boolean =>
-  module.startsWith("node:") || BUILTINS.has(module.split("/")[0]!);
+/** Node.js built-in modules (`fs`, `node:fs`); in C#, the `System` namespaces. */
+const isStdlib = (module: string, lang: string): boolean =>
+  lang === "csharp"
+    ? module === "System" || module.startsWith("System.")
+    : module.startsWith("node:") || BUILTINS.has(module.split("/")[0]!);

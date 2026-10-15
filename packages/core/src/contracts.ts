@@ -139,10 +139,19 @@ export function evaluateContract(
     });
   };
   binding.implements?.forEach((t, i) => checkBase(t, ["implements", i], "implement"));
-  // C# doesn't mark the base class in a base list, but it must come first: a class, struct or
-  // record extends only its first base. An interface's bases are all interfaces it extends.
+  // C# doesn't mark the base class in a base list. A class or record has at most one, first in
+  // the base list of the part that declares it; a first base named like an interface (`IFoo`)
+  // isn't one, and a struct has none. An interface extends every interface in its base list.
   const extendable =
-    file.lang === "csharp" && symbol.kind !== "interface" ? bases.slice(0, 1) : bases;
+    file.lang !== "csharp" || symbol.kind === "interface"
+      ? bases
+      : symbol.kind === "struct"
+        ? []
+        : bases.filter(
+            ({ base }) =>
+              resolved.parts.some((p) => p.symbol.bases[0]?.text === base.text) &&
+              !/^I[A-Z]/.test(base.name.at(-1) ?? ""),
+          );
   if (binding.extends !== undefined) {
     checkBase(binding.extends, ["extends"], "extend", extendable);
   }

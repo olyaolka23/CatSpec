@@ -230,15 +230,15 @@ public sealed partial class UsersController : ControllerBase {
     ]);
   });
 
-  it("records using and global using directives as imports, and aliases as * under the alias", () => {
+  it("records using and global using directives as imports of *, and aliases as * under the alias", () => {
     const { imports } = facts(
       "using System;\nglobal using static System.Math;\nusing Handler = Contracts.IMessageHandler<UserUpdatedEvent>;\nnamespace N { using Infrastructure.Persistence; }\n",
     );
     expect(imports.map((i) => [i.module, i.kind, i.names])).toEqual([
-      ["System", "static", []],
-      ["System.Math", "static", []],
+      ["System", "static", [{ name: "*" }]],
+      ["System.Math", "static", [{ name: "*" }]],
       ["Contracts.IMessageHandler<UserUpdatedEvent>", "static", [{ name: "*", alias: "Handler" }]],
-      ["Infrastructure.Persistence", "static", []],
+      ["Infrastructure.Persistence", "static", [{ name: "*" }]],
     ]);
     expect(imports[0]!.range).toEqual({
       start: { line: 1, column: 1 },
@@ -325,7 +325,17 @@ describe("C# adapter: query rules (ADR-022)", () => {
   });
 
   it("names its version after the facts format and the grammar", () => {
-    expect(adapter.version).toBe("csharp-facts-1+tree-sitter-c-sharp@0.23.5");
+    expect(adapter.version).toBe("csharp-facts-2+tree-sitter-c-sharp@0.23.5");
     expect(adapter.extensions).toEqual([".cs"]);
+  });
+});
+
+describe("C# adapter: type parameters", () => {
+  it("reads the type parameters of generic types and methods", () => {
+    const { symbols } = facts(
+      "class Repo<T> { void M<U>() { } }\nstruct S<A, B> { }\nrecord R<T>(T Value);\ninterface I<in T> { }\n",
+    );
+    expect(symbols.map((s) => s.typeParams)).toEqual([["T"], ["A", "B"], ["T"], ["T"]]);
+    expect(symbols[0]!.members[0]!.typeParams).toEqual(["U"]);
   });
 });

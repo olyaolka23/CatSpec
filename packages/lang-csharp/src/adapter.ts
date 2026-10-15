@@ -22,7 +22,7 @@ import { CSHARP_GRAMMAR, GRAMMAR_SOURCE } from "./grammar.js";
 import { typeRefOf } from "./types.js";
 
 /** Version of the facts this adapter extracts; change it when the extraction changes. */
-const FACTS_VERSION = 1;
+const FACTS_VERSION = 2;
 
 export class CSharpAdapter implements LanguageAdapter {
   readonly id = "csharp";
