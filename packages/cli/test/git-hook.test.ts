@@ -8,7 +8,8 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   checkCode,
@@ -28,7 +29,17 @@ import { run } from "../src/index.js";
 import { checkStaged } from "../src/staged.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-const BIN = join(repoRoot, "packages", "cli", "dist", "bin.js").replace(/\\/g, "/");
+/**
+ * The `catspec` bin entry run from source: the monorepo test rebuilds `dist/` (and empties it
+ * first) while the tests run in parallel.
+ */
+const posix = (path: string): string => path.replace(/\\/g, "/");
+const BIN_ARGS = [
+  "--conditions=source",
+  "--import",
+  pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+  posix(join(repoRoot, "packages", "cli", "src", "bin.ts")),
+];
 
 async function catspec(
   cwd: string,
@@ -50,7 +61,11 @@ async function catspec(
 async function installCli(dir: string): Promise<void> {
   const shim = join(dir, "node_modules", ".bin", "catspec");
   await mkdir(join(shim, ".."), { recursive: true });
-  await writeFile(shim, `#!/bin/sh\nexec node "${BIN}" "$@"\n`, "utf8");
+  await writeFile(
+    shim,
+    `#!/bin/sh\nexec node ${BIN_ARGS.map((a) => `"${a}"`).join(" ")} "$@"\n`,
+    "utf8",
+  );
   await chmod(shim, 0o755);
 }
 

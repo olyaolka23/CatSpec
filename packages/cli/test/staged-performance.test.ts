@@ -5,7 +5,8 @@
  */
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -13,7 +14,13 @@ import { ADR_LOG, adrLogText, specText, withRepo } from "../../../test/temp-repo
 import { run } from "../src/index.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
-const BIN = join(repoRoot, "packages", "cli", "dist", "bin.js");
+/** The bin entry from source: the monorepo test rebuilds `dist/` while the tests run. */
+const BIN_ARGS = [
+  "--conditions=source",
+  "--import",
+  pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href,
+  join(repoRoot, "packages", "cli", "src", "bin.ts"),
+];
 
 const FILES = 10_000;
 const BOUND = 20;
@@ -73,9 +80,9 @@ describe("F5 git-integration-and-hook: performance", () => {
       expect(output).toContain(`0 errors, 0 warnings in ${BOUND} specs`);
       expect(elapsed).toBeLessThan(1000);
 
-      // The same check as the hook runs it, in a new process (startup included), for the log.
+      // The same check in a new process (startup and the TypeScript loader included), for the log.
       const spawnStarted = performance.now();
-      const hook = spawnSync(process.execPath, [BIN, "check", "--staged"], {
+      const hook = spawnSync(process.execPath, [...BIN_ARGS, "check", "--staged"], {
         cwd: repo.dir,
         encoding: "utf8",
       });
