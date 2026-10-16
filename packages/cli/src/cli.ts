@@ -1,6 +1,8 @@
 /**
- * The `catspec` command line (plan §D10), PBIs `cli-skeleton`, `status-and-waivers` and
- * `check-command`: `init`, `check`, `status`, `coverage`, `list`, `show` and `graph`.
+ * The `catspec` command line (plan §D10), PBIs `cli-skeleton`, `status-and-waivers`,
+ * `check-command`, `staged-check`, `lock-files`, `drift-and-accept` and `hook-installer`: `init`,
+ * `check`, `status`, `coverage`, `list`, `show`, `graph`, `baseline`, `accept`, `install-hooks`
+ * and `uninstall-hooks`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
@@ -14,9 +16,14 @@ import {
   checkCode,
   ConfigError,
   coverage,
+  createDiagnostic,
   didYouMean,
   findGitRoot,
+  Git,
+  GitError,
+  GitUnavailableError,
   globMatcher,
+  lockPathOf,
   loadConfig,
   loadSpecModel,
   queryDiagnostics,
@@ -37,7 +44,16 @@ import { Argument, Command, CommanderError, Option } from "commander";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 
 import { formatGraph, GRAPH_FORMATS, type GraphFormat } from "./graph.js";
+import {
+  HOOK_MANAGERS,
+  HookRefusedError,
+  installHooks,
+  uninstallHooks,
+  type HookManager,
+  type HookResult,
+} from "./hooks.js";
 import { initRepository } from "./init.js";
+import { writeLocks } from "./locks.js";
 import {
   COLORS,
   EXIT,
@@ -50,6 +66,7 @@ import {
   type Style,
 } from "./report.js";
 import { showFacts, UnknownLanguageError } from "./show-facts.js";
+import { checkStaged, NotARepositoryError, recordSkip, takeSkip } from "./staged.js";
 
 export interface CliIo {
   /** Folder the command runs in (before `--cwd`). */
@@ -82,6 +99,16 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
   };
   let exitCode: number = EXIT.ok;
   let verbose = false;
+  // Git runs with this process's environment plus the overrides given in `io.env`.
+  const gitEnv = out.env === process.env ? undefined : { ...process.env, ...out.env };
+
+  /** Git for the repository around `--cwd`; a usage error outside a repository. */
+  const repositoryGit = async (command: Command, what: string): Promise<Git> => {
+    const cwd = workingDirectory(out.cwd, globals(command).cwd);
+    const git = new Git(cwd, gitEnv);
+    if (!(await git.isRepository())) throw new UsageError(`${what} needs a git repository`);
+    return git;
+  };
 
   const program = new Command("catspec")
     .description("Specs bound to code: check that the code keeps the contracts of its specs.")
@@ -124,7 +151,8 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       "--name <name>",
       "name of the ADR log (<name>-adr.md); default: the repository folder name",
     )
-    .action(async (options: { name?: string }, command: Command) => {
+    .option("--hooks", "also install the pre-commit hook (see install-hooks)")
+    .action(async (options: { name?: string; hooks?: boolean }, command: Command) => {
       const opts = globals(command);
       const cwd = workingDirectory(out.cwd, opts.cwd);
       const root = findGitRoot(cwd) ?? cwd;
@@ -141,6 +169,10 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           "Next: describe a feature in docs/spec/<feature>/ and run `catspec check --specs-only`.",
         ];
         out.stdout.write(`${lines.join("\n")}\n`);
+      }
+      if (options.hooks) {
+        const hook = await installHooks(await repositoryGit(command, "init --hooks"));
+        if (!opts.quiet) out.stdout.write(hookReport(hook, style));
       }
     });
 
@@ -160,6 +192,11 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       "check only these specs as if implemented; prints expected / found / fix and DONE or NOT DONE",
     )
     .option("--run-tests", "run the tests of test rules with tests.command from catspec.yaml")
+    .option(
+      "--staged",
+      "check the commit being made (the pre-commit hook): read the git index, check only the " +
+        "specs it touches, then update their lock files",
+    )
     .addOption(formatOption(["text", "json"], "text"))
     .action(
       async (
@@ -168,11 +205,19 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           specsOnly?: boolean;
           spec?: string[];
           runTests?: boolean;
+          staged?: boolean;
           format: "text" | "json";
         },
         command: Command,
       ) => {
         const started = performance.now();
+        if (options.staged) {
+          if (options.specsOnly || options.spec || options.runTests) {
+            throw new UsageError("--staged can't be used with --specs-only, --spec or --run-tests");
+          }
+          exitCode = await stagedCheck(command, paths, options.format, started);
+          return;
+        }
         const { model, style, opts } = await load(command);
         for (const id of options.spec ?? []) findSpec(model, id);
         if (options.specsOnly && options.runTests) {
@@ -348,6 +393,187 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     });
 
   program
+    .command("baseline")
+    .description(
+      "regenerate the lock files (<spec-id>.lock.json: what passed, where bindings resolved, " +
+        "their shapes) of every in-progress and implemented spec from the current code; this " +
+        "drops the ratchet history",
+    )
+    .option("--rebuild", "regenerate every lock file")
+    .action(async (options: { rebuild?: boolean }, command: Command) => {
+      if (!options.rebuild) throw new UsageError("use `catspec baseline --rebuild`");
+      const { model, style, opts } = await load(command);
+      const codebase = await loadCodebase(model.root, model.config);
+      const result = await checkCode(model, codebase);
+      const written = await writeLocks(model, result, result.checked, { mode: "rebuild" });
+      if (!opts.quiet) {
+        out.stdout.write(
+          written.length > 0
+            ? `${written.map((f) => `${style.green("wrote")} ${f}`).join("\n")}\n`
+            : "the lock files are up to date\n",
+        );
+      }
+      warnAboutErrors(model, opts, out);
+    });
+
+  program
+    .command("accept")
+    .description(
+      "record the current shapes of a spec's bound declarations in its lock file, so an " +
+        "intended signature change is no longer reported as drift (CS0300)",
+    )
+    .argument("<spec>", "spec id")
+    .action(async (id: string, _options: unknown, command: Command) => {
+      const { model, style, opts } = await load(command);
+      const spec = findSpec(model, id);
+      if (spec.type === "architecture") {
+        throw new UsageError(`${spec.id} is the architecture spec; it has no lock file`);
+      }
+      if (!spec.valid) {
+        throw new UsageError(`${spec.file} has errors; run \`catspec check --specs-only\``);
+      }
+      const codebase = await loadCodebase(model.root, model.config);
+      const result = await checkCode(model, codebase, { specs: [spec.id], mode: "full" });
+      const written = await writeLocks(model, result, [spec], { mode: "accept" });
+      let staged = false;
+      if (written.length > 0 && model.config.hook.stage_generated) {
+        const git = new Git(model.root, gitEnv);
+        try {
+          if (await git.isRepository()) {
+            await git.add(written);
+            staged = true;
+          }
+        } catch (error) {
+          if (!(error instanceof GitUnavailableError || error instanceof GitError)) throw error;
+        } finally {
+          git.close();
+        }
+      }
+      if (!opts.quiet) {
+        out.stdout.write(
+          written.length > 0
+            ? `${style.green("accepted")} the current shapes of ${spec.id}: ${staged ? "wrote and staged" : "wrote"} ${lockPathOf(spec)}\n`
+            : `${spec.id}: ${lockPathOf(spec)} already records the current shapes\n`,
+        );
+      }
+    });
+
+  program
+    .command("install-hooks")
+    .description(
+      "install the pre-commit hook that runs `catspec check --staged`: in the git hooks folder " +
+        "(core.hooksPath included), or as an entry of husky or lefthook; a hook CatSpec didn't " +
+        "write is never overwritten without --force",
+    )
+    .addOption(
+      new Option("--manager <manager>", "where to install the hook")
+        .choices(HOOK_MANAGERS)
+        .default("auto"),
+    )
+    .option(
+      "--force",
+      "keep an existing pre-commit hook as pre-commit.catspec-backup and run it before CatSpec",
+    )
+    .action(async (options: { manager: HookManager; force?: boolean }, command: Command) => {
+      const git = await repositoryGit(command, "install-hooks");
+      const result = await installHooks(git, options);
+      if (!globals(command).quiet)
+        out.stdout.write(hookReport(result, styleFor(globals(command), out)));
+    });
+
+  program
+    .command("uninstall-hooks")
+    .description("remove the pre-commit hook, and restore the hook it replaced")
+    .addOption(
+      new Option("--manager <manager>", "where the hook is installed")
+        .choices(HOOK_MANAGERS)
+        .default("auto"),
+    )
+    .action(async (options: { manager: HookManager }, command: Command) => {
+      const git = await repositoryGit(command, "uninstall-hooks");
+      const result = await uninstallHooks(git, options);
+      if (!globals(command).quiet)
+        out.stdout.write(hookReport(result, styleFor(globals(command), out)));
+    });
+
+  /** `check --staged`: the hook. Returns the exit code. */
+  const stagedCheck = async (
+    command: Command,
+    paths: string[],
+    format: "text" | "json",
+    started: number,
+  ): Promise<number> => {
+    const opts = globals(command);
+    const cwd = workingDirectory(out.cwd, opts.cwd);
+    const style = styleFor(opts, out);
+    const { config, root, file } = await loadConfig(cwd, opts.config);
+    if (out.env.CATSPEC_SKIP === "1") {
+      const git = new Git(root, gitEnv);
+      try {
+        if (await git.isRepository()) await recordSkip(git);
+      } catch {
+        // Skipping must work even where git doesn't.
+      }
+      out.stderr.write("catspec: CATSPEC_SKIP=1: the staged check is skipped\n");
+      return EXIT.ok;
+    }
+    const staged = await checkStaged(root, config, {
+      ...(gitEnv ? { env: gitEnv } : {}),
+      ...(file ? { configFile: file } : {}),
+    }).catch((error: unknown) => {
+      if (error instanceof NotARepositoryError) throw new UsageError(error.message);
+      throw error;
+    });
+    try {
+      let diagnostics = staged.diagnostics;
+      if (paths.length > 0) diagnostics = diagnostics.filter((d) => inPaths(d, paths, cwd, root));
+      const code = exitCodeFor(diagnostics);
+      const checked = staged.result.checked;
+      const notes: string[] = [];
+      const skipped = await takeSkip(staged.git);
+      if (skipped !== undefined) {
+        notes.push(
+          `warning: an earlier commit skipped the CatSpec check (CATSPEC_SKIP=1, ${skipped}); ` +
+            "run `catspec check` to see what it would have reported",
+        );
+      }
+      if (code === EXIT.ok) {
+        const written = await writeLocks(staged.model, staged.result, checked, { mode: "update" });
+        if (written.length > 0 && staged.model.config.hook.stage_generated) {
+          await staged.git.add(written);
+          notes.push(`updated and staged ${written.join(", ")}`);
+        } else if (written.length > 0) {
+          notes.push(`updated ${written.join(", ")} (not staged: hook.stage_generated is false)`);
+        }
+      } else {
+        notes.push(
+          "commit blocked: fix the errors above or update the spec; for an intended signature " +
+            "change run `catspec accept <spec>`. CATSPEC_SKIP=1 or --no-verify skips the check.",
+        );
+      }
+      if (format === "json") {
+        out.stdout.write(formatJson(diagnostics, checked.length));
+      } else {
+        out.stdout.write(
+          formatText(diagnostics, {
+            style,
+            quiet: Boolean(opts.quiet),
+            verbose: Boolean(opts.verbose),
+            specs: checked.map((s) => ({ id: s.id, file: s.file })),
+            durationMs: performance.now() - started,
+          }),
+        );
+      }
+      if (!opts.quiet || code !== EXIT.ok) {
+        for (const note of notes) out.stderr.write(`catspec: ${note}\n`);
+      }
+      return code;
+    } finally {
+      staged.git.close();
+    }
+  };
+
+  program
     .command("show-facts", { hidden: true })
     .description("debug: print the facts CatSpec extracts from a source file, as JSON")
     .argument("<file>", "source file")
@@ -395,6 +621,25 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       }
       return EXIT.usage;
     }
+    if (error instanceof GitUnavailableError) {
+      out.stdout.write(
+        formatText(
+          [
+            createDiagnostic("CS0902", {
+              message:
+                "git is required for this command, but it can't be run: it isn't installed or isn't on PATH",
+              suggestions: [{ message: "install git, or add it to PATH" }],
+            }),
+          ],
+          { style: styleFor({ color: true }, out) },
+        ),
+      );
+      return EXIT.errors;
+    }
+    if (error instanceof HookRefusedError) {
+      out.stderr.write(`catspec: ${error.message}\n`);
+      return EXIT.errors;
+    }
     if (error instanceof UsageError || error instanceof SpecEditError) {
       out.stderr.write(`catspec: ${error.message}\n`);
       return EXIT.usage;
@@ -404,6 +649,12 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     if (verbose && err.stack) out.stderr.write(`${err.stack}\n`);
     return EXIT.internal;
   }
+}
+
+function hookReport(result: HookResult, style: Style): string {
+  const lines = [`${style.green(result.manager)}: ${result.message}`];
+  if (result.next) lines.push(`next: ${result.next}`);
+  return `${lines.join("\n")}\n`;
 }
 
 function globals(command: Command): GlobalOptions {

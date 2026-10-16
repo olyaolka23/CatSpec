@@ -1,10 +1,11 @@
 /**
  * Finds and loads every spec of a repository (plan §D3, §D4, §D6.4), PBI `spec-loader`, and runs
  * the repository-level checks of `catspec check --specs-only`: unique ids (CS0103), the
- * feature-folder layout (CS0106), the architecture spec (CS0107) and ADR ids (CS0112).
+ * feature-folder layout (CS0106), the architecture spec (CS0107), lock files without a spec
+ * (CS0108) and ADR ids (CS0112). Specs and lock files are read from a source provider: the
+ * working tree, or the git index for `check --staged` (F5).
  */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { posix } from "node:path";
 
 import type { CatspecConfig } from "./config.js";
 import {
@@ -13,9 +14,11 @@ import {
   sortDiagnostics,
   type Diagnostic,
 } from "./diagnostics.js";
+import { WorkingTreeProvider, type SourceProvider } from "./git/providers.js";
 import { DependencyGraph } from "./graph.js";
+import { hasLockFile, lockPathOf, parseLock, type LockFile } from "./lock.js";
 import { readSpec, specLocation, type Spec } from "./spec.js";
-import { didYouMean, globMatcher, listFiles, listOf } from "./util.js";
+import { didYouMean, globMatcher, listOf } from "./util.js";
 
 /** All specs of a repository, by id and by file. */
 export class SpecSet {
@@ -55,6 +58,12 @@ export interface SpecModel {
   adrIds: string[];
   /** Every diagnostic of `catspec check --specs-only`, sorted. */
   diagnostics: Diagnostic[];
+  /** Valid lock files (plan §D7) by spec id. */
+  locks: Map<string, LockFile>;
+  /** The text of each lock file read, by path, to write only what changed. */
+  lockTexts: Map<string, string>;
+  /** Where the specs were read from. */
+  source: SourceProvider;
 }
 
 /** The feature-folder layout: `docs/spec/<feature>/<file>.spec.md`. */
@@ -65,8 +74,12 @@ const SPEC_FILE = /(^|\/)[^/]+\.spec\.md$/;
  * Loads every spec under `root` with `config` and runs the spec checks (the pipeline of
  * `catspec check --specs-only`). Spec errors of `deprecated` specs are lowered to warnings (§D8).
  */
-export async function loadSpecModel(root: string, config: CatspecConfig): Promise<SpecModel> {
-  const files = await listFiles(root);
+export async function loadSpecModel(
+  root: string,
+  config: CatspecConfig,
+  source: SourceProvider = new WorkingTreeProvider(root),
+): Promise<SpecModel> {
+  const files = (await source.list()).map((entry) => entry.path);
   const diagnostics: Diagnostic[] = [];
   const specs = new SpecSet();
   const options = { unenforcedProse: config.enforcement.unenforced_prose };
@@ -80,7 +93,7 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
   const involved = new Map<Diagnostic, Spec[]>();
 
   const read = async (file: string): Promise<Spec | undefined> => {
-    const text = await readFile(join(root, file), "utf8");
+    const text = (await source.read(file))?.toString("utf8") ?? "";
     const result = readSpec(text, file, options);
     diagnostics.push(...result.diagnostics);
     return result.spec;
@@ -217,6 +230,43 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
     }
   }
 
+  // Lock files (CS0108): `<spec-id>.lock.json` next to a spec with that id.
+  const locks = new Map<string, LockFile>();
+  const lockTexts = new Map<string, string>();
+  const listed = new Set(files);
+  for (const spec of specs.all()) {
+    if (!hasLockFile(spec)) continue;
+    const path = lockPathOf(spec);
+    if (!listed.has(path)) continue;
+    const text = (await source.read(path))?.toString("utf8");
+    if (text === undefined) continue;
+    lockTexts.set(path, text);
+    const lock = parseLock(text);
+    if (lock?.spec === spec.id) locks.set(spec.id, lock);
+  }
+  const lockOwners = new Set(
+    [...specs.byFile.values()].filter(hasLockFile).map((spec) => lockPathOf(spec)),
+  );
+  for (const file of files) {
+    if (!file.endsWith(".lock.json") || lockOwners.has(file)) continue;
+    if (!isIncluded(file.replace(/\.lock\.json$/, ".spec.md"))) continue;
+    const id = posix.basename(file).replace(/\.lock\.json$/, "");
+    diagnostics.push(
+      createDiagnostic("CS0108", {
+        specLocation: { file, line: 1, column: 1 },
+        message: `${file} has no spec with id "${id}" in ${posix.dirname(file)}/`,
+        expected: `a spec with id "${id}" in ${posix.dirname(file)}/`,
+        actual: file,
+        suggestions: [
+          {
+            message:
+              "delete the lock file, or move it next to its spec (named <spec-id>.lock.json)",
+          },
+        ],
+      }),
+    );
+  }
+
   const graph = new DependencyGraph(specs.all());
   diagnostics.push(...graph.diagnostics);
 
@@ -247,5 +297,8 @@ export async function loadSpecModel(root: string, config: CatspecConfig): Promis
     ...(architecture ? { architecture } : {}),
     adrIds,
     diagnostics: sortDiagnostics(lowered),
+    locks,
+    lockTexts,
+    source,
   };
 }

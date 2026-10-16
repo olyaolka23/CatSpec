@@ -1,8 +1,8 @@
 /**
  * Binding resolution (plan §D11.5, ADR-005), PBI `binding-resolver`: finds the declaration a
- * binding points to. The `file` hint is tried first, then every source file, so a moved file
- * still resolves. Not found → CS0201 with did-you-mean; several candidates → CS0202; C# `partial`
- * parts are merged. (The lock-file path between the two steps arrives with lock files, F5.)
+ * binding points to. The `file` hint is tried first, then the files the binding resolved to last
+ * time (its lock file, F5), then every source file, so a moved file still resolves. Not found →
+ * CS0201 with did-you-mean; several candidates → CS0202; C# `partial` parts are merged.
  */
 import { codeLocation, formatLocation, type SymbolEntry, type SymbolTable } from "./codebase.js";
 import { compareStrings, createDiagnostic, type Diagnostic } from "./diagnostics.js";
@@ -26,6 +26,11 @@ export interface ResolvedBinding {
 export interface BindingResolution {
   resolved?: ResolvedBinding;
   diagnostics: Diagnostic[];
+  /**
+   * True when neither the hint nor the locked files had the declaration, so every source file was
+   * searched: a result that depends on the whole repository (`check --staged` reads it all then).
+   */
+  searched: boolean;
 }
 
 const TYPE_KINDS = new Set<string>(BINDING_KINDS);
@@ -45,10 +50,15 @@ const inModule = (path: string, module: string): boolean => {
   return bare === target || bare.endsWith(`/${target}`);
 };
 
+/**
+ * Resolves a binding in `table`. `locked` are the files the binding resolved to last time (from
+ * its lock file), tried after the `file` hint.
+ */
 export function resolveBinding(
   spec: Spec,
   binding: Binding,
   table: SymbolTable,
+  locked: readonly string[] = [],
 ): BindingResolution {
   const { module, name } = splitSymbol(binding.symbol);
   const kindOk = (s: SymbolFact): boolean =>
@@ -63,7 +73,11 @@ export function resolveBinding(
     .filter((e) => langOk(e.file) && (!module || inModule(e.file.path, module)));
   const ofKind = named.filter((e) => kindOk(e.symbol));
   const inHinted = ofKind.filter(inHint);
-  const groups = groupOverloads(inHinted.length > 0 ? inHinted : ofKind);
+  const inLocked = ofKind.filter((e) => locked.includes(e.file.path));
+  const searched = inHinted.length === 0 && inLocked.length === 0;
+  const groups = groupOverloads(
+    inHinted.length > 0 ? inHinted : inLocked.length > 0 ? inLocked : ofKind,
+  );
 
   const at = specLocation(spec.source, ["bindings", binding.index, "symbol"]);
   const base = {
@@ -78,6 +92,7 @@ export function resolveBinding(
     const otherKind = named[0];
     if (otherKind) {
       return {
+        searched,
         diagnostics: [
           createDiagnostic("CS0201", {
             ...base,
@@ -96,6 +111,7 @@ export function resolveBinding(
     }
     const close = closeNames(name, table, kindOk, langOk, inHint);
     return {
+      searched,
       diagnostics: [
         createDiagnostic("CS0201", {
           ...base,
@@ -119,6 +135,7 @@ export function resolveBinding(
   if (parts.length > 1 && !parts.every((p) => p.symbol.partial)) {
     const where = parts.map((p) => formatLocation(p.file.path, p.symbol.nameRange));
     return {
+      searched,
       diagnostics: [
         createDiagnostic("CS0202", {
           ...base,
@@ -146,6 +163,7 @@ export function resolveBinding(
       parts: parts.map(({ symbol, file }) => ({ symbol, file })),
     },
     diagnostics: [],
+    searched,
   };
 }
 

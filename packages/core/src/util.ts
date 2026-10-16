@@ -117,6 +117,17 @@ export async function listFiles(root: string): Promise<string[]> {
   return files.sort(compareStrings);
 }
 
+/**
+ * True for a root-relative POSIX path that `listFiles` would list: no `node_modules` and no
+ * dot-folder (`.git`, `.github`, …) on the way. For listings that don't come from disk (the git
+ * index), so every source sees the same files.
+ */
+export const isListedPath = (path: string): boolean =>
+  path
+    .split("/")
+    .slice(0, -1)
+    .every((segment) => segment !== "node_modules" && !segment.startsWith("."));
+
 /** A matcher for root-relative POSIX paths against globs (dot-files excluded). */
 export const globMatcher = (patterns: string | readonly string[]): ((path: string) => boolean) =>
   picomatch(typeof patterns === "string" ? patterns : [...patterns], { dot: false });

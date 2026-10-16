@@ -16,6 +16,7 @@ import {
 } from "./diagnostics.js";
 import { parseErrorDiagnostics, type FileFacts, type LanguageAdapter } from "./facts.js";
 import type { SpecModel } from "./load.js";
+import { applyLock, lockedFiles, type LockFile } from "./lock.js";
 import { resolveBinding, type ResolvedBinding } from "./resolve.js";
 import { evaluateRule, type TestRun } from "./rules.js";
 import { specLocation, type Spec } from "./spec.js";
@@ -36,6 +37,11 @@ export interface CheckOptions {
   now?: Date;
   /** Runs a test rule's test (`--run-tests`). */
   runTest?: (symbol: string) => Promise<TestRun>;
+  /**
+   * Lock files by spec id (plan §D7), for the ratchet (CS0301), drift (CS0300) and the locked
+   * files of bindings. Default: the lock files of the model.
+   */
+  locks?: ReadonlyMap<string, LockFile>;
 }
 
 /** The result of one contract item: a binding, a member or a rule. */
@@ -57,7 +63,16 @@ export interface CheckResult {
   diagnostics: Diagnostic[];
   /** Resolved bindings by spec id, then binding id. */
   resolved: Map<string, Map<string, ResolvedBinding>>;
+  /**
+   * True when a result depends on more than the files of the checked specs: a binding was looked
+   * up in every source file, or a check consulted every declaration (ambiguity, type aliases,
+   * test symbols). A check on part of the code (`check --staged`) is then repeated on all of it.
+   */
+  repositoryWide: boolean;
 }
+
+/** Codes whose result depends on every declaration of the repository, not only a spec's files. */
+const REPOSITORY_WIDE_CODES = new Set<DiagnosticCode>(["CS0202", "CS0204", "CS0220", "CS0620"]);
 
 /** True when a spec's contracts are evaluated in `status` mode (§D6.4, §D8). */
 export function isEnforced(spec: Spec): boolean {
@@ -105,6 +120,8 @@ export async function checkCode(
 ): Promise<CheckResult> {
   const mode = options.mode ?? "status";
   const now = options.now ?? new Date();
+  const locks = options.locks ?? model.locks;
+  let repositoryWide = false;
   const table = new SymbolTable(codebase.files);
   const selected = options.specs ? new Set(options.specs) : undefined;
   const specs = model.specs
@@ -139,9 +156,11 @@ export async function checkCode(
   for (const spec of specs) {
     const raw: Diagnostic[] = [];
     const resolved = new Map<string, ResolvedBinding>();
+    const lock = locks.get(spec.id);
     for (const binding of spec.bindings) {
-      const resolution = resolveBinding(spec, binding, table);
+      const resolution = resolveBinding(spec, binding, table, lockedFiles(lock, binding.id));
       raw.push(...resolution.diagnostics);
+      if (resolution.searched) repositoryWide = true;
       if (!resolution.resolved) continue;
       resolved.set(binding.id, resolution.resolved);
       raw.push(
@@ -167,8 +186,14 @@ export async function checkCode(
       );
     }
 
+    if (raw.some((d) => REPOSITORY_WIDE_CODES.has(d.code))) repositoryWide = true;
     const enforced = enforce(spec, raw, mode, now);
-    diagnostics.push(...enforced);
+    diagnostics.push(
+      ...applyLock(spec, enforced, resolved, lock, {
+        drift: model.config.enforcement.drift,
+        asImplemented: mode === "full",
+      }),
+    );
 
     const unresolved = new Set(spec.bindings.filter((b) => !resolved.has(b.id)).map((b) => b.id));
     const failing = new Set(
@@ -216,6 +241,7 @@ export async function checkCode(
     items,
     diagnostics: sortDiagnostics([...specDiagnostics, ...diagnostics, ...parseErrors]),
     resolved: resolvedBySpec,
+    repositoryWide,
   };
 }
 
