@@ -1,16 +1,16 @@
 /**
  * The code `catspec check` runs on: the facts of every file of the configured languages, through
- * the parse cache, and the language adapters the CLI injects into the engine (ADR-003).
+ * the parse cache, and the language adapters the CLI injects into the engine (ADR-003). Files are
+ * read from a source provider: the working tree, or the git index for `check --staged`.
  */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import {
   compareStrings,
   gitBlobSha,
+  WorkingTreeProvider,
   type CatspecConfig,
   type Codebase,
   type LanguageAdapter,
+  type SourceProvider,
 } from "@catspec/core";
 import { AdapterRegistry, FactsProvider, factsCacheFor, repositoryFacts } from "@catspec/lang";
 import { CSharpAdapter } from "@catspec/lang-csharp";
@@ -30,16 +30,37 @@ export async function loadAdapters(config: CatspecConfig): Promise<AdapterRegist
   return registry;
 }
 
-/** Reads every source file of the repository at `root` (facts cached by blob SHA). */
-export async function loadCodebase(root: string, config: CatspecConfig): Promise<Codebase> {
-  const registry = await loadAdapters(config);
-  const files = await repositoryFacts(root, registry, new FactsProvider(factsCacheFor(root)));
+export interface CodebaseOptions {
+  /** Where files are read from (default: the working tree). */
+  source?: SourceProvider;
+  /** Only these files (default: every source file). */
+  only?: (path: string) => boolean;
+  /** Loaded adapters to reuse. */
+  registry?: AdapterRegistry;
+}
+
+/** Reads the source files of the repository at `root` (facts cached by blob SHA). */
+export async function loadCodebase(
+  root: string,
+  config: CatspecConfig,
+  options: CodebaseOptions = {},
+): Promise<Codebase> {
+  const registry = options.registry ?? (await loadAdapters(config));
+  const source = options.source ?? new WorkingTreeProvider(root);
+  const files = await repositoryFacts(
+    root,
+    registry,
+    new FactsProvider(factsCacheFor(root)),
+    source,
+    options.only,
+  );
   files.sort((a, b) => compareStrings(a.path, b.path));
   return {
     files,
     adapter: (lang) => registry.get(lang),
     source: async (path) => {
-      const bytes = await readFile(join(root, path));
+      const bytes = await source.read(path);
+      if (bytes === undefined) throw new Error(`no such file: ${path}`);
       return { path, text: bytes.toString("utf8"), blobSha: gitBlobSha(bytes) };
     },
   };

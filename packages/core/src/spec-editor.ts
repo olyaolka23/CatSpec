@@ -95,6 +95,16 @@ export function editYaml(text: string, ops: readonly PatchOp[], eol: "\n" | "\r\
   return current;
 }
 
+/** The plain value at `path` of a YAML document's text, or undefined. Throws `SpecEditError`. */
+export function readYaml(text: string, path: PatchPath): unknown {
+  let value: unknown = parseYaml(text).toJS();
+  for (const segment of path) {
+    if (value === null || typeof value !== "object") return undefined;
+    value = (value as Record<string | number, unknown>)[segment];
+  }
+  return value;
+}
+
 function applyOp(text: string, op: PatchOp, eol: string): string {
   const doc = parseYaml(text);
   if (op.path.length === 0) throw new SpecEditError("an edit needs a non-empty path");

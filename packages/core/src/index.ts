@@ -33,6 +33,39 @@ export {
   type ItemResult,
   type StatusGate,
 } from "./check.js";
+export {
+  Git,
+  GitError,
+  GitUnavailableError,
+  type StagedChange,
+  type TreeEntry,
+} from "./git/git.js";
+export {
+  IndexProvider,
+  RevisionProvider,
+  WorkingTreeProvider,
+  type SourceEntry,
+  type SourceProvider,
+} from "./git/providers.js";
+export {
+  applyLock,
+  fingerprintOf,
+  hasLockFile,
+  itemHashes,
+  lockedFiles,
+  lockPathOf,
+  nextLock,
+  parseLock,
+  serializeLock,
+  shapeOf,
+  specHash,
+  type LockCheckOptions,
+  type LockedSymbol,
+  type LockFile,
+  type NextLockOptions,
+  type Shape,
+} from "./lock.js";
+export { stagedDiagnostics, stagedScope, type StagedScope } from "./staged.js";
 export { coverage, type CoverageReport, type Ratio, type SpecCoverage } from "./coverage.js";
 export {
   frontmatterLocation,
@@ -52,6 +85,7 @@ export {
   classifyOp,
   classifyPatch,
   editYaml,
+  readYaml,
   SpecEditError,
   type EditClass,
 } from "./spec-editor.js";
@@ -60,8 +94,10 @@ export {
   didYouMean,
   gitBlobSha,
   globMatcher,
+  isListedPath,
   kebabCase,
   listFiles,
   LineIndex,
+  relativePosix,
   toPosix,
 } from "./util.js";

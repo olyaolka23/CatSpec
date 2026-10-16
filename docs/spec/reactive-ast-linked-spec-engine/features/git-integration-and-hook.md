@@ -50,6 +50,11 @@ Feature: F5 git-integration-and-hook
     Then both the existing script and catspec run on commit
 ```
 
+`@AC-F5-3` is asserted on the time of the check itself; the time as a new process (startup
+included) is logged by the test. New diagnostics: `CS0108` orphan lock file (warning), `CS0300`
+drift (severity from `enforcement.drift`), `CS0301` regression (error), `CS0902` git not found
+(error). Lock file details and hook behaviour: plan §D7 and §D13.
+
 ## Definition of Done (feature)
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F5-1..4` are automated and pass in CI on 3 OSes

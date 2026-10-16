@@ -10,6 +10,7 @@ import { pid } from "node:process";
 
 import {
   findGitCommonDir,
+  gitBlobSha,
   type FileFacts,
   type LanguageAdapter,
   type SourceFile,
@@ -98,6 +99,27 @@ export class FactsProvider {
     const facts = withoutBodyTokens(adapter.extract(file));
     this.cache.set(adapter.id, adapter.version, facts);
     return facts;
+  }
+
+  /**
+   * The facts of a file whose blob SHA may be known without reading it (the git index): a cache
+   * hit then skips reading the file. `read` returns undefined when the file is gone.
+   */
+  async factsOf(
+    adapter: LanguageAdapter,
+    path: string,
+    blobSha: string | undefined,
+    read: () => Promise<Buffer | undefined>,
+  ): Promise<FileFacts | undefined> {
+    if (blobSha !== undefined) {
+      const cached = this.cache.get(adapter.id, blobSha, adapter.version);
+      if (cached && extname(cached.path) === extname(path)) {
+        return cached.path === path ? cached : relocate(cached, path);
+      }
+    }
+    const bytes = await read();
+    if (bytes === undefined) return undefined;
+    return this.facts(adapter, { path, text: bytes.toString("utf8"), blobSha: gitBlobSha(bytes) });
   }
 }
 

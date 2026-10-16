@@ -69,6 +69,14 @@ export const CODES = {
       "`docs/architecture/adr/*-adr.md`). Create it with `catspec init`, remove the extra " +
       "matches, or change `specs.architecture` in `catspec.yaml`.",
   },
+  CS0108: {
+    severity: "warning",
+    title: "lock file without spec",
+    docs:
+      "A generated `<spec-id>.lock.json` has no spec with that id in its folder, usually because " +
+      "the spec was deleted, renamed or moved without its lock file. Delete the lock file, or " +
+      "move it next to its spec (a spec's lock file is named after its id).",
+  },
   CS0110: {
     severity: "error",
     title: "unknown reference",
@@ -174,6 +182,27 @@ export const CODES = {
       "`enforcement.unresolvable` (`warn` or `error`). Write the type explicitly to make it " +
       "checkable.",
   },
+  CS0300: {
+    severity: "warning",
+    title: "drift",
+    docs:
+      "The shape of a bound declaration (kind, name, bases, attributes, modifiers and member " +
+      "signatures; bodies excluded) changed since it was recorded in the spec's lock file, and the " +
+      "spec's binding didn't change with it. Implemented specs report it with the severity of " +
+      "`enforcement.drift` (`off`, `warn`, `strict`), in-progress specs as info. Run " +
+      "`catspec accept <spec-id>` to record an intended change, update the spec, or change the " +
+      "code back.",
+  },
+  CS0301: {
+    severity: "error",
+    title: "regression of a satisfied item",
+    docs:
+      "A contract item that passed before (recorded in `satisfied` of the spec's lock file) fails " +
+      "now. This is an error even while the spec is in progress (the ratchet, ADR-006): work in " +
+      "progress may be incomplete, but what already worked must not break. The message keeps the " +
+      "original code and text. Fix the code, or change the spec item (a changed item leaves " +
+      "`satisfied` until it passes again).",
+  },
   CS0400: {
     severity: "info",
     title: "waived",
@@ -260,6 +289,14 @@ export const CODES = {
       "A source file has a syntax error at the reported location. CatSpec still uses the " +
       "declarations it could read before and after the error, so results for that file may be " +
       "incomplete. Fix the syntax error.",
+  },
+  CS0902: {
+    severity: "error",
+    title: "git unavailable",
+    docs:
+      "The command reads the git index or history (`catspec check --staged`, the pre-commit " +
+      "hook, `install-hooks`), but git can't be run: it isn't installed or isn't on PATH. Install " +
+      "git or fix PATH. CatSpec runs git without a shell.",
   },
 } as const satisfies Record<string, CodeInfo>;
 

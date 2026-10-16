@@ -3,13 +3,10 @@
  * symbol by its (qualified) name in every file of the language's include set. It is built on the
  * first lookup only, so commands that never need it don't parse the repository.
  */
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import {
-  gitBlobSha,
-  listFiles,
+  WorkingTreeProvider,
   type FileFacts,
+  type SourceProvider,
   type SymbolFact,
   type SymbolKind,
 } from "@catspec/core";
@@ -60,22 +57,30 @@ export class SymbolIndex {
 
 /**
  * Facts of every file under `root` that a registered adapter accepts (by extension and the
- * `languages` globs), through the cache. Adapters are loaded first.
+ * `languages` globs), through the cache. Adapters are loaded first. `source` reads the files (the
+ * working tree by default, or the git index); `only` limits them to some paths.
  */
 export async function repositoryFacts(
   root: string,
   registry: AdapterRegistry,
   provider: FactsProvider,
+  source: SourceProvider = new WorkingTreeProvider(root),
+  only?: (path: string) => boolean,
 ): Promise<FileFacts[]> {
   await Promise.all(registry.adapters().map((adapter) => adapter.load()));
-  const facts: FileFacts[] = [];
-  for (const path of await listFiles(root)) {
-    const adapter = registry.resolve(path);
-    if (!adapter) continue;
-    const bytes = await readFile(join(root, path));
-    facts.push(
-      provider.facts(adapter, { path, text: bytes.toString("utf8"), blobSha: gitBlobSha(bytes) }),
-    );
-  }
-  return facts;
+  const entries = (await source.list()).flatMap((entry) => {
+    const adapter = registry.resolve(entry.path);
+    return adapter && (!only || only(entry.path)) ? [{ ...entry, adapter }] : [];
+  });
+  // Read a few files at a time: enough to overlap disk and git reads, few enough open files.
+  const facts: (FileFacts | undefined)[] = new Array<FileFacts | undefined>(entries.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (let i = next++; i < entries.length; i = next++) {
+      const { path, blobSha, adapter } = entries[i]!;
+      facts[i] = await provider.factsOf(adapter, path, blobSha, () => source.read(path));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(32, entries.length) }, worker));
+  return facts.filter((f): f is FileFacts => f !== undefined);
 }

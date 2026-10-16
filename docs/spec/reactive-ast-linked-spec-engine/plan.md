@@ -440,10 +440,12 @@ feature folder self-contained. `catspec baseline --rebuild` regenerates all.
 {
   "spec": "user-sync-handler",
   "specHash": "sha256:…",
+  "items": { "binding:handler": "sha256:…", "binding:handler.HandleAsync": "sha256:…" },
   "satisfied": ["binding:handler", "binding:handler.HandleAsync", "rule:no-console"],
   "symbols": {
     "handler": {
       "resolved": "src/Services/Identity/Handlers/UserUpdatedHandler.cs#Identity.Handlers.UserUpdatedHandler",
+      "files": ["…"],
       "fingerprint": "sha256:…",
       "shape": { "kind": "class", "bases": ["IMessageHandler<UserUpdatedEvent>"], "members": ["HandleAsync(UserUpdatedEvent,CancellationToken):Task"] }
     }
@@ -451,8 +453,16 @@ feature folder self-contained. `catspec baseline --rebuild` regenerates all.
 }
 ```
 
+`items` holds the hash of each contract item as the spec declares it. `files` appears only when
+a symbol spans several files (C# `partial` types). Only `in-progress` and `implemented` specs
+have lock files; the architecture spec never does. A lock file that can't be read (for example
+one with merge-conflict markers) is treated as missing and rebuilt, with no diagnostic. A lock
+file without its spec is `CS0108`.
+
 ### D7.1 Ratchet (F-4)
-Every check that sees a contract item pass adds it to `satisfied`. Once satisfied,
+Every check that writes lock files (the pre-commit hook, `catspec baseline --rebuild` and
+`catspec accept`) adds the contract items it sees pass to `satisfied`; a plain `catspec check`
+reads lock files but never writes them. Once satisfied,
 a failure of that item is an **error** regardless of `in-progress` status. Items
 leave `satisfied` only when removed from / changed in the spec (detected via `specHash`
 per item).
@@ -797,6 +807,15 @@ exec npx --no-install catspec check --staged --format text
 - Installer detects `core.hooksPath`, husky (`.husky/`), lefthook (`lefthook.yml`) and adds an entry instead of overwriting; refuses to overwrite a foreign hook without `--force` (backs it up and chains it).
 - Behaviour: exits non-zero on errors; prints the fix path (`catspec sync --apply`, `catspec accept`, edit spec).
 - Escape hatch `CATSPEC_SKIP=1` (logged as a warning in the next run) in addition to `--no-verify`.
+- The installed script runs `node_modules/.bin/catspec check --staged` when the project has its
+  own install and falls back to `npx --no-install catspec check --staged` (§4, Risks). With
+  `--force` the foreign hook is kept as `pre-commit.catspec-backup` and runs first.
+- The hook writes and re-stages lock files only when the check has no errors.
+- Staged architecture rules run on the changed files only (on every file when the ADR log
+  changes); a "must be present" rule is left to the full `catspec check` in CI.
+- `bin.ts` sets the V8 flag `--liftoff-only`: without it the process waits about 1.7 s at exit
+  for background optimisation of the grammar WebAssembly (hook on a 10k-file repository:
+  2.2 s → 0.5 s).
 
 ---
 

@@ -2,7 +2,7 @@
  * Temporary repositories built from inline file contents, for tests that need many small variations
  * of a repository (spec files, configs) rather than one committed fixture (`./fixtures.ts`).
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -24,7 +24,7 @@ export async function createRepo(
   const dir = await mkdtemp(join(tmpdir(), "catspec-repo-"));
   if (options.git) execFileSync("git", ["init", "-q"], { cwd: dir });
   await writeFiles(dir, files);
-  return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  return { dir, cleanup: () => rm(dir, { recursive: true, force: true, maxRetries: 5 }) };
 }
 
 export async function writeFiles(dir: string, files: Record<string, string>): Promise<void> {
@@ -77,3 +77,55 @@ export const ALIAS_BOMB = [
   "---",
   "",
 ].join("\n");
+
+/** A temporary git repository with a user, for tests that stage and commit. */
+export interface GitRepo {
+  /** Absolute path of the repository. */
+  dir: string;
+  /** Runs git in the repository and returns its output; throws when git fails. */
+  git(...args: string[]): string;
+  /** Writes files (path → content) into the working tree. */
+  write(files: Record<string, string>): Promise<void>;
+  /** `git commit` with the hooks; the exit code and the hook's output. */
+  commit(message: string): { code: number; output: string };
+}
+
+/**
+ * Runs `fn` in a new git repository with `files` written (not staged) and removes it afterwards
+ * (PBI `git-access`). The repository has a user, no signing, no line-ending conversion, no
+ * automatic gc and its own hooks folder, so global git settings don't leak in.
+ */
+export async function withRepo<T>(
+  fn: (repo: GitRepo) => Promise<T>,
+  files: Record<string, string> = {},
+): Promise<T> {
+  const { dir, cleanup } = await createRepo(files, { git: true });
+  const git = (...args: string[]): string =>
+    execFileSync("git", args, { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  git("config", "user.name", "CatSpec Test");
+  git("config", "user.email", "test@catspec.invalid");
+  git("config", "commit.gpgsign", "false");
+  git("config", "core.autocrlf", "false");
+  git("config", "core.hooksPath", ".git/hooks");
+  // No background `gc --auto` after a commit: it would still write in .git while the repository
+  // is removed.
+  git("config", "gc.auto", "0");
+  git("config", "maintenance.auto", "false");
+  const repo: GitRepo = {
+    dir,
+    git,
+    write: (more) => writeFiles(dir, more),
+    commit: (message) => {
+      const result = spawnSync("git", ["commit", "-q", "-m", message], {
+        cwd: dir,
+        encoding: "utf8",
+      });
+      return { code: result.status ?? -1, output: `${result.stdout}${result.stderr}` };
+    },
+  };
+  try {
+    return await fn(repo);
+  } finally {
+    await cleanup();
+  }
+}
