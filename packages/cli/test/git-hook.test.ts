@@ -69,6 +69,9 @@ async function installCli(dir: string): Promise<void> {
   await chmod(shim, 0o755);
 }
 
+/** Real commits run the hook, which starts the CLI through the TypeScript loader each time. */
+const HOOK_TIMEOUT = 60_000;
+
 const AUTH = "src/auth/AuthService.ts";
 const AUTH_SPEC_FILE = "docs/spec/auth/auth-service.spec.md";
 const AUTH_LOCK = "docs/spec/auth/auth-service.lock.json";
@@ -108,7 +111,7 @@ async function authRepo(
   await installCli(repo.dir);
 }
 
-describe("F5 git-integration-and-hook", () => {
+describe("F5 git-integration-and-hook", { timeout: HOOK_TIMEOUT }, () => {
   it("[AC-F5-1] the hook warns about work in progress but blocks a regression with CS0301 (spec AC-4)", async () => {
     await withRepo(async (repo) => {
       await authRepo(repo, "in-progress", authCode(LOGOUT));
@@ -476,7 +479,7 @@ describe("F5 git-integration-and-hook", () => {
   });
 });
 
-describe("hook installer and staged check details", () => {
+describe("hook installer and staged check details", { timeout: HOOK_TIMEOUT }, () => {
   it("chains a hook kept with --force: both run on commit", async () => {
     await withRepo(async (repo) => {
       await authRepo(repo, "implemented", authCode(LOGIN));
