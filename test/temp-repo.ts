@@ -24,7 +24,7 @@ export async function createRepo(
   const dir = await mkdtemp(join(tmpdir(), "catspec-repo-"));
   if (options.git) execFileSync("git", ["init", "-q"], { cwd: dir });
   await writeFiles(dir, files);
-  return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
+  return { dir, cleanup: () => rm(dir, { recursive: true, force: true, maxRetries: 5 }) };
 }
 
 export async function writeFiles(dir: string, files: Record<string, string>): Promise<void> {

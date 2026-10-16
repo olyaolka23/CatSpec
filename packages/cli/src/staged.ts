@@ -96,7 +96,7 @@ export async function checkStaged(
       git,
     };
   } catch (error) {
-    git.close();
+    await git.close();
     throw error;
   }
 }

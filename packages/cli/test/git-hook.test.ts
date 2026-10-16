@@ -193,7 +193,7 @@ describe("F5 git-integration-and-hook", () => {
         expect((await index.list()).map((e) => e.path)).toContain(name);
         expect((await index.read(name))?.toString("utf8")).toContain("export class Odd");
       } finally {
-        git.close();
+        await git.close();
       }
       const { code, stdout } = await catspec(repo.dir, ["check", "--staged"]);
       expect(code, stdout).toBe(0);
@@ -251,7 +251,7 @@ describe("F5 git-integration-and-hook", () => {
         expect(results[1]).toBe(results[0]);
         expect(results[2]).toBe(results[0]);
       } finally {
-        git.close();
+        await git.close();
       }
     });
   });
@@ -304,7 +304,7 @@ describe("F5 git-integration-and-hook", () => {
         expect(staged.files).toEqual(["src/s42/Service42.ts"]);
         expect(staged.diagnostics.filter((d) => d.severity === "error")).toEqual([]);
       } finally {
-        staged.git.close();
+        await staged.git.close();
       }
     }, files);
   }, 120_000);

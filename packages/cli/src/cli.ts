@@ -446,7 +446,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
         } catch (error) {
           if (!(error instanceof GitUnavailableError || error instanceof GitError)) throw error;
         } finally {
-          git.close();
+          await git.close();
         }
       }
       if (!opts.quiet) {
@@ -569,7 +569,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       }
       return code;
     } finally {
-      staged.git.close();
+      await staged.git.close();
     }
   };
 

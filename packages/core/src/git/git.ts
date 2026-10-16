@@ -62,6 +62,7 @@ class CatFileBatch {
   private readonly pending: PendingRead[] = [];
   private buffer: Buffer = Buffer.alloc(0);
   private failure?: Error;
+  private readonly exited: Promise<void>;
 
   constructor(cwd: string, env: NodeJS.ProcessEnv | undefined) {
     this.child = spawn("git", ["cat-file", "--batch"], {
@@ -78,9 +79,14 @@ class CatFileBatch {
     this.child.on("error", (error: NodeJS.ErrnoException) =>
       this.fail(error.code === "ENOENT" ? new GitUnavailableError(error) : error),
     );
-    this.child.on("close", (code) =>
-      this.fail(new GitError(["cat-file", "--batch"], code, stderr || "exited")),
-    );
+    this.exited = new Promise((resolveExit) => {
+      this.child.on("close", (code) => {
+        this.fail(new GitError(["cat-file", "--batch"], code, stderr || "exited"));
+        resolveExit();
+      });
+      // A process that never started has nothing to wait for.
+      this.child.on("error", () => resolveExit());
+    });
     // A closed pipe is reported through `close`; don't let it throw.
     this.child.stdin.on("error", () => undefined);
   }
@@ -97,8 +103,10 @@ class CatFileBatch {
     });
   }
 
-  close(): void {
+  /** Ends the process and waits for it to exit (on Windows its folder stays locked until then). */
+  close(): Promise<void> {
     this.child.stdin.end();
+    return this.exited;
   }
 
   private drain(): void {
@@ -285,10 +293,11 @@ export class Git {
     return resolve(this.cwd, out);
   }
 
-  /** Stops the `cat-file --batch` process. */
-  close(): void {
-    this.batch?.close();
+  /** Stops the `cat-file --batch` process and waits for it to exit. */
+  async close(): Promise<void> {
+    const batch = this.batch;
     delete this.batch;
+    await batch?.close();
   }
 }
 
