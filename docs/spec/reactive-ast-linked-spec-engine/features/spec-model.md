@@ -50,18 +50,18 @@ Feature: F1 spec-model
 ```
 
 ## Definition of Done (feature)
-- [ ] all PBIs meet the PBI checklist
-- [ ] `@AC-F1-1..4` are automated and pass in CI on 3 OSes
-- [ ] requirements review done; differences approved by the owner
-- [ ] owner approved closing the feature and ticking it in plan §1 Progress
+- [x] all PBIs meet the PBI checklist
+- [x] `@AC-F1-1..4` are automated and pass in CI on 3 OSes
+- [x] requirements review done; differences approved by the owner
+- [x] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `diagnostics-core`
 Defines what an error or warning looks like everywhere in CatSpec (code, severity, location, message) and how it is printed.
 - depends on: `monorepo-setup`
 - refs: §D12, §D10 (exit codes)
-- [ ] `Diagnostic` type: code, severity, spec / code location, message, expected / actual, suggestions
-- [ ] code registry (code → default severity, title, docs text)
-- [ ] reporters `text` and `json`; exit codes 0 / 1 / 2 / 3
+- [x] `Diagnostic` type: code, severity, spec / code location, message, expected / actual, suggestions
+- [x] code registry (code → default severity, title, docs text)
+- [x] reporters `text` and `json`; exit codes 0 / 1 / 2 / 3
 
 ```gherkin
   @AC-diagnostics-core-1
@@ -88,9 +88,9 @@ Defines what an error or warning looks like everywhere in CatSpec (code, severit
 Reads and validates `catspec.yaml` so every command uses the same settings, and a mistake in the config is reported clearly.
 - depends on: `diagnostics-core`
 - refs: §D4
-- [ ] zod schema for `catspec.yaml` incl. `layout`, `languages`, `enforcement`, `heal`, `hook`, `refactor`, `mcp` (`workflow` is validated in F8)
-- [ ] defaults; discovery of the root `catspec.yaml` (walk up to the git root)
-- [ ] JSON Schema export into `schemas/` for editor autocompletion
+- [x] zod schema for `catspec.yaml` incl. `layout`, `languages`, `enforcement`, `heal`, `hook`, `refactor`, `mcp` (`workflow` is validated in F8)
+- [x] defaults; discovery of the root `catspec.yaml` (walk up to the git root)
+- [x] JSON Schema export into `schemas/` for editor autocompletion
 
 ```gherkin
   @AC-config-loader-1
@@ -116,8 +116,8 @@ Reads and validates `catspec.yaml` so every command uses the same settings, and 
 Splits a spec file into its YAML header and Markdown body and remembers exact positions for error messages.
 - depends on: `diagnostics-core`
 - refs: §D5
-- [ ] split the `---` block with exact byte offsets; body kept byte-for-byte
-- [ ] parse with `yaml` `parseDocument` (CST + line / column positions)
+- [x] split the `---` block with exact byte offsets; body kept byte-for-byte
+- [x] parse with `yaml` `parseDocument` (CST + line / column positions)
 
 ```gherkin
   @AC-frontmatter-parser-1
@@ -142,10 +142,10 @@ Splits a spec file into its YAML header and Markdown body and remembers exact po
 Validates the meaning of the spec header (bindings, members, rules, waivers) and turns shorthand forms into the full model.
 - depends on: `frontmatter-parser`
 - refs: §D5.2, §D5.3, §D6.1–6.3, §D6.5, §D17.1 (aggregate specs)
-- [ ] zod for frontmatter, bindings and members, rules (common fields `id`, `class`, `message`, `adr`, `paths`), waivers
-- [ ] shorthand normalisation (`members: ["login"]`)
-- [ ] map validation issue paths → YAML node ranges → `specLocation`
-- [ ] CS0101 invalid schema, CS0102 unknown key (warning); aggregate spec detection
+- [x] zod for frontmatter, bindings and members, rules (common fields `id`, `class`, `message`, `adr`, `paths`), waivers
+- [x] shorthand normalisation (`members: ["login"]`)
+- [x] map validation issue paths → YAML node ranges → `specLocation`
+- [x] CS0101 invalid schema, CS0102 unknown key (warning); aggregate spec detection
 
 ```gherkin
   @AC-spec-schema-1
@@ -171,9 +171,9 @@ Validates the meaning of the spec header (bindings, members, rules, waivers) and
 Reads the human part of a spec: references to rules, unenforced invariants and the task checklist.
 - depends on: `frontmatter-parser`
 - refs: §D5.4
-- [ ] remark → `[rule:id]` / `[binding:id]` references (CS0110 for unknown ids)
-- [ ] bullets under `Contracts` / `Invariants` without a reference → CS0111
-- [ ] `## Tasks` checklist → done / total
+- [x] remark → `[rule:id]` / `[binding:id]` references (CS0110 for unknown ids)
+- [x] bullets under `Contracts` / `Invariants` without a reference → CS0111
+- [x] `## Tasks` checklist → done / total
 
 ```gherkin
   @AC-body-parser-1
@@ -199,9 +199,9 @@ Reads the human part of a spec: references to rules, unenforced invariants and t
 Finds all specs in the repository, indexes them and checks repo-level rules (unique ids, folder layout, ADR log location).
 - depends on: `config-loader`, `spec-schema`, `body-parser`
 - refs: §D3, §D4, §D6.4, §D12
-- [ ] discover specs via `specs.include`; build `SpecSet` (id → spec, file → specs)
-- [ ] CS0103 duplicate id; CS0106 spec outside a feature folder (`layout: feature-folders`)
-- [ ] architecture spec at `specs.architecture`: CS0107 missing or ambiguous; CS0112 rule referencing an unknown ADR id
+- [x] discover specs via `specs.include`; build `SpecSet` (id → spec, file → specs)
+- [x] CS0103 duplicate id; CS0106 spec outside a feature folder (`layout: feature-folders`)
+- [x] architecture spec at `specs.architecture`: CS0107 missing or ambiguous; CS0112 rule referencing an unknown ADR id
 
 ```gherkin
   @AC-spec-loader-1
@@ -227,8 +227,8 @@ Finds all specs in the repository, indexes them and checks repo-level rules (uni
 Builds the graph of `depends_on` relations so CatSpec knows the order of work and which specs are ready.
 - depends on: `spec-loader`
 - refs: §D8, analysis F-11
-- [ ] DAG from `depends_on`; CS0104 unknown dependency; CS0105 cycle with the full path (Tarjan SCC)
-- [ ] topological order; "ready" computed from statuses
+- [x] DAG from `depends_on`; CS0104 unknown dependency; CS0105 cycle with the full path (Tarjan SCC)
+- [x] topological order; "ready" computed from statuses
 
 ```gherkin
   @AC-dependency-graph-1
@@ -249,10 +249,10 @@ Builds the graph of `depends_on` relations so CatSpec knows the order of work an
 Edits spec headers without destroying comments or formatting, and separates safe "location" edits from "contract" edits.
 - depends on: `frontmatter-parser`
 - refs: §D11.6, ADR-008
-- [ ] `applyPatch(spec, ops)` via `Document.setIn/deleteIn`; keeps comments, key order, quoting
-- [ ] the body stays byte-for-byte identical
-- [ ] golden round-trip suite and a fast-check property test
-- [ ] patch ops classified as **location** or **contract**
+- [x] `applyPatch(spec, ops)` via `Document.setIn/deleteIn`; keeps comments, key order, quoting
+- [x] the body stays byte-for-byte identical
+- [x] golden round-trip suite and a fast-check property test
+- [x] patch ops classified as **location** or **contract**
 
 ```gherkin
   @AC-spec-cst-editor-1
@@ -278,9 +278,9 @@ Edits spec headers without destroying comments or formatting, and separates safe
 The first usable `catspec` command line: `init`, `check --specs-only`, `list`, `show`, `graph`.
 - depends on: `config-loader`, `dependency-graph`
 - refs: §D3, §D10
-- [ ] `commander` CLI; global flags `--cwd --config --format text|json --no-color --quiet --verbose`
-- [ ] `catspec init`: `catspec.yaml`, `docs/spec/<example-feature>/` (spec.md, plan.md, one `*.spec.md`), `docs/architecture/adr/<name>-adr.md`
-- [ ] `catspec check --specs-only`, `list [--status] [--ready]`, `show <spec>`, `graph --format mermaid|dot|json`
+- [x] `commander` CLI; global flags `--cwd --config --format text|json --no-color --quiet --verbose`
+- [x] `catspec init`: `catspec.yaml`, `docs/spec/<example-feature>/` (spec.md, plan.md, one `*.spec.md`), `docs/architecture/adr/<name>-adr.md`
+- [x] `catspec check --specs-only`, `list [--status] [--ready]`, `show <spec>`, `graph --format mermaid|dot|json`
 
 ```gherkin
   @AC-cli-skeleton-1
