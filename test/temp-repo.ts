@@ -92,8 +92,8 @@ export interface GitRepo {
 
 /**
  * Runs `fn` in a new git repository with `files` written (not staged) and removes it afterwards
- * (PBI `git-access`). The repository has a user, no signing, no line-ending conversion and its own
- * hooks folder, so global git settings don't leak in.
+ * (PBI `git-access`). The repository has a user, no signing, no line-ending conversion, no
+ * automatic gc and its own hooks folder, so global git settings don't leak in.
  */
 export async function withRepo<T>(
   fn: (repo: GitRepo) => Promise<T>,
@@ -107,6 +107,10 @@ export async function withRepo<T>(
   git("config", "commit.gpgsign", "false");
   git("config", "core.autocrlf", "false");
   git("config", "core.hooksPath", ".git/hooks");
+  // No background `gc --auto` after a commit: it would still write in .git while the repository
+  // is removed.
+  git("config", "gc.auto", "0");
+  git("config", "maintenance.auto", "false");
   const repo: GitRepo = {
     dir,
     git,
