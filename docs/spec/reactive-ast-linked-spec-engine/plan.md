@@ -184,7 +184,7 @@ that go with it, lives in a folder named after its feature (epic).
       <spec-id>.lock.json               # generated, committed, next to its spec (§D7)
   <git-common-dir>/catspec/             # runtime, NOT committed
     cache/<blob-sha>.json
-    refactor/baseline.json              # active refactor baseline (§D11.8)
+    refactor.json                       # active refactor baseline (§D11.8)
     claims/<spec-id>.json               # post-MVP (§D9)
 ```
 
@@ -657,6 +657,16 @@ Triggered when a previously resolved binding (lock file `resolved`) no longer re
 
 Body references to the old name in the Markdown (`` `OldName` ``) are reported as `info` with locations, not rewritten.
 
+Implementation notes (F6):
+- Body mentions of old names are reported as `CS0210` with severity `info`; there is no separate code.
+- Body tokens are computed in core from the declaration's source text with a language-independent
+  tokenizer (the symbol's own name excluded), not taken from the adapters' `SymbolFact.bodyTokens` (§D11.2).
+- Declarations without members (functions) compare their signatures instead of member names in the
+  0.5 term of the score.
+- An ambiguous single rename in the hook is `CS0216` with the candidates listed.
+- `sync` also updates a stale `file` hint of a binding that still resolves (`CS0210`, info);
+  `check` passes without that update.
+
 Both small and large renames go through `catspec sync`; for large refactorings see §D11.8.
 
 ### D11.5 Binding resolution
@@ -740,6 +750,21 @@ git commit            # code + specs + lock files together
    `--partial` applies the mapped part and keeps the refactor open. On success it ends the refactor
    and deletes the baseline.
 4. **`catspec refactor abort`** drops the baseline. No edits are made.
+
+Implementation notes (F6):
+- The baseline holds the bindings of `in-progress` and `implemented` specs, resolved at `HEAD`,
+  and is stored in `<git-common-dir>/catspec/refactor.json` (§D3). `catspec refactor abort` with
+  no active refactor exits 0.
+- The prefix rule (row 3) is detected when at least 2 declarations share the same prefix change.
+- Row 5 maps even when method bodies changed: the name-free fingerprint covers the shape
+  (members and signatures), not the bodies.
+- `sync --apply` is all-or-nothing also outside a refactor: any `CS0216`/`CS0217` blocks writing,
+  and `--partial` writes the mapped part. `sync` reports lost bindings as `CS0217` even without a
+  refactor; the hook keeps reporting them as `CS0201`.
+- `sync --apply` stages a changed spec or lock file only when it had no unstaged changes before;
+  otherwise it says so and leaves it unstaged.
+- `CS0215` severity: a warning with `--allow-wip` on the recorded branch; otherwise an error during
+  a refactor; without a refactor, an error only if one of the grouped diagnostics was an error.
 
 **Rename map** (written by hand, by the agent that did the refactor, or by a codemod):
 
