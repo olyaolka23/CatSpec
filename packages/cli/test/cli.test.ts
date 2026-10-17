@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { kebabCase, type FileFacts } from "@catspec/core";
+import { defaultConfig, kebabCase, parseConfig, type FileFacts } from "@catspec/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { loadFixture } from "../../../test/fixtures.js";
@@ -63,6 +63,10 @@ describe("F1 spec-model", () => {
     const init = spawnSync(process.execPath, [...binArgs, "init"], { cwd: dir, encoding: "utf8" });
     expect(init.status, init.stderr).toBe(0);
     expect(existsSync(join(dir, "catspec.yaml"))).toBe(true);
+    // The written config shows every language with exactly the built-in defaults.
+    const written = parseConfig(readFileSync(join(dir, "catspec.yaml"), "utf8"), "catspec.yaml");
+    expect(written).toEqual(defaultConfig());
+    expect(readFileSync(join(dir, "catspec.yaml"), "utf8")).toMatch(/^ {2}csharp:$/m);
     expect(readdirSync(join(dir, "docs", "spec", "example-feature")).sort()).toEqual([
       "example-greeter.spec.md",
       "plan.md",
