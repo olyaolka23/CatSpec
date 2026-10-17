@@ -66,9 +66,9 @@ drift (severity from `enforcement.drift`), `CS0301` regression (error), `CS0902`
 A small, safe layer for talking to git: no shell, batched reads, and clear errors when git is missing.
 - depends on: `check-command`
 - refs: §D11.3, ADR-009
-- [ ] `execFile` wrapper, never a shell; long-lived `git cat-file --batch`
-- [ ] `ls-files -s -z`, `diff --cached -M --name-status -z`, `rev-parse --git-common-dir --show-toplevel`
-- [ ] CS0902 when git is missing; temp-repo test helper `withRepo(fn)`
+- [x] `execFile` wrapper, never a shell; long-lived `git cat-file --batch`
+- [x] `ls-files -s -z`, `diff --cached -M --name-status -z`, `rev-parse --git-common-dir --show-toplevel`
+- [x] CS0902 when git is missing; temp-repo test helper `withRepo(fn)`
 
 ```gherkin
   @AC-git-access-1
@@ -88,7 +88,7 @@ A small, safe layer for talking to git: no shell, batched reads, and clear error
 Lets every check read files from the working tree, the git index or an older revision through one interface.
 - depends on: `git-access`
 - refs: §D11.3, analysis F-9
-- [ ] `WorkingTreeProvider`, `IndexProvider`, `RevisionProvider`
+- [x] `WorkingTreeProvider`, `IndexProvider`, `RevisionProvider`
 
 ```gherkin
   @AC-source-providers-1
@@ -102,7 +102,7 @@ Lets every check read files from the working tree, the git index or an older rev
 `catspec check --staged`: checks the commit being made, and only what it touches.
 - depends on: `source-providers`
 - refs: §D11.3, §D13
-- [ ] scope = changed files ∪ files of changed specs ∪ bound files from the lock files
+- [x] scope = changed files ∪ files of changed specs ∪ bound files from the lock files
 
 ```gherkin
   @AC-staged-check-1
@@ -123,8 +123,8 @@ Lets every check read files from the working tree, the git index or an older rev
 Writes the observed state of each spec (what passed, resolved locations, signatures) to a generated file next to the spec.
 - depends on: `source-providers`
 - refs: §D7, ADR-004
-- [ ] `<spec-id>.lock.json` next to each spec: deterministic writer, per-item spec hash
-- [ ] `catspec baseline --rebuild`; CS0108 lock file without a spec
+- [x] `<spec-id>.lock.json` next to each spec: deterministic writer, per-item spec hash
+- [x] `catspec baseline --rebuild`; CS0108 lock file without a spec
 
 ```gherkin
   @AC-lock-files-1
@@ -144,8 +144,8 @@ Writes the observed state of each spec (what passed, resolved locations, signatu
 Remembers what has passed once, so it can never silently break again, even while a spec is still in progress.
 - depends on: `lock-files`
 - refs: §D7.1, ADR-006, analysis F-4
-- [ ] passing items added to `satisfied`; regression → CS0301 even when `in-progress`
-- [ ] items invalidated when their part of the spec changes
+- [x] passing items added to `satisfied`; regression → CS0301 even when `in-progress`
+- [x] items invalidated when their part of the spec changes
 
 ```gherkin
   @AC-ratchet-1
@@ -165,8 +165,8 @@ Remembers what has passed once, so it can never silently break again, even while
 Detects signature changes of implemented specs that the spec doesn't mention, and lets you accept them on purpose.
 - depends on: `lock-files`
 - refs: §D7.2, analysis F-8
-- [ ] shape fingerprints (bodies excluded); CS0300 for `implemented` specs per `enforcement.drift`
-- [ ] `catspec accept <spec>`
+- [x] shape fingerprints (bodies excluded); CS0300 for `implemented` specs per `enforcement.drift`
+- [x] `catspec accept <spec>`
 
 ```gherkin
   @AC-drift-and-accept-1
@@ -187,9 +187,9 @@ Detects signature changes of implemented specs that the spec doesn't mention, an
 Installs the pre-commit hook safely next to existing hook tools and keeps generated lock files in the commit.
 - depends on: `staged-check`, `ratchet`
 - refs: §D13
-- [ ] `install-hooks` / `uninstall-hooks`: plain git, `core.hooksPath`, husky, lefthook; chain and back up foreign hooks
-- [ ] the hook updates and re-stages lock files of touched specs (`hook.stage_generated`); `CATSPEC_SKIP=1`
-- [ ] `init --hooks`
+- [x] `install-hooks` / `uninstall-hooks`: plain git, `core.hooksPath`, husky, lefthook; chain and back up foreign hooks
+- [x] the hook updates and re-stages lock files of touched specs (`hook.stage_generated`); `CATSPEC_SKIP=1`
+- [x] `init --hooks`
 
 ```gherkin
   @AC-hook-installer-1

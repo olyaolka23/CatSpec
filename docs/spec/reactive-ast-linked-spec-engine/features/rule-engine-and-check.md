@@ -65,7 +65,7 @@ Feature: F3 rule-engine-and-check
 Finds the code symbol a binding points to, even if the file has moved, and suggests the closest names when it can't find it.
 - depends on: `parse-cache-and-index`, `spec-loader`
 - refs: §D11.5, ADR-005
-- [ ] resolution order: `file` hint → lock-file path (from F5) → repo-wide index
+- [x] resolution order: `file` hint → lock-file path (from F5) → repo-wide index
 - [x] CS0201 not found with did-you-mean (Damerau-Levenshtein, same kind, same file first); CS0202 ambiguous
 
 ```gherkin
