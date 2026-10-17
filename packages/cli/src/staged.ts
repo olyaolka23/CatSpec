@@ -20,6 +20,7 @@ import {
   stagedScope,
   type CatspecConfig,
   type CheckResult,
+  type Codebase,
   type Diagnostic,
   type SpecModel,
   type StagedScope,
@@ -31,6 +32,8 @@ export interface StagedCheck {
   model: SpecModel;
   scope: StagedScope;
   result: CheckResult;
+  /** The code the check ran on. */
+  codebase: Codebase;
   diagnostics: Diagnostic[];
   /** Source files whose facts the check read, sorted. */
   files: string[];
@@ -91,6 +94,7 @@ export async function checkStaged(
       model,
       scope,
       result,
+      codebase,
       diagnostics: stagedDiagnostics(model, scope, result.diagnostics, changedFacts),
       files: codebase.files.map((f) => f.path),
       git,

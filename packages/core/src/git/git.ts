@@ -240,28 +240,65 @@ export class Git {
    * against HEAD (an empty tree before the first commit), relative to `cwd`.
    */
   async stagedChanges(): Promise<StagedChange[]> {
-    const out = await this.run([
-      "diff",
-      "--cached",
-      "-M",
-      "--name-status",
-      "-z",
-      "--relative",
-      "--no-ext-diff",
-      "--no-color",
-    ]);
-    const fields = records(out);
-    const changes: StagedChange[] = [];
-    for (let i = 0; i < fields.length;) {
-      const status = fields[i++]!;
-      if (status.startsWith("R") || status.startsWith("C")) {
-        const from = fields[i++]!;
-        changes.push({ status: status[0]!, from, path: fields[i++]! });
-      } else {
-        changes.push({ status: status[0]!, path: fields[i++]! });
-      }
+    return nameStatus(
+      await this.run([
+        "diff",
+        "--cached",
+        "-M",
+        "--name-status",
+        "-z",
+        "--relative",
+        "--no-ext-diff",
+        "--no-color",
+      ]),
+    );
+  }
+
+  /**
+   * The changes from `revision` to the index (`cached`) or to the working tree
+   * (`diff -M --name-status -z --relative <revision>`), relative to `cwd`. Files git doesn't track
+   * yet aren't listed.
+   */
+  async changesSince(
+    revision: string,
+    options: { cached?: boolean } = {},
+  ): Promise<StagedChange[]> {
+    return nameStatus(
+      await this.run([
+        "diff",
+        ...(options.cached ? ["--cached"] : []),
+        "-M",
+        "--name-status",
+        "-z",
+        "--relative",
+        "--no-ext-diff",
+        "--no-color",
+        revision,
+        "--",
+      ]),
+    );
+  }
+
+  /** The commit id `revision` names, or undefined when it names none (e.g. HEAD before the first commit). */
+  async commitId(revision: string): Promise<string | undefined> {
+    try {
+      const out = await this.run(["rev-parse", "--verify", "-q", `${revision}^{commit}`]);
+      return out.toString("utf8").trim() || undefined;
+    } catch (error) {
+      if (error instanceof GitError) return undefined;
+      throw error;
     }
-    return changes;
+  }
+
+  /** The current branch's short name, or undefined when HEAD is detached. */
+  async currentBranch(): Promise<string | undefined> {
+    try {
+      const out = await this.run(["symbolic-ref", "-q", "--short", "HEAD"]);
+      return out.toString("utf8").trim() || undefined;
+    } catch (error) {
+      if (error instanceof GitError) return undefined;
+      throw error;
+    }
   }
 
   /** The content of a blob through the long-lived `cat-file --batch`; undefined if missing. */
@@ -299,6 +336,22 @@ export class Git {
     delete this.batch;
     await batch?.close();
   }
+}
+
+/** Parses `diff --name-status -z` output. */
+function nameStatus(out: Buffer): StagedChange[] {
+  const fields = records(out);
+  const changes: StagedChange[] = [];
+  for (let i = 0; i < fields.length;) {
+    const status = fields[i++]!;
+    if (status.startsWith("R") || status.startsWith("C")) {
+      const from = fields[i++]!;
+      changes.push({ status: status[0]!, from, path: fields[i++]! });
+    } else {
+      changes.push({ status: status[0]!, path: fields[i++]! });
+    }
+  }
+  return changes;
 }
 
 /** NUL-separated records, without the trailing empty one. */

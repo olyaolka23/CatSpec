@@ -2,7 +2,8 @@
  * The `catspec` command line (plan §D10), PBIs `cli-skeleton`, `status-and-waivers`,
  * `check-command`, `staged-check`, `lock-files`, `drift-and-accept` and `hook-installer`: `init`,
  * `check`, `status`, `coverage`, `list`, `show`, `graph`, `baseline`, `accept`, `install-hooks`
- * and `uninstall-hooks`.
+ * and `uninstall-hooks`; F6 (`sync-command`, `bind-command`, `refactor-mode`): `sync`, `bind` and
+ * `refactor`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
@@ -41,7 +42,9 @@ import {
 } from "@catspec/core";
 import { Argument, Command, CommanderError, Option } from "commander";
 
+import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
+import { formatDiff } from "./diff.js";
 
 import { formatGraph, GRAPH_FORMATS, type GraphFormat } from "./graph.js";
 import {
@@ -67,6 +70,18 @@ import {
 } from "./report.js";
 import { showFacts, UnknownLanguageError } from "./show-facts.js";
 import { checkStaged, NotARepositoryError, recordSkip, takeSkip } from "./staged.js";
+import {
+  applySync,
+  endRefactor,
+  hookRenames,
+  planRepositorySync,
+  readRefactor,
+  readRenameMap,
+  startRefactor,
+  SyncUsageError,
+  type AppliedSync,
+  type SyncRun,
+} from "./sync.js";
 
 export interface CliIo {
   /** Folder the command runs in (before `--cwd`). */
@@ -517,15 +532,23 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       out.stderr.write("catspec: CATSPEC_SKIP=1: the staged check is skipped\n");
       return EXIT.ok;
     }
-    const staged = await checkStaged(root, config, {
-      ...(gitEnv ? { env: gitEnv } : {}),
-      ...(file ? { configFile: file } : {}),
-    }).catch((error: unknown) => {
-      if (error instanceof NotARepositoryError) throw new UsageError(error.message);
-      throw error;
-    });
+    const runStaged = () =>
+      checkStaged(root, config, {
+        ...(gitEnv ? { env: gitEnv } : {}),
+        ...(file ? { configFile: file } : {}),
+      }).catch((error: unknown) => {
+        if (error instanceof NotARepositoryError) throw new UsageError(error.message);
+        throw error;
+      });
+    let staged = await runStaged();
     try {
-      let diagnostics = staged.diagnostics;
+      const renames = await hookRenames(root, staged.model.config, staged.git, staged, async () => {
+        const again = await runStaged();
+        await staged.git.close();
+        staged = again;
+        return again;
+      });
+      let diagnostics = renames.diagnostics;
       if (paths.length > 0) diagnostics = diagnostics.filter((d) => inPaths(d, paths, cwd, root));
       const code = exitCodeFor(diagnostics);
       const checked = staged.result.checked;
@@ -537,6 +560,9 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             "run `catspec check` to see what it would have reported",
         );
       }
+      if (renames.healed.length > 0) {
+        notes.push(`heal.mode auto: updated and staged ${renames.healed.join(", ")}`);
+      }
       if (code === EXIT.ok) {
         const written = await writeLocks(staged.model, staged.result, checked, { mode: "update" });
         if (written.length > 0 && staged.model.config.hook.stage_generated) {
@@ -546,9 +572,15 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           notes.push(`updated ${written.join(", ")} (not staged: hook.stage_generated is false)`);
         }
       } else {
+        const renamed = diagnostics.some(
+          (d) => d.severity === "error" && ["CS0210", "CS0215", "CS0216"].includes(d.code),
+        );
         notes.push(
-          "commit blocked: fix the errors above or update the spec; for an intended signature " +
-            "change run `catspec accept <spec>`. CATSPEC_SKIP=1 or --no-verify skips the check.",
+          "commit blocked: fix the errors above or update the spec; " +
+            (renamed
+              ? "for renamed or moved code run `catspec sync --apply`; "
+              : "for an intended signature change run `catspec accept <spec>`; ") +
+            "CATSPEC_SKIP=1 or --no-verify skips the check.",
         );
       }
       if (format === "json") {
@@ -563,6 +595,11 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             durationMs: performance.now() - started,
           }),
         );
+        if (renames.healed.length === 0) {
+          for (const patch of renames.patches) {
+            out.stdout.write(formatDiff(patch.file, patch.before, patch.after, style));
+          }
+        }
       }
       if (!opts.quiet || code !== EXIT.ok) {
         for (const note of notes) out.stderr.write(`catspec: ${note}\n`);
@@ -572,6 +609,250 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       await staged.git.close();
     }
   };
+
+  /** Config, root and git for `sync` and `refactor`, which need a repository. */
+  const repository = async (
+    command: Command,
+    what: string,
+  ): Promise<{
+    root: string;
+    cwd: string;
+    config: Awaited<ReturnType<typeof loadConfig>>["config"];
+    git: Git;
+  }> => {
+    const opts = globals(command);
+    const cwd = workingDirectory(out.cwd, opts.cwd);
+    const { config, root } = await loadConfig(cwd, opts.config);
+    const git = new Git(root, gitEnv);
+    if (!(await git.isRepository())) throw new UsageError(`${what} needs a git repository`);
+    return { root, cwd, config, git };
+  };
+
+  program
+    .command("sync")
+    .description(
+      "find renamed and moved declarations of bindings and fix the specs' locations (symbol and " +
+        "file only, never the contract); a dry run unless --apply. During a refactor it maps every " +
+        "binding of the refactor's baseline and, on success, ends the refactor",
+    )
+    .option("--apply", "write the spec edits and moved lock entries (and stage them)")
+    .option("--staged", "read the git index instead of the working tree")
+    .option("--map <file>", 'a rename map: { "symbols": {…}, "namespaces": {…}, "paths": {…} }')
+    .option(
+      "--partial",
+      "with --apply: write what is mapped even if some bindings are ambiguous or lost",
+    )
+    .option(
+      "--update-mentions",
+      "with --apply: also rewrite backticked mentions of old names in spec bodies",
+    )
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(
+      async (
+        options: {
+          apply?: boolean;
+          staged?: boolean;
+          map?: string;
+          partial?: boolean;
+          updateMentions?: boolean;
+          format: "text" | "json";
+        },
+        command: Command,
+      ) => {
+        const opts = globals(command);
+        const style = styleFor(opts, out);
+        const { root, cwd, config, git } = await repository(command, "sync");
+        try {
+          const map = options.map ? await readRenameMap(resolve(cwd, options.map)) : undefined;
+          const run = await planRepositorySync(root, config, git, {
+            ...(options.staged ? { staged: true } : {}),
+            ...(map ? { map } : {}),
+            ...(options.updateMentions ? { updateMentions: true } : {}),
+          });
+          const problems = run.plan.diagnostics.filter(
+            (d) => d.code === "CS0216" || d.code === "CS0217",
+          );
+          let applied: AppliedSync | undefined;
+          let refused = false;
+          let ended = false;
+          if (options.apply) {
+            if (problems.length > 0 && !options.partial) refused = true;
+            else {
+              applied = await applySync(root, run, git, options.staged ? { staged: true } : {});
+              if (run.refactor && !options.partial && problems.length === 0) {
+                ended = await endRefactor(git);
+              }
+            }
+          }
+          if (options.format === "json") {
+            out.stdout.write(
+              `${JSON.stringify(syncJson(run, { applied, refused, ended }), null, 2)}\n`,
+            );
+          } else {
+            out.stdout.write(
+              syncText(run, {
+                applied,
+                refused,
+                ended,
+                apply: Boolean(options.apply),
+                partial: Boolean(options.partial),
+                style,
+                quiet: Boolean(opts.quiet),
+                verbose: Boolean(opts.verbose),
+              }),
+            );
+          }
+          exitCode = problems.length > 0 ? EXIT.errors : EXIT.ok;
+        } finally {
+          await git.close();
+        }
+      },
+    );
+
+  const refactor = program
+    .command("refactor")
+    .description(
+      "start a large refactor: record a baseline of every binding in the scope, so the hook " +
+        "groups their errors into one CS0215 and `catspec sync --apply` maps them all at the end",
+    )
+    .option("--scope <glob...>", "files in the refactor (default: the whole repository)")
+    .option("--reason <text>", "why, shown by the hook and `refactor status`")
+    .option("--allow-wip", "let commits with broken bindings through, on this branch only")
+    .action(
+      async (
+        options: { scope?: string[]; reason?: string; allowWip?: boolean },
+        command: Command,
+      ) => {
+        const opts = globals(command);
+        const style = styleFor(opts, out);
+        const { root, config, git } = await repository(command, "refactor");
+        try {
+          const baseline = await startRefactor(root, config, git, {
+            ...(options.scope ? { scope: options.scope } : {}),
+            ...(options.reason !== undefined ? { reason: options.reason } : {}),
+            ...(options.allowWip ? { allowWip: true } : {}),
+          });
+          if (!opts.quiet) {
+            const specs = new Set(baseline.symbols.map((s) => s.spec)).size;
+            out.stdout.write(
+              `${style.green("refactor started")} on ${baseline.branch ?? "a detached HEAD"} from ${baseline.revision.slice(0, 12)}: ` +
+                `${baseline.symbols.length} binding${baseline.symbols.length === 1 ? "" : "s"} of ${specs} spec${specs === 1 ? "" : "s"} in ${baseline.scope.join(", ")}` +
+                `${baseline.allowWip ? `; commits with broken bindings are allowed on ${baseline.branch ?? "this branch"}` : ""}\n` +
+                "next: rename and move the code, then run `catspec sync --apply` and commit the code, specs and lock files together\n",
+            );
+          }
+        } finally {
+          await git.close();
+        }
+      },
+    );
+
+  refactor
+    .command("status")
+    .description("show the refactor in progress: scope, branch, and the bindings broken so far")
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(async (options: { format: "text" | "json" }, command: Command) => {
+      const opts = globals(command);
+      const style = styleFor(opts, out);
+      const { root, config, git } = await repository(command, "refactor status");
+      try {
+        const active = await readRefactor(git);
+        if (!active) {
+          if (options.format === "json") out.stdout.write(`${JSON.stringify({ active: false })}\n`);
+          else out.stdout.write("no refactor in progress\n");
+          return;
+        }
+        const run = await planRepositorySync(root, config, git, { refactor: active });
+        const { mapped, ambiguous, lost } = run.plan.report;
+        const count = (groups: { bindings: unknown[] }[]): number =>
+          groups.reduce((n, g) => n + g.bindings.length, 0);
+        const status = {
+          active: true,
+          branch: active.branch ?? null,
+          revision: active.revision,
+          startedAt: active.startedAt,
+          reason: active.reason ?? null,
+          scope: active.scope,
+          allowWip: active.allowWip,
+          bindings: active.symbols.length,
+          broken: run.broken.length,
+          mapped: count(mapped),
+          ambiguous: count(ambiguous),
+          lost: count(lost),
+        };
+        if (options.format === "json") {
+          out.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+          return;
+        }
+        out.stdout.write(
+          [
+            `${style.bold("refactor in progress")} since ${active.startedAt} on ${active.branch ?? "a detached HEAD"} (from ${active.revision.slice(0, 12)})`,
+            ...(active.reason ? [`  reason    ${active.reason}`] : []),
+            `  scope     ${active.scope.join(", ")}`,
+            `  wip       ${active.allowWip ? `commits with broken bindings allowed on ${active.branch ?? "its branch"}` : "commits with broken bindings are blocked"}`,
+            `  bindings  ${status.bindings} in the baseline, ${status.broken} unresolved so far: ${status.mapped} mapped, ${status.ambiguous} ambiguous, ${status.lost} lost`,
+            "next: `catspec sync` shows the mapping, `catspec sync --apply` finishes the refactor, `catspec refactor abort` drops it",
+          ].join("\n") + "\n",
+        );
+      } finally {
+        await git.close();
+      }
+    });
+
+  refactor
+    .command("abort")
+    .description("drop the refactor in progress: its baseline is deleted, no spec is changed")
+    .action(async (_options: unknown, command: Command) => {
+      const opts = globals(command);
+      const { git } = await repository(command, "refactor abort");
+      try {
+        const ended = await endRefactor(git);
+        if (!opts.quiet) {
+          out.stdout.write(
+            ended
+              ? "refactor aborted: its baseline is deleted; no spec was changed\n"
+              : "no refactor in progress\n",
+          );
+        }
+      } finally {
+        await git.close();
+      }
+    });
+
+  program
+    .command("bind")
+    .description(
+      "add a binding for an existing declaration to a spec, with its current shape (kind, bases, " +
+        "constructor dependencies, public members and their signatures) as the contract",
+    )
+    .argument("<symbol>", "the declaration: Name, Namespace.Name or path/to/module#Name")
+    .requiredOption("--spec <id>", "the spec to add the binding to")
+    .option("--file <file>", "only look in this file or glob (it is also written as the file hint)")
+    .action(async (symbol: string, options: { spec: string; file?: string }, command: Command) => {
+      const { model, style, opts } = await load(command);
+      const spec = findSpec(model, options.spec);
+      if (spec.type === "architecture") {
+        throw new UsageError(`${spec.id} is the architecture spec; it has no bindings`);
+      }
+      if (!spec.valid) {
+        throw new UsageError(`${spec.file} has errors; run \`catspec check --specs-only\``);
+      }
+      const codebase = await loadCodebase(model.root, model.config);
+      const result = bindSymbol(spec, codebase, symbol, options.file);
+      if (!result.text || !result.binding) {
+        out.stdout.write(formatText(result.diagnostics, { style }));
+        exitCode = EXIT.errors;
+        return;
+      }
+      await writeFile(join(model.root, spec.file), result.text, "utf8");
+      if (!opts.quiet) {
+        out.stdout.write(
+          `${style.green("bound")} ${symbol} (${result.resolved}) as binding "${String(result.binding.id)}" of ${spec.id}\n` +
+            formatDiff(spec.file, spec.source.text, result.text, style) +
+            `next: \`catspec check --spec ${spec.id}\`\n`,
+        );
+      }
+    });
 
   program
     .command("show-facts", { hidden: true })
@@ -640,7 +921,11 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       out.stderr.write(`catspec: ${error.message}\n`);
       return EXIT.errors;
     }
-    if (error instanceof UsageError || error instanceof SpecEditError) {
+    if (
+      error instanceof UsageError ||
+      error instanceof SpecEditError ||
+      error instanceof SyncUsageError
+    ) {
       out.stderr.write(`catspec: ${error.message}\n`);
       return EXIT.usage;
     }
@@ -847,4 +1132,123 @@ function formatShow(view: ShowView, style: Style): string {
     lines.push("", formatText(view.diagnostics, { style }).trimEnd());
   }
   return `${lines.join("\n")}\n`;
+}
+
+interface SyncOutcome {
+  applied: AppliedSync | undefined;
+  refused: boolean;
+  ended: boolean;
+}
+
+const bindingsOf = (groups: { bindings: { spec: string; binding: string }[] }[]): number =>
+  groups.reduce((n, g) => n + g.bindings.length, 0);
+
+/** The `sync --format json` report. */
+function syncJson(run: SyncRun, outcome: SyncOutcome) {
+  const { mapped, ambiguous, lost } = run.plan.report;
+  const name = (resolved: string): string => resolved;
+  const target = (e: { file: { path: string }; symbol: { qualifiedName: string } }): string =>
+    `${e.file.path}#${e.symbol.qualifiedName}`;
+  return {
+    mapped: mapped.flatMap((m) =>
+      m.bindings.map((b) => ({
+        spec: b.spec,
+        binding: b.binding,
+        from: name(b.resolved),
+        to: target(m.target),
+        evidence: m.evidence,
+        ...(m.score !== undefined ? { score: m.score } : {}),
+        ...(m.detail ? { detail: m.detail } : {}),
+      })),
+    ),
+    ambiguous: ambiguous.flatMap((a) =>
+      a.bindings.map((b) => ({
+        spec: b.spec,
+        binding: b.binding,
+        from: name(b.resolved),
+        candidates: a.candidates.map((c) => ({ symbol: target(c.entry), score: c.score })),
+      })),
+    ),
+    lost: lost.flatMap((l) =>
+      l.bindings.map((b) => ({
+        spec: b.spec,
+        binding: b.binding,
+        from: name(b.resolved),
+        ...(l.best ? { best: { symbol: target(l.best.entry), score: l.best.score } } : {}),
+      })),
+    ),
+    edits: run.plan.edits.map((e) => ({ file: e.spec.file, ops: e.ops })),
+    diagnostics: run.plan.diagnostics,
+    applied: outcome.applied !== undefined,
+    refused: outcome.refused,
+    written: outcome.applied?.written ?? [],
+    staged: outcome.applied?.staged ?? [],
+    refactor: run.refactor
+      ? { active: !outcome.ended, ended: outcome.ended }
+      : { active: false, ended: false },
+  };
+}
+
+/** The `sync` text report: the diagnostics, the diff of every edit, and what happened. */
+function syncText(
+  run: SyncRun,
+  outcome: SyncOutcome & {
+    apply: boolean;
+    partial: boolean;
+    style: Style;
+    quiet: boolean;
+    verbose: boolean;
+  },
+): string {
+  const { style } = outcome;
+  const { report, edits, diagnostics } = run.plan;
+  const parts: string[] = [];
+  if (diagnostics.length > 0) {
+    parts.push(formatText(diagnostics, { style, quiet: outcome.quiet, verbose: outcome.verbose }));
+  }
+  if (!outcome.quiet)
+    for (const edit of edits)
+      parts.push(formatDiff(edit.spec.file, edit.spec.source.text, edit.text, style));
+  const counts =
+    `${bindingsOf(report.mapped)} mapped, ${bindingsOf(report.ambiguous)} ambiguous, ` +
+    `${bindingsOf(report.lost)} lost` +
+    (run.refactor ? ` (refactor from ${run.refactor.revision.slice(0, 12)})` : "");
+  const lines: string[] = [];
+  if (run.broken.length === 0 && edits.length === 0) {
+    lines.push(
+      run.refactor
+        ? "every binding of the refactor resolves; nothing to sync"
+        : "every binding resolves; nothing to sync",
+    );
+    if (outcome.apply && run.refactor && outcome.ended)
+      lines.push(style.green("the refactor is finished"));
+  } else if (!outcome.apply) {
+    lines.push(
+      `${counts}; dry run: no file was changed${edits.length > 0 ? "; run `catspec sync --apply` to write the edits" : ""}`,
+    );
+  } else if (outcome.refused) {
+    lines.push(
+      `${counts}; ${style.red("nothing written")}: name the ambiguous and lost bindings in a rename map (--map), restore the code or change the specs; --partial writes the mapped part` +
+        (run.refactor ? " (the refactor stays open)" : ""),
+    );
+  } else {
+    const applied = outcome.applied!;
+    const unstaged = applied.written.filter((f) => !applied.staged.includes(f));
+    lines.push(
+      `${counts}; ${style.green("wrote")} ${applied.written.length > 0 ? applied.written.join(", ") : "nothing"}` +
+        (applied.staged.length > 0
+          ? `; staged ${applied.staged.length === applied.written.length ? "them" : applied.staged.join(", ")}`
+          : "") +
+        (unstaged.length > 0 ? `; not staged (unstaged changes): ${unstaged.join(", ")}` : ""),
+    );
+    if (run.refactor) {
+      lines.push(
+        outcome.ended
+          ? `${style.green("the refactor is finished")}: commit the code, specs and lock files together`
+          : "the refactor stays open: map the rest, then run `catspec sync --apply` again",
+      );
+    }
+  }
+  parts.push(`${lines.join("\n")}\n`);
+  return parts.join("");
 }

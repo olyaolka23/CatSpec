@@ -44,7 +44,7 @@ export function splitSymbol(symbol: string): { module?: string; name: string } {
 }
 
 /** True when `path` is the module `module`: with or without the extension, or ending with it. */
-const inModule = (path: string, module: string): boolean => {
+export const inModule = (path: string, module: string): boolean => {
   const bare = path.replace(/\.[^./]+$/, "");
   const target = module.replace(/\.[^./]+$/, "");
   return bare === target || bare.endsWith(`/${target}`);
