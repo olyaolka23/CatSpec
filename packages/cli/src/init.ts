@@ -68,6 +68,15 @@ layout: feature-folders
 specs:
   include: ["docs/spec/*/*.spec.md"]
   architecture: "docs/architecture/adr/*-adr.md"
+# Both languages are always on; a file's extension picks its language. Point the globs at your
+# sources, or set \`include: []\` to leave a language out.
+languages:
+  typescript:
+    include: ["src/**/*.{ts,tsx}"]
+    exclude: ["**/*.d.ts", "**/node_modules/**"]
+  csharp:
+    include: ["src/**/*.cs"]
+    exclude: ["**/obj/**", "**/bin/**", "**/*.g.cs"]
 `;
 
 const adrTemplate = (name: string, date: string): string => `---
