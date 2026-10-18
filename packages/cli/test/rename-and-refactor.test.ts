@@ -13,7 +13,9 @@ import { loadConfig, parseSpecSource, readYaml, Git, type Diagnostic } from "@ca
 import { describe, expect, it } from "vitest";
 
 import { ADR_LOG, adrLogText, specText, withRepo, type GitRepo } from "../../../test/temp-repo.js";
+import { formatDiff } from "../src/diff.js";
 import { run } from "../src/index.js";
+import { PLAIN } from "../src/report.js";
 import { planRepositorySync, readRefactor } from "../src/sync.js";
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
@@ -734,6 +736,273 @@ export class AuthService {
       await git.close();
       expect(plan.plan.report.mapped).toHaveLength(3);
       expect(diagnosticCodes(plan.plan.diagnostics)).toEqual(["CS0210", "CS0210", "CS0210"]);
+    });
+  });
+
+  describe("review fixes", () => {
+    it("a declaration that already existed elsewhere under the same name is not a move", async () => {
+      await withRepo(async (repo) => {
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/config/config.spec.md": spec("config", "implemented", [
+            binding("config", "src/a#Config", "\n  members: [handle, close]"),
+          ]),
+          "src/a.ts": USER_HANDLER("Config"),
+          "src/b.ts": "export class Config {\n  unrelated(): number {\n    return 1;\n  }\n}\n",
+        });
+        await commitBaseline(repo);
+        await repo.write({ "src/a.ts": USER_HANDLER("AppConfig") });
+        const sync = await catspecJson<Outcome>(repo.dir, ["sync"]);
+        expect(sync.json.mapped).toHaveLength(1);
+        expect(sync.json.mapped[0]!.to).toBe("src/a.ts#AppConfig");
+      });
+    });
+
+    it("a member-less declaration is not mapped by its fingerprint below heal.threshold", async () => {
+      await withRepo(async (repo) => {
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/life/lifecycle.spec.md": spec("lifecycle", "implemented", [
+            "- id: init\n  symbol: init\n  kind: function",
+          ]),
+          "src/lifecycle.ts": "export function init(): void {\n  start(1, 2);\n}\n",
+        });
+        await commitBaseline(repo);
+        await repo.write({
+          "src/lifecycle.ts":
+            'export function shutdown(): void {\n  console.info("stopping everything now");\n}\n',
+        });
+        const sync = await catspecJson<Outcome>(repo.dir, ["sync"]);
+        expect(sync.json.mapped).toHaveLength(0);
+        expect(sync.json.lost).toHaveLength(1);
+      });
+    });
+
+    it("a C# partial class is one candidate of the prefix rule", async () => {
+      await withRepo(async (repo) => {
+        const files = (ns: string): Record<string, string> => ({
+          "src/User.cs": `namespace ${ns};\n\npublic partial class User\n{\n    public void Rename(string name) { }\n}\n`,
+          "src/User.Validation.cs": `namespace ${ns};\n\npublic partial class User\n{\n    public bool Validate() { return true; }\n}\n`,
+          "src/Role.cs": `namespace ${ns};\n\npublic class Role\n{\n    public string Title { get; set; }\n}\n`,
+        });
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/identity/identity.spec.md": spec("identity", "implemented", [
+            binding("user", "Identity.User", "\n  members: [Rename, Validate]"),
+            binding("role", "Identity.Role", "\n  members: [Title]"),
+          ]),
+          ...files("Identity"),
+        });
+        await commitBaseline(repo);
+        await repo.write(files("Accounts"));
+        const sync = await catspecJson<Outcome>(repo.dir, ["sync", "--apply"]);
+        expect(sync.json.ambiguous).toHaveLength(0);
+        expect(sync.json.mapped.map((m) => m.evidence)).toEqual(["prefix", "prefix"]);
+        const check = await catspec(repo.dir, ["check"]);
+        expect(check.code, check.stdout).toBe(0);
+      });
+    });
+
+    it("every prefix rule that applies is tried: one namespace split into two", async () => {
+      await withRepo(async (repo) => {
+        const cls = (ns: string, name: string): string =>
+          `namespace ${ns};\n\npublic class ${name}\n{\n    public void Run${name}() { }\n}\n`;
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/identity/identity.spec.md": spec(
+            "identity",
+            "implemented",
+            ["A", "B", "C", "D"].map((n) =>
+              binding(n.toLowerCase(), `Identity.${n}`, `\n  members: [Run${n}]`),
+            ),
+          ),
+          ...Object.fromEntries(
+            ["A", "B", "C", "D"].map((n) => [`src/${n}.cs`, cls("Identity", n)]),
+          ),
+        });
+        await commitBaseline(repo);
+        await repo.write({
+          "src/A.cs": cls("Accounts", "A"),
+          "src/B.cs": cls("Accounts", "B"),
+          "src/C.cs": cls("Users", "C"),
+          "src/D.cs": cls("Users", "D"),
+        });
+        const sync = await catspecJson<Outcome>(repo.dir, ["sync"]);
+        expect(sync.json.lost).toHaveLength(0);
+        expect(sync.json.mapped.map((m) => [m.to, m.evidence])).toEqual([
+          ["src/A.cs#Accounts.A", "prefix"],
+          ["src/B.cs#Accounts.B", "prefix"],
+          ["src/C.cs#Users.C", "prefix"],
+          ["src/D.cs#Users.D", "prefix"],
+        ]);
+      });
+    });
+
+    it("sync --apply stages a CRLF spec under core.autocrlf", async () => {
+      await withRepo(async (repo) => {
+        await userHandlerRepo(repo);
+        repo.git("config", "core.autocrlf", "true");
+        const file = "docs/spec/users/user-handler.spec.md";
+        const lockFile = "docs/spec/users/user-handler.lock.json";
+        for (const f of [file, lockFile]) {
+          await repo.write({ [f]: (await read(repo.dir, f)).replace(/\n/g, "\r\n") });
+        }
+        // Same content as the index once git converts the line endings.
+        expect(repo.git("diff", "--name-only").trim()).toBe("");
+        await repo.write({ "src/users/handler.ts": USER_HANDLER("UserUpdatedHandler") });
+        const sync = await catspec(repo.dir, ["sync", "--apply"]);
+        expect(sync.code, sync.stdout).toBe(0);
+        expect(sync.stdout).not.toContain("not staged");
+        expect(repo.git("diff", "--cached", "--name-only")).toContain(file);
+      });
+    });
+
+    it("--allow-wip never applies on a detached HEAD", async () => {
+      await withRepo(async (repo) => {
+        await accountRepo(repo);
+        repo.git("checkout", "-q", "--detach");
+        expect((await catspec(repo.dir, ["refactor", "--allow-wip"])).code).toBe(0);
+        const source = await read(repo.dir, "src/accounts/services.ts");
+        await repo.write({
+          "src/accounts/services.ts": source.replaceAll("AccountService", "AccountsService"),
+        });
+        repo.git("add", "src");
+        const check = await catspec(repo.dir, ["check", "--staged"]);
+        expect(check.code, check.stdout).toBe(1);
+        expect(check.stdout).toContain("work in progress is allowed only on the branch");
+      });
+    });
+
+    it("heal.mode auto heals nothing when a rename is ambiguous, and keeps the candidates", async () => {
+      await withRepo(async (repo) => {
+        await repo.write({ "catspec.yaml": "version: 1\nheal:\n  mode: auto\n" });
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/events/event-handlers.spec.md": spec("event-handlers", "implemented", [
+            binding("created", "CreatedHandler", "\n  members: [handle]"),
+            binding("updated", "UpdatedHandler", "\n  members: [handle]"),
+            binding("user", "UserHandler", "\n  members: [handle, close]"),
+          ]),
+          "src/events/handlers.ts": twinSource("CreatedHandler", "UpdatedHandler"),
+          "src/users/handler.ts": USER_HANDLER("UserHandler"),
+        });
+        await commitBaseline(repo);
+        await repo.write({
+          "src/events/handlers.ts": twinSource("AddedHandler", "ChangedHandler"),
+          "src/users/handler.ts": USER_HANDLER("UserUpdatedHandler"),
+        });
+        repo.git("add", "src");
+        const check = await catspec(repo.dir, ["check", "--staged"]);
+        expect(check.code, check.stdout).toBe(1);
+        expect(check.stdout).toContain("CS0216");
+        expect(check.stdout).toContain("not healed automatically");
+        expect(repo.git("diff", "--cached", "--name-only")).not.toContain("docs/");
+        expect(await read(repo.dir, "docs/spec/events/event-handlers.spec.md")).toContain(
+          "symbol: UserHandler",
+        );
+      });
+    });
+
+    it("heal.mode auto with hook.stage_generated false writes the spec but doesn't stage it", async () => {
+      await withRepo(async (repo) => {
+        await repo.write({
+          "catspec.yaml": "version: 1\nheal:\n  mode: auto\nhook:\n  stage_generated: false\n",
+        });
+        await userHandlerRepo(repo);
+        await repo.write({ "src/users/handler.ts": USER_HANDLER("UserUpdatedHandler") });
+        repo.git("add", "src");
+        const check = await catspec(repo.dir, ["check", "--staged"]);
+        expect(check.stdout).toContain("did not stage (hook.stage_generated is false)");
+        expect(repo.git("diff", "--cached", "--name-only")).not.toContain("docs/");
+        expect(await read(repo.dir, "docs/spec/users/user-handler.spec.md")).toContain(
+          "symbol: UserUpdatedHandler",
+        );
+      });
+    });
+
+    it("--update-mentions rewrites every renamed name in one mention", async () => {
+      await withRepo(async (repo) => {
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          "docs/spec/accounts/accounts.spec.md": spec(
+            "accounts",
+            "implemented",
+            [
+              binding("account", "AccountService", "\n  members: [open, close]"),
+              binding("billing", "BillingService", "\n  members: [open, close]"),
+            ],
+            "# Accounts\n\nSee `AccountService(BillingService billing)`.\n",
+          ),
+          "src/accounts/services.ts":
+            accountService("AccountService") + accountService("BillingService"),
+        });
+        await commitBaseline(repo);
+        await repo.write({
+          "src/accounts/services.ts":
+            accountService("AccountService").replaceAll("AccountService", "AccountsService") +
+            accountService("BillingService").replaceAll("BillingService", "InvoicingService"),
+        });
+        const sync = await catspec(repo.dir, ["sync", "--apply", "--update-mentions"]);
+        expect(sync.code, sync.stdout).toBe(0);
+        expect(await read(repo.dir, "docs/spec/accounts/accounts.spec.md")).toContain(
+          "See `AccountsService(InvoicingService billing)`.",
+        );
+      });
+    });
+
+    it("sync --apply --partial ends the refactor when nothing is left", async () => {
+      await withRepo(async (repo) => {
+        await accountRepo(repo);
+        expect((await catspec(repo.dir, ["refactor"])).code).toBe(0);
+        const source = await read(repo.dir, "src/accounts/services.ts");
+        await repo.write({
+          "src/accounts/services.ts": source.replaceAll("AuditService", "AuditTrailService"),
+        });
+        const sync = await catspec(repo.dir, ["sync", "--apply", "--partial"]);
+        expect(sync.code, sync.stdout).toBe(0);
+        expect(sync.stdout).toContain("the refactor is finished");
+        const git = new Git(repo.dir);
+        expect(await readRefactor(git)).toBeUndefined();
+        await git.close();
+      });
+    });
+
+    it("a refactor's sync keeps drift that was never accepted", async () => {
+      await withRepo(async (repo) => {
+        await userHandlerRepo(repo);
+        const lockFile = "docs/spec/users/user-handler.lock.json";
+        const accepted = (await readLock(repo.dir, lockFile)).symbols.handler!.shape;
+        // Drift at HEAD that nobody accepted: a new member, committed without the hook.
+        await repo.write({
+          "src/users/handler.ts": USER_HANDLER("UserHandler").replace(
+            "\n}\n",
+            "\n  extra(): void {}\n}\n",
+          ),
+        });
+        repo.git("add", "src");
+        repo.git("commit", "-q", "--no-verify", "-m", "drift");
+        expect((await catspec(repo.dir, ["refactor"])).code).toBe(0);
+        await repo.write({
+          "src/users/handler.ts": (await read(repo.dir, "src/users/handler.ts")).replace(
+            "class UserHandler",
+            "class UserUpdatedHandler",
+          ),
+        });
+        const sync = await catspec(repo.dir, ["sync", "--apply"]);
+        expect(sync.code, sync.stdout).toBe(0);
+        const lock = await readLock(repo.dir, lockFile);
+        expect(lock.symbols.handler!.resolved).toBe("src/users/handler.ts#UserUpdatedHandler");
+        expect(lock.symbols.handler!.shape).toEqual(accepted);
+        expect((await catspec(repo.dir, ["check"])).stdout).toContain("CS0300");
+      });
+    });
+
+    it("the diff of a long file shows the changed line with its line number", () => {
+      const before = Array.from({ length: 5000 }, (_, i) => `line ${i + 1}`).join("\n");
+      const after = before.replace("line 2500\n", "line 2500 changed\n");
+      expect(formatDiff("a.md", before, after, PLAIN)).toBe(
+        "--- a/a.md\n+++ b/a.md\n@@ line 2499 @@\n line 2499\n-line 2500\n+line 2500 changed\n line 2501\n",
+      );
     });
   });
 });

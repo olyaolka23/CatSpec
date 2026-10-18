@@ -679,7 +679,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             if (problems.length > 0 && !options.partial) refused = true;
             else {
               applied = await applySync(root, run, git, options.staged ? { staged: true } : {});
-              if (run.refactor && !options.partial && problems.length === 0) {
+              if (run.refactor && problems.length === 0) {
                 ended = await endRefactor(git);
               }
             }

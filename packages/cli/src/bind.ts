@@ -6,6 +6,7 @@
 import {
   applyPatch,
   createDiagnostic,
+  defaultBindingId,
   globMatcher,
   MEMBER_KINDS,
   readYaml,
@@ -91,7 +92,7 @@ export function bindSymbol(
 
 /** The default binding id (the symbol's last segment), made unique in the spec. */
 function uniqueId(symbol: string, used: ReadonlySet<string>): string {
-  const base = symbol.split("#").pop()!.split(".").pop() || symbol;
+  const base = defaultBindingId(symbol);
   if (!used.has(base)) return base;
   for (let n = 2; ; n++) if (!used.has(`${base}-${n}`)) return `${base}-${n}`;
 }

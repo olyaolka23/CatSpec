@@ -307,6 +307,29 @@ export class Git {
     return this.batch.read(sha);
   }
 
+  /**
+   * The paths among `paths` whose working-tree content differs from the index, as git sees it
+   * (`git diff`): line-ending conversion and clean filters applied, untracked files not listed.
+   */
+  async unstagedFiles(paths: readonly string[]): Promise<Set<string>> {
+    if (paths.length === 0) return new Set();
+    const out = await this.run([
+      "--literal-pathspecs",
+      "diff",
+      "--name-only",
+      "-z",
+      "--no-renames",
+      "--",
+      ...paths,
+    ]);
+    return new Set(
+      out
+        .toString("utf8")
+        .split("\0")
+        .filter((p) => p !== ""),
+    );
+  }
+
   /** Stages files (`git add`); paths are literal, never pathspec patterns. */
   async add(paths: readonly string[]): Promise<void> {
     if (paths.length === 0) return;

@@ -353,40 +353,40 @@ export interface AppliedSync {
 
 /**
  * Writes the planned spec edits and moved lock entries (`sync --apply`). A file is staged when it
- * had no unstaged changes before (its index content equals its working-tree content), so a
+ * had no unstaged changes before (as `git diff` sees them, line-ending conversion included), so a
  * partially staged spec is never staged whole. With `staged`, the edits were made on the index
- * version, so a file with unstaged changes is refused.
+ * version, so a file with unstaged changes is refused. `stage: false` writes without staging.
  */
 export async function applySync(
   root: string,
   run: SyncRun,
   git: Git,
-  options: { staged?: boolean } = {},
+  options: { staged?: boolean; stage?: boolean } = {},
 ): Promise<AppliedSync> {
   const index = new IndexProvider(git);
-  const files: { path: string; text: string; read: string }[] = [];
-  for (const edit of run.plan.edits) {
-    files.push({ path: edit.spec.file, text: edit.text, read: edit.spec.source.text });
-  }
+  const files: { path: string; text: string }[] = [];
+  for (const edit of run.plan.edits) files.push({ path: edit.spec.file, text: edit.text });
   for (const [specId, lock] of run.plan.locks) {
     const spec = run.model.specs.get(specId);
     if (!spec) continue;
-    const path = lockPathOf(spec);
-    files.push({ path, text: serializeLock(lock), read: run.model.lockTexts.get(path) ?? "" });
+    files.push({ path: lockPathOf(spec), text: serializeLock(lock) });
   }
+  const unstaged = await git.unstagedFiles(files.map((f) => f.path));
   const plans: { path: string; text: string; stage: boolean }[] = [];
   for (const file of files) {
-    const worktree = await readFile(join(root, file.path), "utf8").catch(() => undefined);
-    if (options.staged && worktree !== undefined && worktree !== file.read) {
+    const inWorktree = (await readFile(join(root, file.path)).catch(() => undefined)) !== undefined;
+    const inIndex = (await index.read(file.path)) !== undefined;
+    // An untracked file isn't in `git diff`, but its content isn't staged either.
+    const dirty = unstaged.has(file.path) || (inWorktree && !inIndex);
+    if (options.staged && dirty && inIndex) {
       throw new SyncUsageError(
         `${file.path} has unstaged changes; stage them, or run \`catspec sync --apply\` without --staged`,
       );
     }
-    const indexed = (await index.read(file.path))?.toString("utf8");
     plans.push({
       path: file.path,
       text: file.text,
-      stage: options.staged === true || indexed === worktree,
+      stage: options.stage !== false && (options.staged === true || !dirty),
     });
   }
   const written: string[] = [];
@@ -469,7 +469,12 @@ export async function hookRenames(
     );
     const kept = checked.diagnostics.filter((d) => !removed.includes(d));
     const branch = refactor ? await git.currentBranch() : undefined;
-    const wip = refactor !== undefined && refactor.allowWip && branch === refactor.branch;
+    // A detached HEAD is no branch: work in progress is never allowed there.
+    const wip =
+      refactor !== undefined &&
+      refactor.allowWip &&
+      branch !== undefined &&
+      branch === refactor.branch;
     const severity: Severity = wip
       ? "warning"
       : removed.some((d) => d.severity === "error") || refactor !== undefined
@@ -543,10 +548,29 @@ export async function hookRenames(
   if (config.heal.mode !== "auto" || plan.edits.length === 0 || renamed.length === 0) {
     return { diagnostics, healed: [], patches };
   }
+  // heal.mode auto heals all or nothing, like `sync --apply`: with any binding ambiguous or lost,
+  // the index is left alone and every problem is reported.
+  const unmapped = plan.report.ambiguous.length + plan.report.lost.length;
+  if (unmapped > 0) {
+    return {
+      diagnostics: [
+        ...diagnostics,
+        createDiagnostic("CS0210", {
+          severity: "info",
+          message: `not healed automatically: ${unmapped} renamed declaration${unmapped === 1 ? " is" : "s are"} ambiguous or lost; run \`catspec sync\` to see the mapping`,
+        }),
+      ],
+      healed: [],
+      patches,
+    };
+  }
   // heal.mode auto: apply the location edits, stage them, and check again.
   let applied: AppliedSync;
   try {
-    applied = await applySync(root, run, git, { staged: true });
+    applied = await applySync(root, run, git, {
+      staged: true,
+      stage: config.hook.stage_generated,
+    });
   } catch (error) {
     if (!(error instanceof SyncUsageError)) throw error;
     return {
@@ -555,6 +579,20 @@ export async function hookRenames(
         createDiagnostic("CS0210", {
           severity: "info",
           message: `not healed automatically: ${error.message}`,
+        }),
+      ],
+      healed: [],
+      patches,
+    };
+  }
+  if (!config.hook.stage_generated) {
+    // Written, but not in the commit: the check of the index still fails until they're staged.
+    return {
+      diagnostics: [
+        ...diagnostics,
+        createDiagnostic("CS0210", {
+          severity: "info",
+          message: `healed ${applied.written.join(", ")} but did not stage (hook.stage_generated is false); stage them and commit again`,
         }),
       ],
       healed: [],

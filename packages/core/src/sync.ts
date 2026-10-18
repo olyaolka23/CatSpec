@@ -29,6 +29,7 @@ import {
   type Lost,
   type Mapping,
   type RenameReport,
+  wordPattern,
 } from "./rename.js";
 import { inModule, splitSymbol } from "./resolve.js";
 import { applyPatch, classifyPatch, readYaml, SpecEditError } from "./spec-editor.js";
@@ -106,7 +107,7 @@ export function planSync(
           to: mapping.target.symbol.qualifiedName,
         },
       ]);
-      moveLock(model, locks, old, mapping.target);
+      moveLock(model, locks, old, mapping.target, mapping.files);
       const how =
         `${EVIDENCE[mapping.evidence]}${mapping.score !== undefined ? `, score ${mapping.score.toFixed(2)}` : ""}` +
         (mapping.detail ? `: ${mapping.detail}` : "");
@@ -297,20 +298,26 @@ function moveHint(
   return newFile;
 }
 
-/** The lock entry of a moved binding: new location; the new shape when only the name changed. */
+/**
+ * The lock entry of a moved binding: the new location, and the new shape when it differs from the
+ * accepted (locked) shape only by the name. Drift that was never accepted stays drift.
+ */
 function moveLock(
   model: SpecModel,
   locks: Map<string, LockFile>,
   old: BaselineSymbol,
   target: SymbolEntry,
+  files: string[] | undefined,
 ): void {
   const lock = locks.get(old.spec) ?? model.locks.get(old.spec);
   if (!lock) return;
   const shape = shapeOf(target.symbol);
   const previous = lock.symbols[old.binding];
-  const nameOnly = nameFreeFingerprint(shape) === old.nameFree;
+  const accepted = previous ? nameFreeFingerprint(previous.shape) : old.nameFree;
+  const nameOnly = nameFreeFingerprint(shape) === accepted;
   const entry: LockedSymbol = {
     resolved: `${target.file.path}#${target.symbol.qualifiedName}`,
+    ...(files ? { files } : {}),
     fingerprint: nameOnly ? fingerprintOf(shape) : (previous?.fingerprint ?? old.fingerprint),
     shape: nameOnly ? shape : (previous?.shape ?? old.shape),
   };
@@ -412,30 +419,23 @@ function mentionsOf(spec: Spec, renames: { from: string[]; to: string }[]): Ment
   return mentions;
 }
 
-/** `text` with each old name replaced: the longest (qualified) forms first, whole words only. */
+/**
+ * `text` with every old name replaced, whole words only, in one pass (a replacement is never
+ * replaced again); at each place the longest (qualified) form wins.
+ */
 function replaceNames(text: string, renames: { from: string[]; to: string }[]): string {
-  const pairs = renames
-    .flatMap((r) =>
-      r.from.map((from) => {
-        const count = from.split(".").length;
-        const to = r.to.split(".");
-        return [from, count >= to.length ? r.to : to.slice(-count).join(".")] as const;
-      }),
-    )
-    .filter(([from, to]) => from !== to)
-    .sort((a, b) => b[0].length - a[0].length);
-  let out = text;
-  for (const [from, to] of pairs) {
-    const pattern = new RegExp(
-      `(?<![\\p{L}\\p{N}_$.])${from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_$])`,
-      "gu",
-    );
-    if (pattern.test(out)) {
-      out = out.replace(pattern, to);
-      break;
+  const replacements = new Map<string, string>();
+  for (const r of renames) {
+    for (const from of r.from) {
+      const count = from.split(".").length;
+      const to = r.to.split(".");
+      const next = count >= to.length ? r.to : to.slice(-count).join(".");
+      if (from !== next && !replacements.has(from)) replacements.set(from, next);
     }
   }
-  return out;
+  if (replacements.size === 0) return text;
+  const names = [...replacements.keys()].sort((a, b) => b.length - a.length);
+  return text.replace(wordPattern(names, "."), (name) => replacements.get(name) ?? name);
 }
 
 /** Writes the mention replacements into the body of `text` (the edited file). */

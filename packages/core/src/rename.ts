@@ -26,8 +26,8 @@ import { compareStrings } from "./diagnostics.js";
 import type { FileFacts, Range, SourceFile, SymbolFact } from "./facts.js";
 import { fingerprintOf, shapeOf, type LockedSymbol, type Shape } from "./lock.js";
 import { nameMatches } from "./match.js";
-import { inModule, splitSymbol } from "./resolve.js";
-import { LineIndex } from "./util.js";
+import { groupOverloads, inModule, mergePartials, splitSymbol } from "./resolve.js";
+import { escapeRegExp, LineIndex } from "./util.js";
 
 /** A declaration a binding resolved to before the change. */
 export interface BaselineSymbol {
@@ -71,6 +71,8 @@ export interface Mapping {
   /** The bindings that pointed to the old declaration (one declaration can be bound twice). */
   bindings: BaselineSymbol[];
   target: SymbolEntry;
+  /** Every file of the target when it is a C# partial type in several files. */
+  files?: string[];
   evidence: Evidence;
   /** The similarity score, when computed. */
   score?: number;
@@ -133,9 +135,12 @@ export function splitResolved(resolved: string): { file: string; qualifiedName: 
     : { file: resolved.slice(0, hash), qualifiedName: resolved.slice(hash + 1) };
 }
 
-const wordPattern = (word: string): RegExp =>
+/** Whole-word matches of any of `words`, tried in the order given; `extraBefore` also blocks. */
+export const wordPattern = (words: string | readonly string[], extraBefore = ""): RegExp =>
   new RegExp(
-    `(?<![\\p{L}\\p{N}_$])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_$])`,
+    `(?<![\\p{L}\\p{N}_$${extraBefore}])(?:${(typeof words === "string" ? [words] : words)
+      .map(escapeRegExp)
+      .join("|")})(?![\\p{L}\\p{N}_$])`,
     "gu",
   );
 
@@ -157,11 +162,16 @@ export function nameFreeFingerprint(shape: Shape): string {
   ]);
 }
 
-/** The member names of a shape (`public method login(string):boolean` → `login`). */
+/**
+ * The member names of a shape (`public method login(string):boolean` → `login`). A member named
+ * like the declaration itself (a C# constructor) is `∅`, so a rename alone keeps the names.
+ */
 export function memberNames(shape: Shape): string[] {
+  const own = simpleName(shape.name);
   return shape.members.map((member) => {
     const head = member.split(/[(:]/)[0]!.trim();
-    return head.slice(head.lastIndexOf(" ") + 1);
+    const name = head.slice(head.lastIndexOf(" ") + 1);
+    return name === own ? "∅" : name;
   });
 }
 
@@ -173,13 +183,18 @@ const TOKEN =
  * punctuation. Language-independent, for the similarity score only (never written anywhere).
  */
 export function bodyTokens(source: SourceFile, symbol: SymbolFact): string[] {
-  const text = sliceRange(source.text, symbol.range);
+  const text = sliceRange(source, symbol.range);
   const tokens = text.match(TOKEN) ?? [];
   return tokens.filter((t) => t !== symbol.name);
 }
 
-function sliceRange(text: string, range: Range): string {
-  const lines = new LineIndex(text);
+/** Line indexes of the files tokenised, so the declarations of one file share one. */
+const lineIndexes = new WeakMap<SourceFile, LineIndex>();
+
+function sliceRange(source: SourceFile, range: Range): string {
+  const { text } = source;
+  let lines = lineIndexes.get(source);
+  if (!lines) lineIndexes.set(source, (lines = new LineIndex(text)));
   const offset = (p: Range["start"]): number => lines.lineStart(p.line) + p.column - 1;
   return text.slice(offset(range.start), offset(range.end));
 }
@@ -192,13 +207,20 @@ export function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number 
   return common / (a.size + b.size - common);
 }
 
-/** Token 3-grams (or the tokens themselves when there are fewer than three). */
+const trigramSets = new WeakMap<readonly string[], Set<string>>();
+
+/** Token 3-grams (or the tokens themselves when there are fewer than three), cached per array. */
 const trigrams = (tokens: readonly string[]): Set<string> => {
-  if (tokens.length < 3) return new Set(tokens);
-  const grams = new Set<string>();
-  for (let i = 0; i + 2 < tokens.length; i++) {
-    grams.add(`${tokens[i]}\u0000${tokens[i + 1]}\u0000${tokens[i + 2]}`);
+  let grams = trigramSets.get(tokens);
+  if (grams) return grams;
+  if (tokens.length < 3) grams = new Set(tokens);
+  else {
+    grams = new Set<string>();
+    for (let i = 0; i + 2 < tokens.length; i++) {
+      grams.add(`${tokens[i]}\u0000${tokens[i + 1]}\u0000${tokens[i + 2]}`);
+    }
   }
+  trigramSets.set(tokens, grams);
   return grams;
 };
 
@@ -311,14 +333,28 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
   );
   // Declarations of the changed files that the baseline didn't have: rename candidates.
   const before = new Set<string>();
-  const addBefore = (s: SymbolFact): void => {
+  const beforeAt = new Set<string>();
+  const addBefore = (path: string, s: SymbolFact): void => {
     before.add(`${s.kind}\u0000${s.qualifiedName}`);
-    s.members.forEach(addBefore);
+    beforeAt.add(`${path}\u0000${s.kind}\u0000${s.qualifiedName}`);
+    s.members.forEach((m) => addBefore(path, m));
   };
-  for (const file of input.before) file.symbols.forEach(addBefore);
+  for (const file of input.before) file.symbols.forEach((s) => addBefore(file.path, s));
   const fresh = changedEntries.filter(
     (e) => !before.has(`${e.symbol.kind}\u0000${e.symbol.qualifiedName}`),
   );
+  /** A declaration its file didn't have before (a new file, or one it moved into). */
+  const newHere = (e: SymbolEntry): boolean =>
+    input.changed.has(e.file.path) &&
+    !beforeAt.has(`${e.file.path}\u0000${e.symbol.kind}\u0000${e.symbol.qualifiedName}`);
+
+  // Body tokens of current declarations, computed once each.
+  const tokenCache = new Map<SymbolEntry, Promise<string[]>>();
+  const tokensOf = (e: SymbolEntry): Promise<string[]> => {
+    let tokens = tokenCache.get(e);
+    if (!tokens) tokenCache.set(e, (tokens = input.tokens(e)));
+    return tokens;
+  };
 
   /** A mapping by exact evidence, before the conflict check; or an outcome that ends the search. */
   type Exact =
@@ -394,11 +430,17 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
     );
   }
 
+  /**
+   * The same qualified name in another file, only when it moved there: the declaration is gone
+   * from its old file and new in the other one. An older, unrelated declaration of the same name
+   * is not a move (TypeScript qualified names have no module part).
+   */
   function moved(g: Group): Exact | undefined {
-    const found = ofKind(input.table.find(g.qualifiedName), g).filter(
-      (e) => e.symbol.qualifiedName === g.qualifiedName && e.file.path !== g.file,
+    const named = ofKind(input.table.find(g.qualifiedName), g).filter(
+      (e) => e.symbol.qualifiedName === g.qualifiedName,
     );
-    return decide(g, found, "moved", `moved from ${g.file}`);
+    if (named.some((e) => e.file.path === g.file)) return undefined;
+    return decide(g, named.filter(newHere), "moved", `moved from ${g.file}`);
   }
 
   // Row 3: a prefix change shared by several declarations (`Identity.*` → `Accounts.*`).
@@ -430,14 +472,23 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
     .map(([key]) => key.split("\u0000") as [string, string])
     .sort((a, b) => b[0].length - a[0].length);
   for (const g of remaining()) {
-    const rule = prefixes.find(
-      ([from]) => from !== "" && segmentPrefix(from, g.qualifiedName, "."),
+    // Every rule that applies is tried: one namespace can be split into several.
+    const hits: { found: SymbolEntry[]; detail: string }[] = [];
+    for (const [from, to] of prefixes) {
+      if (from === "" || !segmentPrefix(from, g.qualifiedName, ".")) continue;
+      const qualifiedName = to + g.qualifiedName.slice(from.length);
+      const found = ofKind(fresh, g).filter((e) => e.symbol.qualifiedName === qualifiedName);
+      if (found.length > 0) hits.push({ found, detail: `namespace ${from} → ${to}` });
+    }
+    if (hits.length === 0) continue;
+    const result = decide(
+      g,
+      hits.flatMap((h) => h.found),
+      "prefix",
+      hits.length === 1
+        ? hits[0]!.detail
+        : `several prefix rules apply: ${hits.map((h) => h.detail).join("; ")}`,
     );
-    if (!rule) continue;
-    const [from, to] = rule;
-    const qualifiedName = to + g.qualifiedName.slice(from.length);
-    const found = ofKind(fresh, g).filter((e) => e.symbol.qualifiedName === qualifiedName);
-    const result = decide(g, found, "prefix", `namespace ${from} → ${to}`);
     if (result) exact.set(g, result);
   }
 
@@ -479,9 +530,11 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
       });
       used.add(entryKey(result.target));
     } else {
+      const files = partialFiles.get(result.target.symbol);
       report.mapped.push({
         bindings: g.bindings,
         target: result.target,
+        ...(files ? { files } : {}),
         evidence: result.evidence,
         ...(result.detail !== undefined ? { detail: result.detail } : {}),
       });
@@ -523,9 +576,12 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
     const target = entries[0]!;
     const score = renameScore(
       g.first,
-      { shape: shapeFor(target), tokens: await input.tokens(target) },
+      { shape: shapeFor(target), tokens: await tokensOf(target) },
       sameFile(g, target),
     );
+    // A shape without members is little more than a signature, which unrelated declarations
+    // share: it maps by fingerprint only when the score reaches the threshold too.
+    if (g.first.shape.members.length === 0 && score < input.threshold) continue;
     assigned.set(g, {
       bindings: g.bindings,
       target,
@@ -545,7 +601,7 @@ export async function detectRenames(input: RenameInput): Promise<RenameReport> {
       if (e.symbol.kind !== g.kind) continue;
       const score = renameScore(
         g.first,
-        { shape: shapeFor(e), tokens: await input.tokens(e) },
+        { shape: shapeFor(e), tokens: await tokensOf(e) },
         sameFile(g, e),
       );
       scored.push({ entry: e, score });
@@ -646,15 +702,38 @@ function groupBroken(broken: readonly BaselineSymbol[]): Group[] {
   return [...groups.values()].sort((a, b) => compareStrings(a.key, b.key));
 }
 
+/** The files of the C# partial types `dedupe` merged, by merged declaration. */
+const partialFiles = new WeakMap<SymbolFact, string[]>();
+
+/**
+ * The distinct declarations among `entries`, grouped as binding resolution groups them: overload
+ * signatures and their implementation are one, and the parts of a C# partial type are one
+ * (merged, at the part in the first file).
+ */
 function dedupe(entries: SymbolEntry[]): SymbolEntry[] {
-  const seen = new Map<string, SymbolEntry>();
-  for (const e of entries) {
-    // Overload signatures and their implementation are one declaration.
-    const key = `${e.file.path}\u0000${e.symbol.qualifiedName}\u0000${e.symbol.kind}`;
-    if (!seen.has(key) || e.symbol.id === `${e.file.path}#${e.symbol.qualifiedName}`)
-      seen.set(key, e);
+  const out: SymbolEntry[] = [];
+  const partials = new Map<string, SymbolEntry[]>();
+  for (const group of groupOverloads(entries)) {
+    const e = group[0]!;
+    if (out.some((o) => o.file.path === e.file.path && o.symbol === e.symbol)) continue;
+    if (!e.symbol.partial) out.push(e);
+    else {
+      const key = `${e.symbol.kind}\u0000${e.symbol.qualifiedName}`;
+      const parts = partials.get(key) ?? [];
+      if (!parts.some((p) => p.symbol === e.symbol)) partials.set(key, [...parts, e]);
+    }
   }
-  return [...seen.values()];
+  for (const parts of partials.values()) {
+    const sorted = [...parts].sort((a, b) => compareStrings(a.file.path, b.file.path));
+    if (sorted.length === 1) {
+      out.push(sorted[0]!);
+      continue;
+    }
+    const symbol = mergePartials(sorted.map((p) => p.symbol));
+    partialFiles.set(symbol, [...new Set(sorted.map((p) => p.file.path))]);
+    out.push({ file: sorted[0]!.file, symbol });
+  }
+  return out;
 }
 
 const listOfNames = (groups: Group[]): string => groups.map((g) => g.qualifiedName).join(", ");

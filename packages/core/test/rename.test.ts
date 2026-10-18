@@ -75,6 +75,20 @@ describe("rename score", () => {
       ),
     ).toEqual(["create", "id", "run"]);
   });
+
+  it("blanks a C# constructor's name, so a renamed class keeps its member names", () => {
+    const members = (name: string, extra: string[] = []): string[] => [
+      `public constructor ${name}(ILogger)`,
+      ...["A", "B", "C", "D", ...extra].map((m) => `public method ${m}():void`),
+    ];
+    const tokens = ["a", "b", "c", "d"];
+    const before = shape("Identity.User", members("User"));
+    const after = shape("Identity.Account", members("Account", ["E"]));
+    expect(memberNames(before)[0]).toBe("∅");
+    expect(renameScore({ shape: before, tokens }, { shape: after, tokens }, true)).toBeGreaterThan(
+      0.8,
+    );
+  });
 });
 
 describe("name-free fingerprint", () => {
