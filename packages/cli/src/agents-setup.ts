@@ -15,7 +15,9 @@ export const AGENTS_FILE = "AGENTS.md";
 export const CLAUDE_SETTINGS_FILE = ".claude/settings.json";
 export const BLOCK_BEGIN = "<!-- catspec:begin -->";
 export const BLOCK_END = "<!-- catspec:end -->";
-export const STOP_HOOK_COMMAND = "npx catspec check --in-progress --format agent";
+/** Runs in the project folder whatever folder the agent's shell is in. */
+export const STOP_HOOK_COMMAND =
+  'npx catspec --cwd "$CLAUDE_PROJECT_DIR" check --in-progress --format agent';
 
 /** The command that connects Claude Code to the MCP server. */
 export const CLAUDE_MCP_COMMAND = "claude mcp add catspec -- npx catspec mcp";
@@ -117,6 +119,10 @@ interface HookEntry {
   hooks?: { type?: string; command?: string }[];
 }
 
+/** A CatSpec Stop hook, with or without `--cwd` (older `init --agents` wrote none). */
+const isCatspecStopHook = (command: string | undefined): boolean =>
+  command !== undefined && /\bcatspec\b.*\bcheck --in-progress\b/.test(command);
+
 /** Claude Code settings with the CatSpec `Stop` hook added; other settings and hooks are kept. */
 export function withStopHook(text: string | undefined): string {
   let settings: Record<string, unknown> = {};
@@ -142,8 +148,27 @@ export function withStopHook(text: string | undefined): string {
   if (!Array.isArray(stop)) {
     throw new AgentsSetupError(`"hooks.Stop" in ${CLAUDE_SETTINGS_FILE} must be a list`);
   }
-  const installed = (stop as HookEntry[]).some((entry) =>
-    entry?.hooks?.some((hook) => hook?.command?.includes("catspec check --in-progress")),
+  const entries: HookEntry[] = stop.map((entry: unknown, i) => {
+    const shape = `"hooks.Stop[${i}]" in ${CLAUDE_SETTINGS_FILE}`;
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new AgentsSetupError(`${shape} must be an object`);
+    }
+    const list = (entry as { hooks?: unknown }).hooks;
+    if (list === undefined) return {};
+    if (!Array.isArray(list)) throw new AgentsSetupError(`${shape}.hooks must be a list`);
+    list.forEach((hook: unknown, j) => {
+      if (hook === null || typeof hook !== "object" || Array.isArray(hook)) {
+        throw new AgentsSetupError(`${shape}.hooks[${j}] must be an object`);
+      }
+      const command = (hook as { command?: unknown }).command;
+      if (command !== undefined && typeof command !== "string") {
+        throw new AgentsSetupError(`${shape}.hooks[${j}].command must be a string`);
+      }
+    });
+    return entry;
+  });
+  const installed = entries.some((entry) =>
+    entry.hooks?.some((hook) => isCatspecStopHook(hook.command)),
   );
   if (installed && text !== undefined) return text;
   const next = {

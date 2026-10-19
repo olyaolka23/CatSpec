@@ -66,6 +66,13 @@ async function withRepo(
 
 const read = (dir: string, file: string): Promise<string> => readFile(join(dir, file), "utf8");
 
+/** The hook command's arguments after `npx catspec`, as Claude Code's shell expands them. */
+const hookArgs = (command: string, projectDir: string): string[] =>
+  command
+    .split(" ")
+    .slice(2)
+    .map((arg) => (arg === '"$CLAUDE_PROJECT_DIR"' ? projectDir : arg));
+
 describe("F7 mcp-server-and-agent-layer: the agent layer", () => {
   it("[AC-F7-3] the agent can't stop early: the Stop hook exits 2 with the fix list, and after 3 identical failures the agent is let go and the user is told (spec AC-17)", async () => {
     await withRepo(
@@ -76,8 +83,10 @@ describe("F7 mcp-server-and-agent-layer: the agent layer", () => {
           hooks: { Stop: { hooks: { command: string }[] }[] };
         };
         const command = settings.hooks.Stop[0]!.hooks[0]!.command;
-        expect(command).toBe("npx catspec check --in-progress --format agent");
-        const args = command.split(" ").slice(2);
+        expect(command).toBe(
+          'npx catspec --cwd "$CLAUDE_PROJECT_DIR" check --in-progress --format agent',
+        );
+        const args = hookArgs(command, dir);
 
         for (let attempt = 1; attempt <= 3; attempt++) {
           const blocked = await catspec(dir, args, hookInput("session-1"));
@@ -256,6 +265,29 @@ describe("F7 mcp-server-and-agent-layer: the agent layer", () => {
       });
     });
 
+    it.each([
+      [
+        { hooks: { Stop: [null] } },
+        /"hooks\.Stop\[0\]" in \.claude\/settings\.json must be an object/,
+      ],
+      [{ hooks: { Stop: [{ hooks: "x" }] } }, /"hooks\.Stop\[0\]" .*\.hooks must be a list/],
+      [
+        { hooks: { Stop: [{ hooks: [{ command: 1 }] }] } },
+        /\.hooks\[0\]\.command must be a string/,
+      ],
+    ])(
+      "Stop hooks of an unexpected shape are refused and nothing is written (%j)",
+      async (settings, error) => {
+        const text = JSON.stringify(settings);
+        await withRepo({ ".claude/settings.json": text }, async (dir) => {
+          const result = await catspec(dir, ["init", "--agents"]);
+          expect(result.code).toBe(1);
+          expect(result.stderr).toMatch(error);
+          expect(await read(dir, ".claude/settings.json")).toBe(text);
+        });
+      },
+    );
+
     it("[AC-agent-setup-3] with the installed Stop hook and an in-progress spec with a missing member, the stop is blocked with the fix list (spec AC-17)", async () => {
       await withRepo(
         { [SPEC_FILE]: registerApi("in-progress"), [CODE_FILE]: authService(["register"]) },
@@ -264,8 +296,9 @@ describe("F7 mcp-server-and-agent-layer: the agent layer", () => {
           const settings = JSON.parse(await read(dir, ".claude/settings.json")) as {
             hooks: { Stop: { hooks: { command: string }[] }[] };
           };
-          const args = settings.hooks.Stop[0]!.hooks[0]!.command.split(" ").slice(2);
-          const stop = await catspec(dir, args, hookInput("session"));
+          const args = hookArgs(settings.hooks.Stop[0]!.hooks[0]!.command, dir);
+          // The agent's shell may have moved into a subfolder; `--cwd` still finds the project.
+          const stop = await catspec(join(dir, "src"), args, hookInput("session"));
           expect(stop.code).toBe(2);
           expect(stop.stderr).toMatch(
             /✖ binding:auth\.login +CS0203 member login missing in AuthService/,

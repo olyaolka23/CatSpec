@@ -16,7 +16,11 @@ import {
   ResourceTemplate,
   type CallToolResult,
 } from "@modelcontextprotocol/server";
-import { serveStdio, type StdioServerHandle } from "@modelcontextprotocol/server/stdio";
+import {
+  serveStdio,
+  StdioServerTransport,
+  type StdioServerHandle,
+} from "@modelcontextprotocol/server/stdio";
 import * as z from "zod";
 
 import {
@@ -44,9 +48,15 @@ const INSTRUCTIONS =
   "contract to make a check pass: update_spec_bindings only proposes contract edits; show the " +
   "proposal to the developer.";
 
-/** A tool's answer as an MCP result: the text, and the same facts as structured content. */
+/**
+ * A tool's answer as an MCP result: the text, and the same facts as structured content. The facts
+ * are also sent as JSON text, for clients that pass only the content to the model.
+ */
 const result = (output: ToolOutput): CallToolResult => ({
-  content: [{ type: "text", text: output.text }],
+  content: [
+    { type: "text", text: output.text },
+    { type: "text", text: JSON.stringify(output.data) },
+  ],
   structuredContent: output.data,
 });
 
@@ -159,18 +169,19 @@ export function createServer(options: WorkspaceOptions): McpServer {
     "set_spec_status",
     {
       description:
-        "Change a spec's status (draft, ready, in-progress, implemented, deprecated) with the " +
+        "Move a spec's status forward (draft, ready, in-progress, implemented) with the " +
         "lifecycle rules: in-progress and implemented need the dependencies implemented and " +
-        "passing; implemented is refused while the spec's contracts fail. Optional links " +
-        "(pr, issue, commit) are recorded in the spec.",
+        "passing; implemented is refused while the spec's contracts fail. Lowering a status, " +
+        "deprecating a spec and changing the architecture spec are refused: the developer " +
+        "does that. Optional links (pr, issue, commit) are recorded in the spec.",
       inputSchema: z.object({
         spec_id: specId,
         status,
         links: z
           .object({
-            pr: z.union([z.string(), z.number()]).optional(),
-            issue: z.union([z.string(), z.number()]).optional(),
-            commit: z.string().optional(),
+            pr: z.union([z.string().min(1), z.number().int().positive()]).optional(),
+            issue: z.union([z.string().min(1), z.number().int().positive()]).optional(),
+            commit: z.string().min(1).optional(),
           })
           .optional(),
       }),
@@ -361,13 +372,19 @@ export function createServer(options: WorkspaceOptions): McpServer {
   return server;
 }
 
-/** Serves the repository over stdio until the client disconnects. */
+/** Serves the repository over stdio until the client disconnects or the connection fails. */
 export async function serveMcp(options: WorkspaceOptions): Promise<void> {
-  const closed = new Promise<void>((resolve) => {
-    process.stdin.once("end", resolve);
-    process.stdin.once("close", resolve);
-  });
+  let ended!: () => void;
+  const closed = new Promise<void>((resolve) => (ended = resolve));
+  // Closed on stdin's end, on a broken stdout and on the server's own shutdown alike.
+  class Transport extends StdioServerTransport {
+    override async close(): Promise<void> {
+      await super.close();
+      ended();
+    }
+  }
   const handle: StdioServerHandle = serveStdio(() => createServer(options), {
+    transport: new Transport(),
     onerror: (error) => process.stderr.write(`catspec mcp: ${error.message}\n`),
   });
   await closed;

@@ -88,8 +88,15 @@ export class Workspace {
     return loadSpecModel(this.root, config);
   }
 
-  codebase(config: CatspecConfig, staged = false): Promise<Codebase> {
-    return this.engine.loadCodebase(this.root, config, staged ? { staged: true } : {});
+  codebase(config: CatspecConfig): Promise<Codebase> {
+    return this.engine.loadCodebase(this.root, config);
+  }
+
+  /** The config, specs and code of the commit being made, all read from the git index. */
+  async staged(): Promise<{ model: SpecModel; codebase: Codebase }> {
+    const { config, file } = await loadConfig(this.root, this.configFile);
+    const staged = await this.engine.loadStaged(this.root, config, file);
+    return { model: staged.model, codebase: staged.codebase };
   }
 
   /** A path argument, refused when it is outside the repository. */
@@ -215,15 +222,29 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
   const files: Record<string, string[]> = Object.fromEntries(
     [...resolved].map(([id, r]) => [id, r.files]),
   );
-  const boundFiles = [...resolved.values()].flatMap((r) => r.files);
+  // The spec's files: where its bindings were found, their file hints, and its scope.
+  const inScope = spec.scope.length > 0 ? globMatcher(spec.scope) : () => false;
+  const specFiles = new Set<string>([
+    ...[...resolved.values()].flatMap((r) => r.files),
+    ...spec.bindings.flatMap((b) => b.file ?? []),
+    ...codebase.files.map((f) => f.path).filter((f) => inScope(f)),
+  ]);
+  const touches = (globs: string | readonly string[] | undefined): boolean => {
+    const list = typeof globs === "string" ? [globs] : (globs ?? []);
+    if (list.length === 0) return true;
+    const match = globMatcher([...list]);
+    return [...specFiles].some((f) => match(f));
+  };
   const rulesByClass: Record<string, unknown[]> = {};
   for (const rule of spec.rules) (rulesByClass[rule.class] ??= []).push(withoutIndex(rule));
   const architectureRules = (model.architecture?.rules ?? [])
     .filter((rule) => {
-      const paths = "paths" in rule ? rule.paths : undefined;
-      if (!paths || paths.length === 0) return true;
-      const match = globMatcher(paths);
-      return boundFiles.some((f) => match(f));
+      if (!touches("paths" in rule ? rule.paths : undefined)) return false;
+      // An import rule applies only to the files that import (`from`).
+      const imports =
+        ("forbid_import" in rule ? rule.forbid_import : undefined) ??
+        ("allow_import_only" in rule ? rule.allow_import_only : undefined);
+      return !imports || touches(imports.from);
     })
     .map(withoutIndex);
   const dependencies = spec.dependsOn.map((id) => ({
@@ -298,13 +319,21 @@ export async function checkCompliance(
   },
 ): Promise<ToolOutput> {
   const file = input.file_path !== undefined ? ws.path(input.file_path) : undefined;
-  const model = await ws.model();
+  let model: SpecModel;
+  let codebase: Codebase;
+  if (input.staged) ({ model, codebase } = await ws.staged());
+  else {
+    model = await ws.model();
+    codebase = await ws.codebase(model.config);
+  }
   if (input.spec_id !== undefined) findSpec(model, input.spec_id);
-  const codebase = await ws.codebase(model.config, Boolean(input.staged));
   let ids: string[];
   if (input.spec_id !== undefined) ids = [input.spec_id];
   else if (file !== undefined)
-    ids = (await specsForFile(model, codebase, file)).map((f) => f.spec.id);
+    // Work being done or done: a draft or ready spec of the file isn't held to its contract yet.
+    ids = (await specsForFile(model, codebase, file))
+      .filter(({ spec }) => spec.status === "in-progress" || spec.status === "implemented")
+      .map((f) => f.spec.id);
   else {
     // The whole repository, each spec by its status (like `catspec check`).
     const result = await checkCode(model, codebase);
@@ -324,7 +353,7 @@ export async function checkCompliance(
   }
   if (ids.length === 0) {
     return {
-      text: `no spec binds ${file}; nothing to check`,
+      text: `no in-progress or implemented spec binds ${file}; nothing to check`,
       data: { done: true, specs: [], items: [], diagnostics: [] },
     };
   }
@@ -538,6 +567,8 @@ export async function updateSpecBindings(
   };
 }
 
+const statusRank = (status: SpecStatus): number => SPEC_STATUSES.indexOf(status);
+
 export async function setSpecStatus(
   ws: Workspace,
   input: {
@@ -560,6 +591,28 @@ export async function setSpecStatus(
     throw new ToolError(`${spec.file} has errors; fix them first (catspec check --specs-only)`);
   }
   const links = Object.entries(input.links ?? {}).filter(([, v]) => v !== undefined);
+  // An agent only moves its work forward; anything that turns enforcement down or changes the
+  // architecture spec is the developer's call.
+  const refusal =
+    spec.type === "architecture"
+      ? `${spec.id} is the architecture spec; its status is the developer's call`
+      : statusRank(input.status) < statusRank(spec.status) || input.status === "deprecated"
+        ? `${spec.status} → ${input.status} lowers what is enforced; that is the developer's call`
+        : undefined;
+  if (refusal !== undefined && (spec.status !== input.status || spec.type === "architecture")) {
+    return {
+      text: `refused: ${refusal}. Ask the developer to run \`catspec status ${spec.id} ${input.status}\` if they agree.`,
+      data: {
+        spec: spec.id,
+        from: spec.status,
+        to: input.status,
+        changed: false,
+        refused: true,
+        proposal: true,
+        diagnostics: [],
+      },
+    };
+  }
   if (spec.status === input.status && links.length === 0) {
     return {
       text: `${spec.id} is already ${spec.status}`,
@@ -597,7 +650,16 @@ export async function setSpecStatus(
       : [{ op: "set" as const, path: ["status"], value: input.status }]),
     ...links.map(([key, value]) => ({ op: "set" as const, path: ["links", key], value })),
   ];
-  await writeFile(join(ws.root, spec.file), applyPatch(spec.source, ops), "utf8");
+  const after = applyPatch(spec.source, ops);
+  const invalid = readSpec(after, spec.file, {
+    unenforcedProse: model.config.enforcement.unenforced_prose,
+  }).diagnostics.filter((d) => d.severity === "error");
+  if (invalid.length > 0) {
+    throw new ToolError(
+      `the change would make ${spec.file} invalid; nothing was written:\n${diagnosticsText(invalid)}`,
+    );
+  }
+  await writeFile(join(ws.root, spec.file), after, "utf8");
   return {
     text:
       spec.status === input.status

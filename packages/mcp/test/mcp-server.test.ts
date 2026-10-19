@@ -3,6 +3,7 @@
  * `mcp-resources-and-prompts`): a scripted agent talks to the server through the in-process MCP
  * client, on temporary repositories. The engine is the one `catspec mcp` runs on.
  */
+import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -47,6 +48,10 @@ async function connect(root: string): Promise<Connection> {
     loadCodebase: (...args) => {
       reads++;
       return engine.loadCodebase(...args);
+    },
+    loadStaged: (...args) => {
+      reads++;
+      return engine.loadStaged(...args);
     },
   };
   const server = createServer({ root, engine: counting });
@@ -102,7 +107,8 @@ async function call(
   return (await mcp.client.callTool({ name, arguments: args })) as ToolResult;
 }
 
-const text = (result: ToolResult): string => result.content.map((c) => c.text ?? "").join("\n");
+/** The text for the model (the second item is the same facts as JSON). */
+const text = (result: ToolResult): string => result.content[0]?.text ?? "";
 
 interface DiagnosticJson {
   code: string;
@@ -356,6 +362,121 @@ describe("F7 mcp-server-and-agent-layer: the MCP server", () => {
         const unknown = await call(mcp, "get_spec_context", { spec_id: "logon" });
         expect(unknown.isError).toBe(true);
         expect(text(unknown)).toMatch(/did you mean "login"/);
+      });
+    });
+  });
+
+  describe("tool details", () => {
+    it("a status that lowers enforcement, or any change to the architecture spec, is refused", async () => {
+      await withAuthRepo(
+        async ({ dir, mcp }) => {
+          const before = await readFile(join(dir, SPEC_FILE), "utf8");
+          for (const status of ["ready", "draft", "deprecated"]) {
+            const result = await call(mcp, "set_spec_status", { spec_id: "login", status });
+            expect(result.structuredContent, status).toMatchObject({
+              changed: false,
+              refused: true,
+              proposal: true,
+            });
+            expect(text(result)).toMatch(/lowers what is enforced; that is the developer's call/);
+          }
+          const architecture = await call(mcp, "set_spec_status", {
+            spec_id: "architecture",
+            status: "implemented",
+          });
+          expect(architecture.structuredContent).toMatchObject({ refused: true });
+          expect(text(architecture)).toMatch(/is the architecture spec/);
+          expect(await readFile(join(dir, SPEC_FILE), "utf8")).toBe(before);
+        },
+        { method: "login", spec: loginSpec("implemented") },
+      );
+    });
+
+    it("empty links are refused before anything is written", async () => {
+      await withAuthRepo(
+        async ({ dir, mcp }) => {
+          const before = await readFile(join(dir, SPEC_FILE), "utf8");
+          const result = await call(mcp, "set_spec_status", {
+            spec_id: "login",
+            status: "in-progress",
+            links: { pr: "" },
+          });
+          expect(result.isError).toBe(true);
+          expect(await readFile(join(dir, SPEC_FILE), "utf8")).toBe(before);
+          const linked = await call(mcp, "set_spec_status", {
+            spec_id: "login",
+            status: "in-progress",
+            links: { pr: 17 },
+          });
+          expect(linked.structuredContent).toMatchObject({ changed: true });
+          expect(await readFile(join(dir, SPEC_FILE), "utf8")).toMatch(/^ {2}pr: 17$/m);
+        },
+        { method: "login" },
+      );
+    });
+
+    it("check_compliance with staged reads the specs and the code from the git index", async () => {
+      await withAuthRepo(
+        async ({ dir, mcp }) => {
+          execFileSync("git", ["add", "-A"], { cwd: dir });
+          // The working tree renames the member to match the code; the index still requires login.
+          await writeFile(join(dir, SPEC_FILE), loginSpec("in-progress", ["signIn"]), "utf8");
+          const working = await call(mcp, "check_compliance", { spec_id: "login" });
+          expect(working.structuredContent?.done).toBe(true);
+          const staged = await call(mcp, "check_compliance", { spec_id: "login", staged: true });
+          expect(staged.structuredContent?.done).toBe(false);
+          expect(text(staged)).toMatch(/CS0203 member login missing/);
+        },
+        { method: "signIn" },
+      );
+    });
+
+    it("check_compliance for a file checks only its in-progress and implemented specs", async () => {
+      await withAuthRepo(
+        async ({ mcp }) => {
+          const draft = await call(mcp, "check_compliance", { file_path: CODE_FILE });
+          expect(draft.structuredContent).toMatchObject({ done: true, specs: [] });
+          expect(text(draft)).toMatch(/no in-progress or implemented spec binds src\/auth\.ts/);
+        },
+        { spec: loginSpec("draft") },
+      );
+    });
+
+    it("get_spec_context lists the architecture rules for the spec's files, import rules by `from`", async () => {
+      const rules = `rules:
+  - id: domain-no-infrastructure
+    adr: ADR-001
+    class: structural
+    forbid_import:
+      from: "src/**"
+      to: ["infra/**"]
+  - id: infra-no-domain
+    adr: ADR-001
+    class: structural
+    forbid_import:
+      from: "infra/**"
+      to: ["src/**"]
+  - id: only-in-lib
+    adr: ADR-001
+    class: structural
+    paths: ["lib/**"]
+    forbid_call: eval
+`;
+      await withAuthRepo(async ({ dir, mcp }) => {
+        await writeFile(join(dir, ADR_LOG), adrLogText(["ADR-001"], rules), "utf8");
+        const context = await call(mcp, "get_spec_context", { spec_id: "login" });
+        const ids = (context.structuredContent?.architecture_rules as { id: string }[]).map(
+          (r) => r.id,
+        );
+        expect(ids).toEqual(["domain-no-infrastructure"]);
+      });
+    });
+
+    it("every tool result also carries its facts as JSON text", async () => {
+      await withAuthRepo(async ({ mcp }) => {
+        const result = await call(mcp, "list_specs", {});
+        expect(result.content).toHaveLength(2);
+        expect(JSON.parse(result.content[1]!.text!)).toEqual(result.structuredContent);
       });
     });
   });

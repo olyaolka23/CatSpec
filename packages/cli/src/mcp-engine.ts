@@ -3,7 +3,15 @@
  * adapters (ADR-003) and the git side of `sync` and `refactor`. The adapters are loaded once and
  * kept between calls; they are loaded again only when the configured languages change.
  */
-import { Git, IndexProvider, type CatspecConfig, type Codebase } from "@catspec/core";
+import {
+  Git,
+  IndexProvider,
+  loadSpecModel,
+  parseConfig,
+  relativePosix,
+  type CatspecConfig,
+  type Codebase,
+} from "@catspec/core";
 import type { AdapterRegistry } from "@catspec/lang";
 import type { Engine } from "@catspec/mcp";
 
@@ -29,7 +37,19 @@ export function cliEngine(env?: NodeJS.ProcessEnv): Engine {
     if (adapters?.key !== key) adapters = { key, registry: loadAdapters(config) };
     return adapters.registry;
   };
-  const indexGit = new Map<string, Git>();
+  // One git per repository for staged reads, kept open until the engine is closed: the codebase
+  // reads staged files through it later on. The promise is cached, so calls running at the same
+  // time share one; a failed start is forgotten. A cat-file process that dies is restarted by Git.
+  const indexGit = new Map<string, Promise<Git>>();
+  const stagedGit = (root: string): Promise<Git> => {
+    let git = indexGit.get(root);
+    if (!git) {
+      git = repository(root, "a staged check");
+      indexGit.set(root, git);
+      git.catch(() => indexGit.delete(root));
+    }
+    return git;
+  };
   const repository = async (root: string, what: string): Promise<Git> => {
     const git = new Git(root, env);
     if (!(await git.isRepository())) {
@@ -40,23 +60,33 @@ export function cliEngine(env?: NodeJS.ProcessEnv): Engine {
   };
 
   return {
-    async loadCodebase(root, config, options = {}): Promise<Codebase> {
-      const registry = await registryFor(config);
-      if (!options.staged) return loadCodebase(root, config, { registry });
-      // The codebase reads staged files through git later on, so this git stays open (one per
-      // repository) until the engine is closed.
-      let git = indexGit.get(root);
-      if (!git) {
-        git = await repository(root, "a staged check");
-        indexGit.set(root, git);
+    async loadCodebase(root, config): Promise<Codebase> {
+      return loadCodebase(root, config, { registry: await registryFor(config) });
+    },
+
+    async loadStaged(root, config, configFile) {
+      const index = new IndexProvider(await stagedGit(root));
+      if (configFile !== undefined) {
+        const path = relativePosix(root, configFile);
+        const staged = await index.read(path);
+        if (staged !== undefined) config = parseConfig(staged.toString("utf8"), path);
       }
-      return loadCodebase(root, config, { registry, source: new IndexProvider(git) });
+      const [model, registry] = await Promise.all([
+        loadSpecModel(root, config, index),
+        registryFor(config),
+      ]);
+      return {
+        config,
+        model,
+        codebase: await loadCodebase(root, config, { registry, source: index }),
+      };
     },
 
     async close() {
       const open = [...indexGit.values()];
       indexGit.clear();
-      await Promise.all(open.map((git) => git.close()));
+      const gits = await Promise.allSettled(open);
+      await Promise.all(gits.flatMap((g) => (g.status === "fulfilled" ? [g.value.close()] : [])));
     },
 
     formatDiff: (file, before, after) => formatDiff(file, before, after, PLAIN),
