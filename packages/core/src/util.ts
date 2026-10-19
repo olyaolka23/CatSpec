@@ -43,6 +43,9 @@ export const toPosix = (path: string): string => (sep === "\\" ? path.replace(/\
 export const relativePosix = (root: string, path: string): string => toPosix(relative(root, path));
 
 /** Joins a list as "a, b, c". */
+/** `text` with every regular-expression metacharacter escaped. */
+export const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export const listOf = (items: readonly unknown[]): string => items.map(String).join(", ");
 
 /** Optimal string alignment (Damerau-Levenshtein) distance between two strings. */

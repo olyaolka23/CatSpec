@@ -13,6 +13,7 @@ export {
   type SymbolEntry,
 } from "./codebase.js";
 export {
+  inModule,
   resolveBinding,
   splitSymbol,
   type BindingResolution,
@@ -101,3 +102,32 @@ export {
   relativePosix,
   toPosix,
 } from "./util.js";
+export {
+  baselineFromLock,
+  baselineFromSymbol,
+  bodyTokens,
+  detectRenames,
+  jaccard,
+  memberNames,
+  nameFreeFingerprint,
+  renameScore,
+  splitResolved,
+  tokenSimilarity,
+  type Ambiguity,
+  type BaselineSymbol,
+  type Evidence,
+  type Lost,
+  type Mapping,
+  type RenameInput,
+  type RenameMap,
+  type RenameReport,
+  type ScoredCandidate,
+} from "./rename.js";
+export {
+  editPatch,
+  planSync,
+  rewriteSymbol,
+  type SpecEdit,
+  type SyncOptions,
+  type SyncPlan,
+} from "./sync.js";

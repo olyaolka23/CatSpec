@@ -172,6 +172,48 @@ export const CODES = {
       "or a member lacks a required visibility modifier (`public`, `private`, `protected`, " +
       "`internal`).",
   },
+  CS0210: {
+    severity: "error",
+    title: "renamed",
+    docs:
+      "A declaration a binding pointed to was renamed or moved, and CatSpec found where it went " +
+      "(a rename map, the same name in another file, a namespace or path prefix change, a git " +
+      "file rename, the same shape, or a similarity score at or above `heal.threshold`). The " +
+      "diagnostic carries the location-only patch (`symbol` and `file` only, never the " +
+      "contract). Run `catspec sync --apply`; with `heal.mode: auto` the pre-commit hook applies " +
+      "it and stages the spec. As info, it also reports backticked mentions of the old name in " +
+      "the spec body, rewritten only with `catspec sync --apply --update-mentions`.",
+  },
+  CS0215: {
+    severity: "error",
+    title: "large refactor",
+    docs:
+      "Many bindings broke at once: more than `refactor.detect_threshold` in one commit, or any " +
+      "while a refactor (`catspec refactor`) is in progress. The hook reports this one summary " +
+      "instead of a binding, drift or ratchet error per binding. Run `catspec sync` to see the " +
+      "mapping and `catspec sync --apply` to update every spec in one batch. During a refactor " +
+      "started with `--allow-wip` it is a warning on the refactor's branch, so intermediate " +
+      "commits go through.",
+  },
+  CS0216: {
+    severity: "error",
+    title: "ambiguous rename",
+    docs:
+      "`catspec sync` can't tell which declaration a binding's old declaration became: several " +
+      "candidates are equally close, or a closer match took the only one. CatSpec never guesses: " +
+      "no spec is changed. The message lists the candidates. Name the rename in a rename map " +
+      '(`{ "symbols": { "Old.Name": "New.Name" } }`) and run `catspec sync --apply --map ' +
+      "<file>`, or fix the binding by hand.",
+  },
+  CS0217: {
+    severity: "error",
+    title: "binding lost in refactor",
+    docs:
+      "A binding's declaration is gone and no candidate replaces it (the closest candidate, if " +
+      "any, scores below `heal.threshold`). During a refactor this keeps the refactor open. " +
+      "Restore the code, add the rename to a rename map (`--map`), or change the spec; " +
+      "`catspec sync --apply --partial` applies the rest meanwhile.",
+  },
   CS0220: {
     severity: "warning",
     title: "unresolvable",

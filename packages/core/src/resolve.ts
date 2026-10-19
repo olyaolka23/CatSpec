@@ -44,7 +44,7 @@ export function splitSymbol(symbol: string): { module?: string; name: string } {
 }
 
 /** True when `path` is the module `module`: with or without the extension, or ending with it. */
-const inModule = (path: string, module: string): boolean => {
+export const inModule = (path: string, module: string): boolean => {
   const bare = path.replace(/\.[^./]+$/, "");
   const target = module.replace(/\.[^./]+$/, "");
   return bare === target || bare.endsWith(`/${target}`);
@@ -173,7 +173,7 @@ export function resolveBinding(
  * overloads all have bodies, so each is a declaration of its own. Every other declaration is its
  * own group, also when it shares an id (C# partial parts in one file).
  */
-function groupOverloads(entries: SymbolEntry[]): SymbolEntry[][] {
+export function groupOverloads(entries: SymbolEntry[]): SymbolEntry[][] {
   const isImplementation = (e: SymbolEntry): boolean =>
     e.symbol.id === `${e.file.path}#${e.symbol.qualifiedName}`;
   const groups = new Map<string | SymbolEntry, SymbolEntry[]>();
@@ -193,7 +193,7 @@ function groupOverloads(entries: SymbolEntry[]): SymbolEntry[][] {
 }
 
 /** C# partial parts as one type: members, bases, attributes and modifiers of every part. */
-function mergePartials(parts: SymbolFact[]): SymbolFact {
+export function mergePartials(parts: SymbolFact[]): SymbolFact {
   const [first, ...rest] = parts as [SymbolFact, ...SymbolFact[]];
   const merged: SymbolFact = {
     ...first,

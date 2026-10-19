@@ -52,6 +52,16 @@ Feature: F6 rename-and-refactor
     But with "--map renames.json" the sync succeeds
 ```
 
+New diagnostics: `CS0210` renamed (with the patch; in the hook it takes the severity of the
+`CS0201` it replaces, and it is `info` for body mentions and stale `file` hints), `CS0215` large
+refactor summary, `CS0216` ambiguous mapping, `CS0217` binding lost. The "class renamed and its body rewritten" example of
+`@AC-rename-detection-1` is tested as the class's members rewritten, since an unchanged
+name-free fingerprint maps a class whatever its method bodies are (plan §D11.8, row 5).
+`catspec bind` writes the binding id (last segment of the name), `kind`, `exported`, all bases as
+`implements`, attribute names, `constructor.requires` and the public members with parameters and
+return types (overloads: name and kind only); it writes `file` only with `--file`. Matching and
+sync details: plan §D11.4 and §D11.8.
+
 ## Definition of Done (feature)
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F6-1..4` are automated and pass in CI on 3 OSes
