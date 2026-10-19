@@ -73,8 +73,8 @@ sync details: plan §D11.4 and §D11.8.
 Works out where a vanished symbol went: moved, file renamed, or renamed in place, with a confidence score.
 - depends on: `hook-installer`
 - refs: §D11.4, analysis F-7
-- [ ] moved → file renamed (`git diff -M`) → symbol renamed with score
-- [ ] body-token similarity (Jaccard over token 3-grams, computed on demand)
+- [x] moved → file renamed (`git diff -M`) → symbol renamed with score
+- [x] body-token similarity (Jaccard over token 3-grams, computed on demand)
 
 ```gherkin
   @AC-rename-detection-1
@@ -94,9 +94,9 @@ Works out where a vanished symbol went: moved, file renamed, or renamed in place
 `catspec sync`: shows the spec edits a rename needs and applies them safely.
 - depends on: `rename-detection`, `spec-cst-editor`
 - refs: §D10, §D11.4, §D11.6, ADR-008
-- [ ] location-only `SpecPatch`; CS0210 with the patch
-- [ ] `catspec sync` (dry-run diff) / `sync --apply`; `heal.mode=auto` applies and re-stages in the hook
-- [ ] body mentions of old names → info; rewritten only with `--update-mentions`
+- [x] location-only `SpecPatch`; CS0210 with the patch
+- [x] `catspec sync` (dry-run diff) / `sync --apply`; `heal.mode=auto` applies and re-stages in the hook
+- [x] body mentions of old names → info; rewritten only with `--update-mentions`
 
 ```gherkin
   @AC-sync-command-1
@@ -116,7 +116,7 @@ Works out where a vanished symbol went: moved, file renamed, or renamed in place
 `catspec bind`: writes a binding for code that already exists, so specs for existing code are quick to create.
 - depends on: `spec-cst-editor`, `binding-resolver`
 - refs: §D10
-- [ ] `catspec bind <symbol> --spec <id> [--file f]`: binding scaffolded from the current shape
+- [x] `catspec bind <symbol> --spec <id> [--file f]`: binding scaffolded from the current shape
 
 ```gherkin
   @AC-bind-command-1
@@ -131,10 +131,10 @@ Works out where a vanished symbol went: moved, file renamed, or renamed in place
 Maps many renamed symbols at once using the strongest evidence first, and keeps the history of what passed.
 - depends on: `sync-command`
 - refs: §D11.8, ADR-013
-- [ ] baseline capture (refactor baseline, or `HEAD`); name-free fingerprints
-- [ ] rename map `--map` (`symbols` / `namespaces` / `paths`); prefix-rule detection
-- [ ] global one-to-one assignment; report mapped / ambiguous (CS0216) / lost (CS0217)
-- [ ] lock entries moved to the new ids (ratchet survives); name-only shape changes auto-accepted
+- [x] baseline capture (refactor baseline, or `HEAD`); name-free fingerprints
+- [x] rename map `--map` (`symbols` / `namespaces` / `paths`); prefix-rule detection
+- [x] global one-to-one assignment; report mapped / ambiguous (CS0216) / lost (CS0217)
+- [x] lock entries moved to the new ids (ratchet survives); name-only shape changes auto-accepted
 
 ```gherkin
   @AC-batch-rename-mapping-1
@@ -160,9 +160,9 @@ Maps many renamed symbols at once using the strongest evidence first, and keeps 
 `catspec refactor`: a snapshot before a multi-commit refactor, finished by `sync --apply`.
 - depends on: `batch-rename-mapping`
 - refs: §D11.8, ADR-016
-- [ ] `catspec refactor [--scope] [--reason] [--allow-wip]`, `refactor status`, `refactor abort`; baseline in the runtime store
-- [ ] during a refactor, `sync --apply` ends it on success; `--partial` keeps it open
-- [ ] hook: one grouped CS0215 above `refactor.detect_threshold`; `--allow-wip` only on the recorded branch
+- [x] `catspec refactor [--scope] [--reason] [--allow-wip]`, `refactor status`, `refactor abort`; baseline in the runtime store
+- [x] during a refactor, `sync --apply` ends it on success; `--partial` keeps it open
+- [x] hook: one grouped CS0215 above `refactor.detect_threshold`; `--allow-wip` only on the recorded branch
 
 ```gherkin
   @AC-refactor-mode-1
