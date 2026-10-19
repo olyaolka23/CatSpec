@@ -1,7 +1,8 @@
 /**
  * `catspec check --in-progress --format agent` (plan §D10, §D14.3), PBI `agent-check-mode`: the
- * check an agent's stop hook runs. It checks the specs that are `in-progress` in the working tree
- * (the work items being done on this branch) as if they were implemented, and answers with the
+ * check an agent's stop hook runs. It checks the specs in progress on the current branch (in
+ * progress in the working tree, but not where the branch left the default branch) as if they
+ * were implemented, and answers with the
  * Claude Code hook convention: exit 0 when done, 2 with a fix list on stderr when not, 1 on errors.
  *
  * Loop protection: an agent that can't fix something would be blocked forever. The hook input
@@ -17,6 +18,10 @@ import { join } from "node:path";
 
 import {
   findGitCommonDir,
+  Git,
+  GitError,
+  loadSpecModel,
+  RevisionProvider,
   sortDiagnostics,
   type Diagnostic,
   type ItemResult,
@@ -32,9 +37,51 @@ export const DEFAULT_MAX_BLOCKS = 3;
 /** Agent-format exit codes (Claude Code hooks): done, error shown to the user, agent blocked. */
 export const AGENT_EXIT = { done: 0, error: 1, blocked: 2 } as const;
 
-/** The specs the agent is working on: `in-progress` in the working tree. */
+/** The specs `in-progress` in the working tree. */
 export const inProgressSpecs = (model: SpecModel): Spec[] =>
   model.specs.all().filter((s) => s.status === "in-progress" && s.type !== "architecture");
+
+/**
+ * The specs in progress on the current branch: `in-progress` in the working tree and not at the
+ * merge base with the default branch, so work another branch left in progress doesn't block this
+ * one. Without git or a default branch, every `in-progress` spec.
+ */
+export async function branchInProgressSpecs(
+  model: SpecModel,
+  env?: NodeJS.ProcessEnv,
+): Promise<Spec[]> {
+  const working = inProgressSpecs(model);
+  if (working.length === 0) return working;
+  const git = new Git(model.root, env);
+  try {
+    if (!(await git.isRepository())) return working;
+    const base = await mergeBase(git);
+    if (base === undefined) return working;
+    const before = await loadSpecModel(model.root, model.config, new RevisionProvider(git, base));
+    return working.filter((s) => before.specs.get(s.id)?.status !== "in-progress");
+  } finally {
+    await git.close();
+  }
+}
+
+/** Where HEAD left the default branch (`origin/HEAD`, else main or master), if there is one. */
+async function mergeBase(git: Git): Promise<string | undefined> {
+  const remoteHead = await git
+    .run(["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"])
+    .then((out) => out.toString("utf8").trim())
+    .catch(() => "");
+  for (const branch of [remoteHead, "main", "master", "origin/main", "origin/master"]) {
+    if (branch === "" || (await git.commitId(branch)) === undefined) continue;
+    try {
+      const out = await git.run(["merge-base", "HEAD", branch]);
+      return out.toString("utf8").trim() || undefined;
+    } catch (error) {
+      if (error instanceof GitError) return undefined;
+      throw error;
+    }
+  }
+  return undefined;
+}
 
 /** What the hook tells Claude Code (on stdin); only the session is used. */
 export interface HookInput {

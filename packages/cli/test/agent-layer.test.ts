@@ -8,7 +8,13 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ADR_LOG, adrLogText, createRepo, specText } from "../../../test/temp-repo.js";
+import {
+  ADR_LOG,
+  adrLogText,
+  createRepo,
+  specText,
+  withRepo as withGitRepo,
+} from "../../../test/temp-repo.js";
 import { agentsBlock, BLOCK_BEGIN, BLOCK_END, STOP_HOOK_COMMAND } from "../src/agents-setup.js";
 import { run } from "../src/index.js";
 
@@ -143,6 +149,35 @@ describe("F7 mcp-server-and-agent-layer: the agent layer", () => {
         });
       });
     }
+
+    it("checks only the specs put in progress on this branch, not those in progress on the default branch", async () => {
+      await withGitRepo(async (repo) => {
+        await repo.write({
+          [ADR_LOG]: adrLogText(),
+          [SPEC_FILE]: registerApi("in-progress"),
+          [CODE_FILE]: authService(["register"]),
+          "docs/spec/api/session.spec.md": specText("session", { status: "ready" }),
+        });
+        repo.git("add", "-A");
+        expect(repo.commit("a teammate's work in progress").code).toBe(0);
+        repo.git("checkout", "-q", "-b", "fix-typo");
+
+        const quiet = await catspec(repo.dir, AGENT_CHECK, hookInput("session-1"));
+        expect(quiet.code, quiet.stderr).toBe(0);
+
+        await repo.write({
+          "docs/spec/api/session.spec.md": specText("session", {
+            status: "in-progress",
+            extra:
+              "bindings:\n  - id: s\n    symbol: Session\n    kind: class\n    file: src/session.ts\n",
+          }),
+        });
+        const blocked = await catspec(repo.dir, AGENT_CHECK, hookInput("session-1"));
+        expect(blocked.code).toBe(2);
+        expect(blocked.stderr).toMatch(/work in progress \(session\) is NOT DONE/);
+        expect(blocked.stderr).not.toMatch(/register-api/);
+      });
+    });
 
     it("[AC-agent-check-mode-2] loop protection: the 4th stop with the same diagnostics exits 0 and says the item is stuck", async () => {
       await withRepo(

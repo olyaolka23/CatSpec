@@ -50,7 +50,7 @@ import {
   clearStops,
   DEFAULT_MAX_BLOCKS,
   diagnosticsFingerprint,
-  inProgressSpecs,
+  branchInProgressSpecs,
   parseHookInput,
   recordFailedStop,
   stuckMessage,
@@ -256,8 +256,8 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     )
     .option(
       "--in-progress",
-      "check only the specs that are in-progress (the work items on this branch) as if " +
-        "implemented; nothing to check when there are none",
+      "check only the specs put in progress on this branch (in-progress now, not where it " +
+        "left the default branch) as if implemented; nothing to check when there are none",
     )
     .option(
       "--max-blocks <n>",
@@ -301,12 +301,12 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
         const { model, style, opts } = await load(command);
         for (const id of options.spec ?? []) findSpec(model, id);
         if (options.inProgress) {
-          const working = inProgressSpecs(model).map((s) => s.id);
+          const working = (await branchInProgressSpecs(model, gitEnv)).map((s) => s.id);
           if (working.length === 0) {
             if (options.format === "json") {
               out.stdout.write(formatJson([], 0, { items: [], done: true }));
             } else if (!opts.quiet) {
-              out.stdout.write("no spec is in progress; nothing to check\n");
+              out.stdout.write("no spec is in progress on this branch; nothing to check\n");
             }
             if (hookInput) await clearStops(model.root, hookSession(hookInput));
             return;
