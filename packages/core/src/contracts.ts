@@ -459,6 +459,12 @@ function closeMembers(member: Member, symbol: SymbolFact, claimed: Set<string>):
       )
       .slice(0, 3);
   }
+  // No similar name: a single unclaimed member of the same kind is most likely the one meant
+  // (`login` written as `signIn`).
+  if (names.length === 0 && member.kind) {
+    const sameKind = [...byName.values()].filter((m) => m.kind === member.kind);
+    if (sameKind.length === 1) names = [sameKind[0]!.name];
+  }
   return names.map((n) => byName.get(n)!);
 }
 

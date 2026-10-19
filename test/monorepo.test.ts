@@ -94,15 +94,22 @@ describe("monorepo", () => {
     expect(testFiles).toEqual(expect.arrayContaining(tests));
   }, 300_000);
 
-  it("keeps the dependency direction core ← lang ← lang-* ← cli / mcp (ADR-003)", () => {
+  it("keeps the dependency direction core ← lang ← lang-* ← cli, core ← mcp ← cli (ADR-003, ADR-024)", () => {
     // Which workspace packages each package may depend on, in any dependency field.
     const allowed: Record<string, string[]> = {
       core: [],
       lang: ["@catspec/core"],
       "lang-typescript": ["@catspec/core", "@catspec/lang"],
       "lang-csharp": ["@catspec/core", "@catspec/lang"],
-      cli: ["@catspec/core", "@catspec/lang", "@catspec/lang-typescript", "@catspec/lang-csharp"],
-      mcp: ["@catspec/core", "@catspec/lang", "@catspec/lang-typescript", "@catspec/lang-csharp"],
+      // cli starts the MCP server (`catspec mcp`) and injects the engine into it (ADR-024).
+      cli: [
+        "@catspec/core",
+        "@catspec/lang",
+        "@catspec/lang-typescript",
+        "@catspec/lang-csharp",
+        "@catspec/mcp",
+      ],
+      mcp: ["@catspec/core"],
       catspec: PACKAGES.map(([, name]) => name).filter((name) => name !== "catspec"),
     };
     const workspaceNames = new Set<string>(PACKAGES.map(([, name]) => name));
