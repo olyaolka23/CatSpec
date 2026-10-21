@@ -17,6 +17,12 @@ rules:
     forbid_import:
       from: "packages/lang*/**"
       to: ["@catspec/cli", "@catspec/mcp"]
+  - id: mcp-gets-adapters-injected
+    adr: ADR-024
+    class: structural
+    forbid_import:
+      from: "packages/mcp/src/**"
+      to: ["web-tree-sitter", "@catspec/lang", "@catspec/lang-*", "@catspec/cli"]
   - id: no-shell-in-git-access
     adr: ADR-009
     class: structural
@@ -65,7 +71,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-003: Rules operate on normalised facts; dependency direction `core ← lang ← lang-* ← cli/mcp`
 
-- **Status:** Accepted · **Date:** 2026-10-09
+- **Status:** Accepted; the place of `mcp` is amended by ADR-024 · **Date:** 2026-10-09
 - **Context:** The rule engine must be language-agnostic and testable without grammars.
 - **Decision:** Adapters convert syntax trees into `FileFacts`. `core` defines the
   `LanguageAdapter` and `FileFacts` types and never imports Tree-sitter or any adapter.
@@ -319,3 +325,20 @@ reasoning for ADR-002…ADR-012 is in
   the published package. The build was checked to load in `web-tree-sitter` 0.25.10 (ADR-021).
 - **Consequences:** No native builds. Upgrading the C# grammar is a change to that pin and the
   adapter version. Replacing it with our own build needs a new ADR.
+
+## ADR-024: MCP server on the MCP SDK v2; `cli` serves it and injects the engine
+
+- **Status:** Accepted · **Date:** 2026-10-21 · **Amends:** ADR-003 · **Ref:** ADR-019, plan §D14, PBI `mcp-server-core`
+- **Context:** F7 adds `catspec mcp`. ADR-019 requires an ADR for each new runtime dependency.
+  Plan §D14 names `@modelcontextprotocol/sdk`; its v2 successor `@modelcontextprotocol/server`
+  pulls in only `@modelcontextprotocol/core` and `zod` (v1 pulls in express, hono, jose and cors)
+  and serves both 2025-era clients and the current protocol. ADR-003 has `cli` and `mcp` each
+  inject the adapters, but the git side of `sync` and `refactor` (F6) lives in `cli`, and
+  `catspec mcp` is a `cli` command.
+- **Decision:** `@catspec/mcp` depends on `@catspec/core`, `@modelcontextprotocol/server` (v2)
+  and `zod` (v4) only. `@catspec/cli` depends on `@catspec/mcp`: `catspec mcp` creates the server
+  and injects an `Engine` (adapters, codebase loading, the git side of `sync` and `refactor`, diff
+  and graph output). `@modelcontextprotocol/client` is a devDependency, for tests only.
+- **Consequences:** The MCP server reuses the CLI's code instead of duplicating it, and stays free
+  of Tree-sitter and the adapters. Enforced by the rule `mcp-gets-adapters-injected` above and by
+  `test/monorepo.test.ts`. Changing the MCP SDK's major version needs a new ADR.
