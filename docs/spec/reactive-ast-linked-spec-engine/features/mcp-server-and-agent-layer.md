@@ -13,7 +13,7 @@ agent from ending its turn while the work it's doing still fails its checks, and
 
 ## Requirements covered
 
-analysis C8; F-13, F-18 · plan §D14 · ADR-008, ADR-016.
+analysis C8; F-13, F-18 · plan §D14 · ADR-008, ADR-016, ADR-024.
 
 ## Acceptance criteria
 
@@ -59,7 +59,7 @@ Feature: F7 mcp-server-and-agent-layer
 The MCP server process: stdio transport, a warm engine between calls, and a strict repository boundary.
 - depends on: `refactor-mode`
 - refs: §D14
-- [ ] `@catspec/mcp` on `@modelcontextprotocol/sdk` (stdio); `catspec mcp`
+- [ ] `@catspec/mcp` on `@modelcontextprotocol/server`, v2 of the MCP SDK (stdio, ADR-024); `catspec mcp`
 - [ ] warm engine between calls; config / spec reload on change; repo-root path guard
 
 ```gherkin
@@ -67,7 +67,7 @@ The MCP server process: stdio transport, a warm engine between calls, and a stri
   Scenario: Paths outside the repository are refused
     Given the MCP server running in /repo
     When a tool is called with file_path "../../etc/passwd"
-    Then a protocol error is returned and nothing is read
+    Then an error result is returned and nothing is read
 
   @AC-mcp-server-core-2
   Scenario: Edited specs are picked up
@@ -82,7 +82,7 @@ The tools agents call: context, compliance checks, dependencies, safe spec edits
 - refs: §D14.1, ADR-008
 - [ ] `list_specs`, `get_spec_context`, `check_compliance`, `find_specs_for_file`, `check_dependencies`
 - [ ] `update_spec_bindings` (`dry_run` default; contract edits only proposed unless `mcp.allow_contract_edits`)
-- [ ] `set_spec_status` (refuses `implemented` while contracts fail); `start_refactor`, `sync_specs`
+- [ ] `set_spec_status` (refuses `implemented` while contracts fail, and lowering a status, `deprecated` or the architecture spec); `start_refactor`, `sync_specs`
 - [ ] text + `structuredContent` outputs; diagnostics are results, not protocol errors
 
 ```gherkin
@@ -179,6 +179,7 @@ Read-only resources (spec, architecture, graph, last diagnostics) and ready-made
 
 ## PBI `claude-code-validation`
 A real end-to-end run with Claude Code, recorded as evidence that the agent workflow works.
+Runs after F8, which adds the stage commands the scenario uses.
 - depends on: `agent-setup`, `mcp-resources-and-prompts`
 - refs: §D14.3
 - [ ] run the `AuthService` user journey with Claude Code on the TS fixture

@@ -169,8 +169,17 @@ make sure it doesn't skip any.
 ### 1. Connect the MCP server
 
 ```bash
-claude mcp add catspec -- npx catspec mcp      # Claude Code; other clients: add the same command
+claude mcp add catspec -- npx catspec mcp      # Claude Code, from the repository folder
 ```
+
+Other clients start the same command. Give the repository with `--cwd`, since they don't start it
+in the project folder:
+
+| Client | Config file | Entry under `mcpServers` |
+|---|---|---|
+| Claude Desktop | `claude_desktop_config.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "/path/to/repo", "mcp"] }` |
+| Cursor | `.cursor/mcp.json` in the repository | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "${workspaceFolder}", "mcp"] }` |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "/path/to/repo", "mcp"] }` |
 
 The agent gets tools such as `get_spec_context`, `check_compliance`, `next_step`,
 `start_stage` and `finish_stage`.
@@ -208,7 +217,7 @@ Agents usually follow instructions, but not always. Two hooks close the gap:
 {
   "hooks": {
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "npx catspec check --in-progress --format agent" } ] }
+      { "hooks": [ { "type": "command", "command": "npx catspec --cwd \"$CLAUDE_PROJECT_DIR\" check --in-progress --format agent" } ] }
     ]
   }
 }
