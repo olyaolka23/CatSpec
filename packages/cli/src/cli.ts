@@ -3,7 +3,8 @@
  * `check-command`, `staged-check`, `lock-files`, `drift-and-accept` and `hook-installer`: `init`,
  * `check`, `status`, `coverage`, `list`, `show`, `graph`, `baseline`, `accept`, `install-hooks`
  * and `uninstall-hooks`; F6 (`sync-command`, `bind-command`, `refactor-mode`): `sync`, `bind` and
- * `refactor`.
+ * `refactor`; F7 (`agent-check-mode`, `agent-setup`, `mcp-server-core`): `check --in-progress
+ * --format agent`, `init --agents` and `mcp`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
@@ -40,8 +41,22 @@ import {
   type SpecModel,
   type SpecStatus,
 } from "@catspec/core";
+import { serveMcp } from "@catspec/mcp";
 import { Argument, Command, CommanderError, Option } from "commander";
 
+import {
+  AGENT_EXIT,
+  agentFixList,
+  clearStops,
+  DEFAULT_MAX_BLOCKS,
+  diagnosticsFingerprint,
+  branchInProgressSpecs,
+  parseHookInput,
+  recordFailedStop,
+  stuckMessage,
+  type HookInput,
+} from "./agent-check.js";
+import { AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
 import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 import { formatDiff } from "./diff.js";
@@ -56,6 +71,7 @@ import {
   type HookResult,
 } from "./hooks.js";
 import { initRepository } from "./init.js";
+import { cliEngine } from "./mcp-engine.js";
 import { writeLocks } from "./locks.js";
 import {
   COLORS,
@@ -80,8 +96,8 @@ import {
   startRefactor,
   SyncUsageError,
   type AppliedSync,
-  type SyncRun,
 } from "./sync.js";
+import { syncJson, syncText } from "./sync-report.js";
 
 export interface CliIo {
   /** Folder the command runs in (before `--cwd`). */
@@ -89,6 +105,8 @@ export interface CliIo {
   stdout: { write(text: string): unknown; isTTY?: boolean };
   stderr: { write(text: string): unknown };
   env: Record<string, string | undefined>;
+  /** Reads standard input (the hook input of `check --format agent`); "" when there is none. */
+  stdin: () => Promise<string>;
 }
 
 /** A usage error: wrong arguments or an unknown spec id (exit code 2). */
@@ -111,9 +129,14 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
     env: io.env ?? process.env,
+    stdin: io.stdin ?? readProcessStdin,
   };
   let exitCode: number = EXIT.ok;
   let verbose = false;
+  /** `check --format agent`: exit codes follow the Claude Code hook convention instead. */
+  const agentFormat = argv.some(
+    (arg, i) => arg === "--format=agent" || (arg === "--format" && argv[i + 1] === "agent"),
+  );
   // Git runs with this process's environment plus the overrides given in `io.env`.
   const gitEnv = out.env === process.env ? undefined : { ...process.env, ...out.env };
 
@@ -167,29 +190,48 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       "name of the ADR log (<name>-adr.md); default: the repository folder name",
     )
     .option("--hooks", "also install the pre-commit hook (see install-hooks)")
-    .action(async (options: { name?: string; hooks?: boolean }, command: Command) => {
-      const opts = globals(command);
-      const cwd = workingDirectory(out.cwd, opts.cwd);
-      const root = findGitRoot(cwd) ?? cwd;
-      const result = await initRepository(
-        root,
-        options.name === undefined ? {} : { name: options.name },
-      );
-      const style = styleFor(opts, out);
-      if (!opts.quiet) {
-        const lines = [
-          ...result.created.map((f) => `${style.green("created")} ${f}`),
-          ...result.skipped.map((s) => `${style.yellow("skipped")} ${s.file} (${s.reason})`),
-          "",
-          "Next: describe a feature in docs/spec/<feature>/ and run `catspec check --specs-only`.",
-        ];
-        out.stdout.write(`${lines.join("\n")}\n`);
-      }
-      if (options.hooks) {
-        const hook = await installHooks(await repositoryGit(command, "init --hooks"));
-        if (!opts.quiet) out.stdout.write(hookReport(hook, style));
-      }
-    });
+    .option(
+      "--agents",
+      "also add the CatSpec workflow block to AGENTS.md and the Claude Code Stop hook to " +
+        ".claude/settings.json (existing content is kept)",
+    )
+    .action(
+      async (options: { name?: string; hooks?: boolean; agents?: boolean }, command: Command) => {
+        const opts = globals(command);
+        const cwd = workingDirectory(out.cwd, opts.cwd);
+        const root = findGitRoot(cwd) ?? cwd;
+        const result = await initRepository(
+          root,
+          options.name === undefined ? {} : { name: options.name },
+        );
+        const style = styleFor(opts, out);
+        if (!opts.quiet) {
+          const lines = [
+            ...result.created.map((f) => `${style.green("created")} ${f}`),
+            ...result.skipped.map((s) => `${style.yellow("skipped")} ${s.file} (${s.reason})`),
+            "",
+            "Next: describe a feature in docs/spec/<feature>/ and run `catspec check --specs-only`.",
+          ];
+          out.stdout.write(`${lines.join("\n")}\n`);
+        }
+        if (options.hooks) {
+          const hook = await installHooks(await repositoryGit(command, "init --hooks"));
+          if (!opts.quiet) out.stdout.write(hookReport(hook, style));
+        }
+        if (options.agents) {
+          const agents = await setupAgents(root);
+          if (!opts.quiet) {
+            const lines = agents.changes.map((c) =>
+              c.action === "unchanged"
+                ? `${style.dim("unchanged")} ${c.file}`
+                : `${style.green(c.action)} ${c.file}`,
+            );
+            lines.push(`Next: connect the MCP server, e.g. \`${CLAUDE_MCP_COMMAND}\`.`);
+            out.stdout.write(`${lines.join("\n")}\n`);
+          }
+        }
+      },
+    );
 
   program
     .command("check")
@@ -212,7 +254,16 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       "check the commit being made (the pre-commit hook): read the git index, check only the " +
         "specs it touches, then update their lock files",
     )
-    .addOption(formatOption(["text", "json"], "text"))
+    .option(
+      "--in-progress",
+      "check only the specs put in progress on this branch (in-progress now, not where it " +
+        "left the default branch) as if implemented; nothing to check when there are none",
+    )
+    .option(
+      "--max-blocks <n>",
+      `with --format agent: let the agent stop after this many blocks in a row with the same failures (default ${DEFAULT_MAX_BLOCKS})`,
+    )
+    .addOption(formatOption(["text", "json", "agent"], "text"))
     .action(
       async (
         paths: string[],
@@ -221,20 +272,47 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           spec?: string[];
           runTests?: boolean;
           staged?: boolean;
-          format: "text" | "json";
+          inProgress?: boolean;
+          maxBlocks?: string;
+          format: "text" | "json" | "agent";
         },
         command: Command,
       ) => {
         const started = performance.now();
+        if (options.maxBlocks !== undefined && options.format !== "agent") {
+          throw new UsageError("--max-blocks needs --format agent");
+        }
+        if (options.inProgress && (options.spec || options.specsOnly || options.staged)) {
+          throw new UsageError("--in-progress can't be used with --spec, --specs-only or --staged");
+        }
+        if (options.format === "agent" && (options.specsOnly || options.staged)) {
+          throw new UsageError("--format agent can't be used with --specs-only or --staged");
+        }
         if (options.staged) {
           if (options.specsOnly || options.spec || options.runTests) {
             throw new UsageError("--staged can't be used with --specs-only, --spec or --run-tests");
           }
-          exitCode = await stagedCheck(command, paths, options.format, started);
+          exitCode = await stagedCheck(command, paths, options.format as "text" | "json", started);
           return;
         }
+        const maxBlocks = parseMaxBlocks(options.maxBlocks);
+        const hookInput =
+          options.format === "agent" ? parseHookInput(await out.stdin()) : undefined;
         const { model, style, opts } = await load(command);
         for (const id of options.spec ?? []) findSpec(model, id);
+        if (options.inProgress) {
+          const working = (await branchInProgressSpecs(model, gitEnv)).map((s) => s.id);
+          if (working.length === 0) {
+            if (options.format === "json") {
+              out.stdout.write(formatJson([], 0, { items: [], done: true }));
+            } else if (!opts.quiet) {
+              out.stdout.write("no spec is in progress on this branch; nothing to check\n");
+            }
+            if (hookInput) await clearStops(model.root, hookSession(hookInput));
+            return;
+          }
+          options.spec = working;
+        }
         if (options.specsOnly && options.runTests) {
           throw new UsageError("--run-tests can't be used with --specs-only");
         }
@@ -273,6 +351,13 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           diagnostics = diagnostics.filter((d) => inPaths(d, paths, cwd, model.root));
         }
 
+        if (options.format === "agent") {
+          exitCode = await agentResult(model.root, checked, items, diagnostics, {
+            maxBlocks,
+            ...(hookInput ? { hookInput } : {}),
+          });
+          return;
+        }
         if (options.format === "json") {
           out.stdout.write(
             formatJson(
@@ -510,6 +595,42 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       if (!globals(command).quiet)
         out.stdout.write(hookReport(result, styleFor(globals(command), out)));
     });
+
+  /**
+   * `check --format agent`: DONE on stdout (exit 0), or the fix list on stderr (exit 2) unless loop
+   * protection lets a stuck agent go, which the user is told about (exit 0).
+   */
+  const agentResult = async (
+    root: string,
+    specs: Spec[],
+    items: ItemResult[],
+    diagnostics: Diagnostic[],
+    options: { maxBlocks: number; hookInput?: HookInput },
+  ): Promise<number> => {
+    const session = options.hookInput ? hookSession(options.hookInput) : undefined;
+    if (exitCodeFor(diagnostics) === EXIT.ok) {
+      if (session !== undefined) await clearStops(root, session);
+      out.stdout.write(`CatSpec: DONE (${specs.map((s) => s.id).join(", ") || "no specs"})\n`);
+      return AGENT_EXIT.done;
+    }
+    if (session !== undefined) {
+      const decision = await recordFailedStop(
+        root,
+        session,
+        diagnosticsFingerprint(diagnostics),
+        options.maxBlocks,
+      );
+      if (decision.stuck) {
+        const message = stuckMessage(specs, decision.blocks);
+        // Claude Code shows `systemMessage` to the user; the agent is not blocked.
+        out.stdout.write(`${JSON.stringify({ systemMessage: message })}\n`);
+        out.stderr.write(`${message}\n`);
+        return AGENT_EXIT.done;
+      }
+    }
+    out.stderr.write(agentFixList({ specs, items, diagnostics }));
+    return AGENT_EXIT.blocked;
+  };
 
   /** `check --staged`: the hook. Returns the exit code. */
   const stagedCheck = async (
@@ -855,6 +976,23 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     });
 
   program
+    .command("mcp")
+    .description(
+      "start the MCP server on stdio, for AI agents: tools to read specs, check code against " +
+        "them and change spec locations (e.g. `claude mcp add catspec -- npx catspec mcp`)",
+    )
+    .action(async (_options: unknown, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const { root, file } = await loadConfig(cwd, opts.config);
+      await serveMcp({
+        root,
+        ...(opts.config !== undefined && file ? { configFile: file } : {}),
+        engine: cliEngine(gitEnv),
+      });
+    });
+
+  program
     .command("show-facts", { hidden: true })
     .description("debug: print the facts CatSpec extracts from a source file, as JSON")
     .argument("<file>", "source file")
@@ -887,53 +1025,101 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     await program.parseAsync([...argv], { from: "user" });
     return exitCode;
   } catch (error) {
-    if (error instanceof CommanderError) {
-      return error.exitCode === 0 ? EXIT.ok : EXIT.usage;
+    // In agent format every error is shown to the user without blocking the agent (exit 1).
+    if (agentFormat) {
+      const code = errorExit(error, out, verbose);
+      return code === EXIT.ok ? AGENT_EXIT.done : AGENT_EXIT.error;
     }
-    if (error instanceof ConfigError) {
-      for (const issue of error.issues) {
-        const allowed =
-          issue.allowed && !issue.message.includes("allowed:")
-            ? ` (allowed: ${issue.allowed.join(", ")})`
-            : "";
-        out.stderr.write(
-          `catspec: ${issue.file}:${issue.line}:${issue.column}: ${issue.message}${allowed}\n`,
-        );
-      }
-      return EXIT.usage;
-    }
-    if (error instanceof GitUnavailableError) {
-      out.stdout.write(
-        formatText(
-          [
-            createDiagnostic("CS0902", {
-              message:
-                "git is required for this command, but it can't be run: it isn't installed or isn't on PATH",
-              suggestions: [{ message: "install git, or add it to PATH" }],
-            }),
-          ],
-          { style: styleFor({ color: true }, out) },
-        ),
-      );
-      return EXIT.errors;
-    }
-    if (error instanceof HookRefusedError) {
-      out.stderr.write(`catspec: ${error.message}\n`);
-      return EXIT.errors;
-    }
-    if (
-      error instanceof UsageError ||
-      error instanceof SpecEditError ||
-      error instanceof SyncUsageError
-    ) {
-      out.stderr.write(`catspec: ${error.message}\n`);
-      return EXIT.usage;
-    }
-    const err = error instanceof Error ? error : new Error(String(error));
-    out.stderr.write(`catspec: internal error: ${err.message}\n`);
-    if (verbose && err.stack) out.stderr.write(`${err.stack}\n`);
-    return EXIT.internal;
+    return errorExit(error, out, verbose);
   }
+}
+
+/** Reports an error of a command and returns its exit code. */
+function errorExit(error: unknown, out: CliIo, verbose: boolean): number {
+  if (error instanceof CommanderError) {
+    return error.exitCode === 0 ? EXIT.ok : EXIT.usage;
+  }
+  if (error instanceof ConfigError) {
+    for (const issue of error.issues) {
+      const allowed =
+        issue.allowed && !issue.message.includes("allowed:")
+          ? ` (allowed: ${issue.allowed.join(", ")})`
+          : "";
+      out.stderr.write(
+        `catspec: ${issue.file}:${issue.line}:${issue.column}: ${issue.message}${allowed}\n`,
+      );
+    }
+    return EXIT.usage;
+  }
+  if (error instanceof GitUnavailableError) {
+    out.stdout.write(
+      formatText(
+        [
+          createDiagnostic("CS0902", {
+            message:
+              "git is required for this command, but it can't be run: it isn't installed or isn't on PATH",
+            suggestions: [{ message: "install git, or add it to PATH" }],
+          }),
+        ],
+        { style: styleFor({ color: true }, out) },
+      ),
+    );
+    return EXIT.errors;
+  }
+  if (error instanceof HookRefusedError || error instanceof AgentsSetupError) {
+    out.stderr.write(`catspec: ${error.message}\n`);
+    return EXIT.errors;
+  }
+  if (
+    error instanceof UsageError ||
+    error instanceof SpecEditError ||
+    error instanceof SyncUsageError
+  ) {
+    out.stderr.write(`catspec: ${error.message}\n`);
+    return EXIT.usage;
+  }
+  const err = error instanceof Error ? error : new Error(String(error));
+  out.stderr.write(`catspec: internal error: ${err.message}\n`);
+  if (verbose && err.stack) out.stderr.write(`${err.stack}\n`);
+  return EXIT.internal;
+}
+
+/** Standard input of the process, when it is piped; at most a short wait for a stalled pipe. */
+async function readProcessStdin(): Promise<string> {
+  const stdin = process.stdin;
+  if (stdin.isTTY) return "";
+  return new Promise<string>((resolveText) => {
+    let text = "";
+    const done = (): void => {
+      clearTimeout(timer);
+      stdin.off("data", onData);
+      stdin.off("end", done);
+      stdin.off("error", done);
+      stdin.pause();
+      resolveText(text);
+    };
+    const onData = (chunk: Buffer | string): void => {
+      text += chunk.toString();
+    };
+    const timer = setTimeout(done, 2000);
+    timer.unref();
+    stdin.on("data", onData);
+    stdin.once("end", done);
+    stdin.once("error", done);
+  });
+}
+
+/** The agent session a hook input names; one shared counter without one. */
+const hookSession = (input: HookInput): string =>
+  typeof input.session_id === "string" && input.session_id !== "" ? input.session_id : "default";
+
+function parseMaxBlocks(value: string | undefined): number {
+  if (value === undefined) return DEFAULT_MAX_BLOCKS;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new UsageError(`--max-blocks: expected a whole number ≥ 0, got "${value}"`);
+  }
+  return n;
 }
 
 function hookReport(result: HookResult, style: Style): string {
@@ -1132,123 +1318,4 @@ function formatShow(view: ShowView, style: Style): string {
     lines.push("", formatText(view.diagnostics, { style }).trimEnd());
   }
   return `${lines.join("\n")}\n`;
-}
-
-interface SyncOutcome {
-  applied: AppliedSync | undefined;
-  refused: boolean;
-  ended: boolean;
-}
-
-const bindingsOf = (groups: { bindings: { spec: string; binding: string }[] }[]): number =>
-  groups.reduce((n, g) => n + g.bindings.length, 0);
-
-/** The `sync --format json` report. */
-function syncJson(run: SyncRun, outcome: SyncOutcome) {
-  const { mapped, ambiguous, lost } = run.plan.report;
-  const name = (resolved: string): string => resolved;
-  const target = (e: { file: { path: string }; symbol: { qualifiedName: string } }): string =>
-    `${e.file.path}#${e.symbol.qualifiedName}`;
-  return {
-    mapped: mapped.flatMap((m) =>
-      m.bindings.map((b) => ({
-        spec: b.spec,
-        binding: b.binding,
-        from: name(b.resolved),
-        to: target(m.target),
-        evidence: m.evidence,
-        ...(m.score !== undefined ? { score: m.score } : {}),
-        ...(m.detail ? { detail: m.detail } : {}),
-      })),
-    ),
-    ambiguous: ambiguous.flatMap((a) =>
-      a.bindings.map((b) => ({
-        spec: b.spec,
-        binding: b.binding,
-        from: name(b.resolved),
-        candidates: a.candidates.map((c) => ({ symbol: target(c.entry), score: c.score })),
-      })),
-    ),
-    lost: lost.flatMap((l) =>
-      l.bindings.map((b) => ({
-        spec: b.spec,
-        binding: b.binding,
-        from: name(b.resolved),
-        ...(l.best ? { best: { symbol: target(l.best.entry), score: l.best.score } } : {}),
-      })),
-    ),
-    edits: run.plan.edits.map((e) => ({ file: e.spec.file, ops: e.ops })),
-    diagnostics: run.plan.diagnostics,
-    applied: outcome.applied !== undefined,
-    refused: outcome.refused,
-    written: outcome.applied?.written ?? [],
-    staged: outcome.applied?.staged ?? [],
-    refactor: run.refactor
-      ? { active: !outcome.ended, ended: outcome.ended }
-      : { active: false, ended: false },
-  };
-}
-
-/** The `sync` text report: the diagnostics, the diff of every edit, and what happened. */
-function syncText(
-  run: SyncRun,
-  outcome: SyncOutcome & {
-    apply: boolean;
-    partial: boolean;
-    style: Style;
-    quiet: boolean;
-    verbose: boolean;
-  },
-): string {
-  const { style } = outcome;
-  const { report, edits, diagnostics } = run.plan;
-  const parts: string[] = [];
-  if (diagnostics.length > 0) {
-    parts.push(formatText(diagnostics, { style, quiet: outcome.quiet, verbose: outcome.verbose }));
-  }
-  if (!outcome.quiet)
-    for (const edit of edits)
-      parts.push(formatDiff(edit.spec.file, edit.spec.source.text, edit.text, style));
-  const counts =
-    `${bindingsOf(report.mapped)} mapped, ${bindingsOf(report.ambiguous)} ambiguous, ` +
-    `${bindingsOf(report.lost)} lost` +
-    (run.refactor ? ` (refactor from ${run.refactor.revision.slice(0, 12)})` : "");
-  const lines: string[] = [];
-  if (run.broken.length === 0 && edits.length === 0) {
-    lines.push(
-      run.refactor
-        ? "every binding of the refactor resolves; nothing to sync"
-        : "every binding resolves; nothing to sync",
-    );
-    if (outcome.apply && run.refactor && outcome.ended)
-      lines.push(style.green("the refactor is finished"));
-  } else if (!outcome.apply) {
-    lines.push(
-      `${counts}; dry run: no file was changed${edits.length > 0 ? "; run `catspec sync --apply` to write the edits" : ""}`,
-    );
-  } else if (outcome.refused) {
-    lines.push(
-      `${counts}; ${style.red("nothing written")}: name the ambiguous and lost bindings in a rename map (--map), restore the code or change the specs; --partial writes the mapped part` +
-        (run.refactor ? " (the refactor stays open)" : ""),
-    );
-  } else {
-    const applied = outcome.applied!;
-    const unstaged = applied.written.filter((f) => !applied.staged.includes(f));
-    lines.push(
-      `${counts}; ${style.green("wrote")} ${applied.written.length > 0 ? applied.written.join(", ") : "nothing"}` +
-        (applied.staged.length > 0
-          ? `; staged ${applied.staged.length === applied.written.length ? "them" : applied.staged.join(", ")}`
-          : "") +
-        (unstaged.length > 0 ? `; not staged (unstaged changes): ${unstaged.join(", ")}` : ""),
-    );
-    if (run.refactor) {
-      lines.push(
-        outcome.ended
-          ? `${style.green("the refactor is finished")}: commit the code, specs and lock files together`
-          : "the refactor stays open: map the rest, then run `catspec sync --apply` again",
-      );
-    }
-  }
-  parts.push(`${lines.join("\n")}\n`);
-  return parts.join("");
 }

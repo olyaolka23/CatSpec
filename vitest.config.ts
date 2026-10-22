@@ -13,6 +13,10 @@ export default defineConfig({
   test: {
     include: ["packages/*/test/**/*.test.ts", "scripts/**/*.test.ts", "test/**/*.test.ts"],
     globalSetup: ["test/global-setup.ts"],
+    // `eventsource`, which the MCP client of the tests imports, publishes its TypeScript sources
+    // under the `source` condition too, and Node can't strip types under node_modules: Vite
+    // transforms the client and it instead.
+    server: { deps: { inline: ["@modelcontextprotocol/client", "eventsource"] } },
     // Setting reporters turns off Vitest's automatic GitHub Actions reporter, so add it back.
     reporters: [
       "default",

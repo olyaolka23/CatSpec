@@ -578,12 +578,12 @@ Text output example:
 | `@catspec/lang` | Tree-sitter (WASM) loader, query runner, symbol normaliser, parse cache | core, `web-tree-sitter` |
 | `@catspec/lang-typescript` | TS/TSX adapter + `.scm` queries + grammar WASM | `@catspec/lang` |
 | `@catspec/lang-csharp` | C# adapter | `@catspec/lang` |
-| `@catspec/cli` | `catspec` binary, reporters | core, lang-* |
-| `@catspec/mcp` | MCP server | core, lang-*, `@modelcontextprotocol/sdk` |
+| `@catspec/cli` | `catspec` binary, reporters; serves `catspec mcp` | core, lang-*, mcp |
+| `@catspec/mcp` | MCP server | core, `@modelcontextprotocol/server` (v2), `zod` |
 
-Dependency direction: `core ← lang ← lang-* ← cli / mcp`. `core` never imports
-Tree-sitter or any adapter; `cli` and `mcp` inject the adapters into the engine
-(ADR-003 in this repo's `docs/architecture/adr/reactive-ast-adr.md`).
+Dependency direction: `core ← lang ← lang-* ← cli` and `core ← mcp ← cli`. `core` never imports
+Tree-sitter or any adapter; `cli` injects the adapters into the engine, and into the MCP server
+when it runs `catspec mcp` (ADR-003 and ADR-024 in this repo's `docs/architecture/adr/reactive-ast-adr.md`).
 
 `catspec` (unscoped) is the meta-package that installs CLI + MCP + default adapters,
 so `npx catspec init` works. WASM grammars avoid native build failures (decision: portability over raw speed).
@@ -858,9 +858,9 @@ exec npx --no-install catspec check --staged --format text
 
 ## D14. MCP server (`catspec mcp`, stdio)
 
-Built on `@modelcontextprotocol/sdk`. Every tool returns both a short text summary
-and `structuredContent` (JSON) with diagnostics. Paths are resolved against the repo
-root; anything outside → error.
+Built on `@modelcontextprotocol/server`, v2 of the MCP SDK (ADR-024). Every tool returns both a
+short text summary and `structuredContent` (JSON) with diagnostics. Paths are resolved against the
+repo root; anything outside → error.
 
 ### D14.1 Tools
 
@@ -915,7 +915,7 @@ the block. The markers let `init --agents` update the block without touching the
 {
   "hooks": {
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "npx catspec check --in-progress --format agent" } ] }
+      { "hooks": [ { "type": "command", "command": "npx catspec --cwd \"$CLAUDE_PROJECT_DIR\" check --in-progress --format agent" } ] }
     ]
   }
 }
@@ -932,6 +932,34 @@ the block. The markers let `init --agents` update the block without touching the
 
 **MCP.** `claude mcp add catspec -- npx catspec mcp` (or the equivalent client config) lets the agent
 run the same steps as tools (`start_stage`, `check_compliance`, `finish_stage`) instead of shell commands.
+
+Implementation notes (F7):
+- A path outside the repository comes back as an error result (`isError: true`); the SDK reports
+  every error a tool throws that way, not as a JSON-RPC error. Each result also repeats its
+  `structuredContent` as JSON in a second text item, for clients that pass only the text to the model.
+- `next_step`, `start_stage` and `finish_stage` come with the stage commands (F8). Until then the
+  `AGENTS.md` block uses `catspec status <id> in-progress`, `catspec check --spec <id>` and
+  `catspec status <id> implemented`.
+- `update_spec_bindings` takes an object keyed by binding id: each value is a JSON merge patch of
+  that binding, `null` removes it and a new id adds one. Edits are classified by ADR-008; a result
+  that isn't a valid spec is refused.
+- `check_compliance`: `spec_id` checks that spec as if implemented (like `check --spec`);
+  `file_path` checks the `in-progress` and `implemented` specs that bind or scope the file, as if
+  implemented; neither checks the repository by status. `staged` reads the config, the specs and
+  the code from the git index, like `check --staged`.
+- `set_spec_status` only moves a spec forward: lowering a status, `deprecated` and any change to the
+  architecture spec are refused and left to the developer. Links must be non-empty.
+- `get_spec_context` lists the architecture rules whose `paths` (and, for import rules, `from`)
+  match the spec's files: where its bindings resolved, their `file` hints and its `scope`.
+- `--in-progress` checks the specs that are `in-progress` in the working tree but not at the merge
+  base with the default branch (`origin/HEAD`, else `main` or `master`), so work left in progress
+  on another branch doesn't block the agent. Without git or a default branch, every `in-progress` spec.
+- The `Stop` hook passes `--cwd "$CLAUDE_PROJECT_DIR"`, so it finds the project from any folder.
+- Loop protection counts per Claude Code `session_id`, in `<git-common-dir>/catspec/agent-stop.json`
+  (a temp folder outside git). The stop after `--max-blocks` identical blocks is let through with a
+  `systemMessage` to the user, and the count restarts.
+- When no member name is close, CS0203 suggests the declaration's only unclaimed member of the same
+  kind, but only when that is the only missing required member of its kind.
 
 ---
 

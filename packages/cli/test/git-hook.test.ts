@@ -513,6 +513,26 @@ describe("hook installer and staged check details", { timeout: HOOK_TIMEOUT }, (
     });
   });
 
+  it("a git whose cat-file process died starts a new one on the next read", async () => {
+    await withRepo(async (repo) => {
+      await repo.write({ "a.ts": "export const a = 1;\n" });
+      repo.git("add", "a.ts");
+      const git = new Git(repo.dir);
+      try {
+        const index = new IndexProvider(git);
+        expect((await index.read("a.ts"))?.toString("utf8")).toContain("a = 1");
+        const batch = (
+          git as unknown as { batch: { child: { kill(): void }; close(): Promise<void> } }
+        ).batch;
+        batch.child.kill();
+        await batch.close();
+        expect((await index.read("a.ts"))?.toString("utf8")).toContain("a = 1");
+      } finally {
+        await git.close();
+      }
+    });
+  });
+
   it("CATSPEC_SKIP=1 skips the staged check, and the next run warns about it", async () => {
     await withRepo(async (repo) => {
       await authRepo(repo, "implemented", authCode(LOGOUT));

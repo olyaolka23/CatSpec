@@ -91,6 +91,37 @@ describe("F3 rule-engine-and-check", () => {
     expect(stdout).toContain("did you mean checkToken? (src/auth/AuthService.ts:6:3)");
   });
 
+  it("suggests the single other member of a kind only when one member of that kind is missing", async () => {
+    const spec = (members: string): string =>
+      specText("session", {
+        status: "implemented",
+        extra: `bindings:
+  - id: session
+    symbol: Session
+    kind: class
+    file: src/Session.ts
+    members:
+${members}`,
+      });
+    const code = "export class Session {\n  dispose(): void {}\n}\n";
+    const one = await repo({
+      "docs/spec/session/session.spec.md": spec("      - name: login\n        kind: method\n"),
+      "src/Session.ts": code,
+    });
+    expect((await catspec(one, "check")).stdout).toContain("did you mean dispose?");
+
+    const two = await repo({
+      "docs/spec/session/session.spec.md": spec(
+        "      - name: login\n        kind: method\n      - name: logout\n        kind: method\n",
+      ),
+      "src/Session.ts": code,
+    });
+    const { code: exit, stdout } = await catspec(two, "check");
+    expect(exit).toBe(1);
+    expect(stdout).toContain("CS0203 member login missing");
+    expect(stdout).not.toContain("did you mean dispose");
+  });
+
   it("[AC-F3-2] reports CS0603 with the importing file and line for an architecture rule (spec AC-6)", async () => {
     const dir = await repo({
       [ADR_LOG]: adrLogText(

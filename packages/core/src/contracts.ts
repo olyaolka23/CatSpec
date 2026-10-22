@@ -262,6 +262,14 @@ export function evaluateContract(
 
   // Members.
   const claimed = new Set(binding.members.map((m) => m.name));
+  // Required members with no declaration of their name, by kind: the fallback suggestion below
+  // is only safe when a single one of a kind is missing.
+  const missingByKind = new Map<string | undefined, number>();
+  for (const m of binding.members) {
+    if (m.optional || m.kind === "constructor") continue;
+    if (symbol.members.some((c) => c.name === m.name && c.kind !== "constructor")) continue;
+    missingByKind.set(m.kind, (missingByKind.get(m.kind) ?? 0) + 1);
+  }
   binding.members.forEach((member, i) => {
     const memberItem = `binding:${binding.id}.${member.name}`;
     const path = ["members", i];
@@ -272,7 +280,7 @@ export function evaluateContract(
     );
     if (candidates.length === 0) {
       if (member.optional) return;
-      const close = closeMembers(member, symbol, claimed);
+      const close = closeMembers(member, symbol, claimed, missingByKind.get(member.kind) === 1);
       report(
         "CS0203",
         path,
@@ -436,7 +444,12 @@ function hasModifier(symbol: SymbolFact, modifier: string, lang: string): boolea
  * required by another entry: by edit distance, else by a shared word (`checkToken` for
  * `validateToken`).
  */
-function closeMembers(member: Member, symbol: SymbolFact, claimed: Set<string>): SymbolFact[] {
+function closeMembers(
+  member: Member,
+  symbol: SymbolFact,
+  claimed: Set<string>,
+  onlyMissingOfKind: boolean,
+): SymbolFact[] {
   const candidates = symbol.members.filter(
     (m) =>
       m.kind !== "constructor" &&
@@ -458,6 +471,13 @@ function closeMembers(member: Member, symbol: SymbolFact, claimed: Set<string>):
           editDistance(member.name.toLowerCase(), b.toLowerCase()),
       )
       .slice(0, 3);
+  }
+  // No similar name: when this is the only missing member of its kind and the declaration has a
+  // single unclaimed member of that kind, that one is most likely meant (`login` written as
+  // `signIn`).
+  if (names.length === 0 && member.kind && onlyMissingOfKind) {
+    const sameKind = [...byName.values()].filter((m) => m.kind === member.kind);
+    if (sameKind.length === 1) names = [sameKind[0]!.name];
   }
   return names.map((n) => byName.get(n)!);
 }

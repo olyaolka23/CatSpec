@@ -91,6 +91,11 @@ class CatFileBatch {
     this.child.stdin.on("error", () => undefined);
   }
 
+  /** True once the process has failed or exited; every later read would fail. */
+  get failed(): boolean {
+    return this.failure !== undefined;
+  }
+
   /** The content of a blob, or undefined when the object doesn't exist. */
   read(sha: string): Promise<Buffer | undefined> {
     if (this.failure) return Promise.reject(this.failure);
@@ -303,7 +308,9 @@ export class Git {
 
   /** The content of a blob through the long-lived `cat-file --batch`; undefined if missing. */
   readBlob(sha: string): Promise<Buffer | undefined> {
-    this.batch ??= new CatFileBatch(this.cwd, this.env);
+    // A batch that failed (its process exited or misbehaved) is replaced by a new one.
+    if (this.batch?.failed) void this.batch.close();
+    if (!this.batch || this.batch.failed) this.batch = new CatFileBatch(this.cwd, this.env);
     return this.batch.read(sha);
   }
 
