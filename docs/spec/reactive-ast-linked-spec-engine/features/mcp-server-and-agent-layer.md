@@ -59,8 +59,8 @@ Feature: F7 mcp-server-and-agent-layer
 The MCP server process: stdio transport, a warm engine between calls, and a strict repository boundary.
 - depends on: `refactor-mode`
 - refs: §D14
-- [ ] `@catspec/mcp` on `@modelcontextprotocol/server`, v2 of the MCP SDK (stdio, ADR-024); `catspec mcp`
-- [ ] warm engine between calls; config / spec reload on change; repo-root path guard
+- [x] `@catspec/mcp` on `@modelcontextprotocol/server`, v2 of the MCP SDK (stdio, ADR-024); `catspec mcp`
+- [x] warm engine between calls; config / spec reload on change; repo-root path guard
 
 ```gherkin
   @AC-mcp-server-core-1
@@ -80,10 +80,10 @@ The MCP server process: stdio transport, a warm engine between calls, and a stri
 The tools agents call: context, compliance checks, dependencies, safe spec edits, status and refactor.
 - depends on: `mcp-server-core`
 - refs: §D14.1, ADR-008
-- [ ] `list_specs`, `get_spec_context`, `check_compliance`, `find_specs_for_file`, `check_dependencies`
-- [ ] `update_spec_bindings` (`dry_run` default; contract edits only proposed unless `mcp.allow_contract_edits`)
-- [ ] `set_spec_status` (refuses `implemented` while contracts fail, and lowering a status, `deprecated` or the architecture spec); `start_refactor`, `sync_specs`
-- [ ] text + `structuredContent` outputs; diagnostics are results, not protocol errors
+- [x] `list_specs`, `get_spec_context`, `check_compliance`, `find_specs_for_file`, `check_dependencies`
+- [x] `update_spec_bindings` (`dry_run` default; contract edits only proposed unless `mcp.allow_contract_edits`)
+- [x] `set_spec_status` (refuses `implemented` while contracts fail, and lowering a status, `deprecated` or the architecture spec); `start_refactor`, `sync_specs`
+- [x] text + `structuredContent` outputs; diagnostics are results, not protocol errors
 
 ```gherkin
   @AC-mcp-tools-1
@@ -109,8 +109,8 @@ The tools agents call: context, compliance checks, dependencies, safe spec edits
 Read-only resources (spec, architecture, graph, last diagnostics) and ready-made prompts for agents.
 - depends on: `mcp-tools`
 - refs: §D14.2
-- [ ] resources `catspec://spec/{id}`, `catspec://architecture`, `catspec://graph`, `catspec://diagnostics`
-- [ ] prompts `implement-spec`, `fix-drift`
+- [x] resources `catspec://spec/{id}`, `catspec://architecture`, `catspec://graph`, `catspec://diagnostics`
+- [x] prompts `implement-spec`, `fix-drift`
 
 ```gherkin
   @AC-mcp-resources-and-prompts-1
@@ -124,9 +124,9 @@ Read-only resources (spec, architecture, graph, last diagnostics) and ready-made
 `check --in-progress --format agent`: the check made for agent hooks, with loop protection.
 - depends on: `check-command`
 - refs: §D10, §D14.3
-- [ ] `check --in-progress` (specs `in-progress` on the current branch; exit 0 when none)
-- [ ] `--format agent`: short fix list; exit 0 done / 2 not done / 1 error
-- [ ] loop protection: read the hook input from stdin, `--max-blocks` (default 3) with the same diagnostics, counter in the runtime store
+- [x] `check --in-progress` (specs `in-progress` on the current branch; exit 0 when none)
+- [x] `--format agent`: short fix list; exit 0 done / 2 not done / 1 error
+- [x] loop protection: read the hook input from stdin, `--max-blocks` (default 3) with the same diagnostics, counter in the runtime store
 
 ```gherkin
   @AC-agent-check-mode-1
@@ -152,9 +152,9 @@ Read-only resources (spec, architecture, graph, last diagnostics) and ready-made
 `catspec init --agents`: writes the agent instructions and the Claude Code hook, without touching anything else.
 - depends on: `agent-check-mode`, `mcp-tools`
 - refs: §D14.3, §D17.5
-- [ ] `AGENTS.md` block between `catspec:begin/end` markers (created or updated, rest untouched)
-- [ ] merge the Claude Code `Stop` hook into `.claude/settings.json` without losing existing hooks
-- [ ] docs: MCP setup for Claude Code (`claude mcp add catspec -- npx catspec mcp`), Claude Desktop, Cursor, Windsurf
+- [x] `AGENTS.md` block between `catspec:begin/end` markers (created or updated, rest untouched)
+- [x] merge the Claude Code `Stop` hook into `.claude/settings.json` without losing existing hooks
+- [x] docs: MCP setup for Claude Code (`claude mcp add catspec -- npx catspec mcp`), Claude Desktop, Cursor, Windsurf
 
 ```gherkin
   @AC-agent-setup-1
