@@ -4,12 +4,14 @@
  * `check`, `status`, `coverage`, `list`, `show`, `graph`, `baseline`, `accept`, `install-hooks`
  * and `uninstall-hooks`; F6 (`sync-command`, `bind-command`, `refactor-mode`): `sync`, `bind` and
  * `refactor`; F7 (`agent-check-mode`, `agent-setup`, `mcp-server-core`): `check --in-progress
- * --format agent`, `init --agents` and `mcp`.
+ * --format agent`, `init --agents` and `mcp`; F8 (`workflow-cli`, `workflow-presets`,
+ * `workflow-hook`): `next`, `stage start|finish`, `workflow show|doctor|snippet`, `init --preset`
+ * and the CS0703 re-check in `check --staged`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
 import { existsSync, statSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
@@ -19,24 +21,38 @@ import {
   ConfigError,
   coverage,
   createDiagnostic,
+  describeStage,
   didYouMean,
   findGitRoot,
+  formatNextStep,
+  formatStageRun,
   Git,
   GitError,
   GitUnavailableError,
   globMatcher,
+  hookWorkflowDiagnostics,
   lockPathOf,
   loadConfig,
   loadSpecModel,
   queryDiagnostics,
+  relativePosix,
   runTestCommand,
   sortDiagnostics,
   SPEC_STATUSES,
   SpecEditError,
+  stageLines,
+  stageSnippet,
   statusGate,
   toPosix,
+  Workflow,
+  workflowDoctor,
+  WorkflowError,
+  workflowProfile,
+  writeStage,
+  PRESETS,
   type Diagnostic,
   type ItemResult,
+  type PresetName,
   type Spec,
   type SpecModel,
   type SpecStatus,
@@ -56,7 +72,7 @@ import {
   stuckMessage,
   type HookInput,
 } from "./agent-check.js";
-import { AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
+import { agentsBlock, AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
 import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 import { formatDiff } from "./diff.js";
@@ -189,6 +205,12 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       "--name <name>",
       "name of the ADR log (<name>-adr.md); default: the repository folder name",
     )
+    .addOption(
+      new Option(
+        "--preset <preset>",
+        "the SDD workflow to gate (default: detected from openspec/, .specify/ or sdd-* skills, else catspec)",
+      ).choices(PRESETS),
+    )
     .option("--hooks", "also install the pre-commit hook (see install-hooks)")
     .option(
       "--agents",
@@ -196,17 +218,31 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
         ".claude/settings.json (existing content is kept)",
     )
     .action(
-      async (options: { name?: string; hooks?: boolean; agents?: boolean }, command: Command) => {
+      async (
+        options: {
+          name?: string;
+          preset?: PresetName;
+          hooks?: boolean;
+          agents?: boolean;
+        },
+        command: Command,
+      ) => {
         const opts = globals(command);
         const cwd = workingDirectory(out.cwd, opts.cwd);
         const root = findGitRoot(cwd) ?? cwd;
-        const result = await initRepository(
-          root,
-          options.name === undefined ? {} : { name: options.name },
-        );
+        const result = await initRepository(root, {
+          ...(options.name === undefined ? {} : { name: options.name }),
+          ...(options.preset === undefined ? {} : { preset: options.preset }),
+        });
         const style = styleFor(opts, out);
         if (!opts.quiet) {
           const lines = [
+            ...(result.detected
+              ? [
+                  `detected ${PRESET_SIGNS[result.preset]}: proposing workflow preset ${result.preset} ` +
+                    "(change workflow.preset in catspec.yaml, or run init with --preset)",
+                ]
+              : []),
             ...result.created.map((f) => `${style.green("created")} ${f}`),
             ...result.skipped.map((s) => `${style.yellow("skipped")} ${s.file} (${s.reason})`),
             "",
@@ -219,7 +255,8 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           if (!opts.quiet) out.stdout.write(hookReport(hook, style));
         }
         if (options.agents) {
-          const agents = await setupAgents(root);
+          const { config } = await loadConfig(root);
+          const agents = await setupAgents(root, workflowProfile(config));
           if (!opts.quiet) {
             const lines = agents.changes.map((c) =>
               c.action === "unchanged"
@@ -669,7 +706,16 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
         staged = again;
         return again;
       });
-      let diagnostics = renames.diagnostics;
+      // Implemented specs must still pass their workflow's final gates (CS0703, plan §D17.5).
+      let diagnostics = sortDiagnostics([
+        ...renames.diagnostics,
+        ...hookWorkflowDiagnostics(
+          staged.model,
+          workflowProfile(staged.model.config),
+          staged.result.checked,
+          renames.diagnostics,
+        ),
+      ]);
       if (paths.length > 0) diagnostics = diagnostics.filter((d) => inPaths(d, paths, cwd, root));
       const code = exitCodeFor(diagnostics);
       const checked = staged.result.checked;
@@ -975,6 +1021,211 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       }
     });
 
+  /** The workflow of the repository around `--cwd`: config, specs, code and every file. */
+  const openWorkflow = async (
+    command: Command,
+  ): Promise<{ workflow: Workflow; style: Style; opts: GlobalOptions }> => {
+    const { model, style, opts } = await load(command);
+    const codebase = await loadCodebase(model.root, model.config);
+    const files = (await model.source.list()).map((e) => e.path);
+    return {
+      workflow: new Workflow(model, codebase, workflowProfile(model.config), files),
+      style,
+      opts,
+    };
+  };
+
+  program
+    .command("next")
+    .description(
+      "what to do next for a feature (or a work item): the current workflow stage, its driver " +
+        "(skill, slash command, command), what to read, what to produce, its gates, and which " +
+        "work items are ready or waiting",
+    )
+    .argument("<feature>", "a feature (folder name) or a spec id")
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(async (name: string, options: { format: "text" | "json" }, command: Command) => {
+      const { workflow } = await openWorkflow(command);
+      const next = await workflow.next(name);
+      if (options.format === "json") {
+        out.stdout.write(`${JSON.stringify(next, null, 2)}\n`);
+        return;
+      }
+      out.stdout.write(formatNextStep(next, (id) => describeStage(workflow.stage(id)).driverText));
+    });
+
+  const stage = program
+    .command("stage")
+    .description(
+      "start or finish a workflow stage: run its gates, then apply its status (plan §D17)",
+    );
+  for (const phase of ["start", "finish"] as const) {
+    stage
+      .command(phase)
+      .description(
+        `run the ${phase} gates of <stage> for a feature or a spec and, when they pass, set the ` +
+          `status the stage sets at ${phase}; a per-spec stage given a feature runs for every spec`,
+      )
+      .argument("<stage>", "stage id from the workflow (catspec workflow show)")
+      .argument("<target>", "a feature (folder name) or a spec id")
+      .option(
+        "--force",
+        "start or finish even if gates fail or the stage is out of order (logged); " +
+          "implemented still needs passing contracts",
+      )
+      .addOption(formatOption(["text", "json"], "text"))
+      .action(
+        async (
+          stageId: string,
+          target: string,
+          options: { force?: boolean; format: "text" | "json" },
+          command: Command,
+        ) => {
+          const { workflow, style, opts } = await openWorkflow(command);
+          const result = await workflow.run(phase, stageId, target, {
+            ...(options.force ? { force: true } : {}),
+          });
+          if (result.ok) await writeStage(workflow.model.root, result);
+          if (options.format === "json") {
+            out.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+          } else {
+            if (result.diagnostics.length > 0) {
+              out.stdout.write(
+                formatText(result.diagnostics, { style, quiet: Boolean(opts.quiet) }),
+              );
+            }
+            if (!opts.quiet || !result.ok) out.stdout.write(formatStageRun(result));
+          }
+          if (result.forced) {
+            out.stderr.write(
+              `catspec: warning: --force overrode ${listOfCodes(result.diagnostics)} for stage ${stageId} ${target}\n`,
+            );
+          }
+          exitCode = result.ok ? EXIT.ok : EXIT.errors;
+        },
+      );
+  }
+
+  const workflowCommand = program
+    .command("workflow")
+    .description("inspect and validate the workflow profile (plan §D17)");
+
+  workflowCommand
+    .command("show")
+    .description("list the stages, and where each feature (or the given one) is")
+    .argument("[feature]", "a feature: also list each work item's stage")
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(
+      async (name: string | undefined, options: { format: "text" | "json" }, command: Command) => {
+        const { workflow } = await openWorkflow(command);
+        const profile = workflow.profile;
+        const features = name
+          ? [workflow.target(name).feature ?? workflow.feature(name)].filter(
+              (f): f is NonNullable<typeof f> => f !== undefined,
+            )
+          : workflow.features;
+        if (name && features.length === 0) {
+          throw new UsageError(`"${name}" isn't in a feature folder (${profile.featureDir})`);
+        }
+        const positions = [];
+        for (const feature of features) positions.push(await workflow.position(feature));
+        if (options.format === "json") {
+          out.stdout.write(
+            `${JSON.stringify(
+              {
+                preset: profile.preset,
+                ...(profile.presetVersion ? { presetVersion: profile.presetVersion } : {}),
+                featureDir: profile.featureDir,
+                stages: profile.stages.map(describeStage),
+                features: positions.map((p) => ({
+                  feature: p.feature,
+                  dir: p.dir,
+                  ...(p.stage ? { stage: p.stage.id } : {}),
+                  items: p.items,
+                })),
+              },
+              null,
+              2,
+            )}\n`,
+          );
+          return;
+        }
+        const lines = [
+          `workflow: preset ${profile.preset}${profile.presetVersion ? ` (${profile.presetVersion})` : ""}, features in ${profile.featureDir}`,
+          "stages:",
+        ];
+        for (const [i, s] of profile.stages.entries()) {
+          lines.push(`${i + 1}. ${s.id} (per ${s.per})`, ...stageLines(describeStage(s)));
+        }
+        lines.push(features.length > 0 ? "features:" : "features: none yet");
+        for (const p of positions) {
+          lines.push(`  ${p.feature}: ${p.stage ? `stage ${p.stage.id}` : "done"}`);
+          if (name) {
+            for (const item of p.items) {
+              lines.push(`    ${item.spec} (${item.status}): ${item.stage ?? "done"}`);
+            }
+          }
+        }
+        out.stdout.write(`${lines.join("\n")}\n`);
+      },
+    );
+
+  workflowCommand
+    .command("doctor")
+    .description(
+      "check the workflow config: skill files exist, commands are installed, the preset " +
+        "matches the repository",
+    )
+    .addOption(formatOption(["text", "json"], "text"))
+    .action(async (options: { format: "text" | "json" }, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const { config, root, file } = await loadConfig(cwd, opts.config);
+      const configFile = file
+        ? { path: relativePosix(root, file), text: await readFile(file, "utf8") }
+        : undefined;
+      const diagnostics = workflowDoctor(root, workflowProfile(config), {
+        ...(configFile ? { configFile } : {}),
+        env: { ...process.env, ...out.env },
+      });
+      if (options.format === "json") {
+        out.stdout.write(formatJson(diagnostics, 0));
+      } else if (diagnostics.length === 0) {
+        if (!opts.quiet) out.stdout.write("the workflow is consistent: no problems found\n");
+      } else {
+        out.stdout.write(formatText(diagnostics, { style: styleFor(opts, out) }));
+      }
+      exitCode = exitCodeFor(diagnostics);
+    });
+
+  workflowCommand
+    .command("snippet")
+    .description(
+      "print the lines to paste into a stage's skill, or (agents) the AGENTS.md block for " +
+        "this workflow",
+    )
+    .argument("<stage>", 'a stage id, or "agents"')
+    .action(async (name: string, _options: unknown, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const { config } = await loadConfig(cwd, opts.config);
+      const profile = workflowProfile(config);
+      if (name === "agents") {
+        out.stdout.write(`${agentsBlock("\n", profile)}\n`);
+        return;
+      }
+      const found = profile.stages.find((s) => s.id === name);
+      if (!found) {
+        const ids = profile.stages.map((s) => s.id);
+        const close = didYouMean(name, [...ids, "agents"]);
+        throw new UsageError(
+          `no stage "${name}" (stages: ${ids.join(", ")}; or "agents")` +
+            (close.length > 0 ? `; did you mean "${close[0]}"?` : ""),
+        );
+      }
+      out.stdout.write(`${stageSnippet(found)}\n`);
+    });
+
   program
     .command("mcp")
     .description(
@@ -1034,6 +1285,22 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
   }
 }
 
+/** What `catspec init` found when it proposes a preset. */
+const PRESET_SIGNS: Record<PresetName, string> = {
+  openspec: "OpenSpec (openspec/)",
+  "spec-kit": "Spec Kit (.specify/)",
+  custom: "sdd-* skills (.claude/skills/)",
+  catspec: "CatSpec",
+};
+
+/** The codes a forced stage run let through, e.g. `CS0701, CS0705`. */
+const listOfCodes = (diagnostics: readonly Diagnostic[]): string =>
+  [
+    ...new Set(
+      diagnostics.filter((d) => ["CS0701", "CS0702", "CS0705"].includes(d.code)).map((d) => d.code),
+    ),
+  ].join(", ");
+
 /** Reports an error of a command and returns its exit code. */
 function errorExit(error: unknown, out: CliIo, verbose: boolean): number {
   if (error instanceof CommanderError) {
@@ -1046,7 +1313,7 @@ function errorExit(error: unknown, out: CliIo, verbose: boolean): number {
           ? ` (allowed: ${issue.allowed.join(", ")})`
           : "";
       out.stderr.write(
-        `catspec: ${issue.file}:${issue.line}:${issue.column}: ${issue.message}${allowed}\n`,
+        `catspec: ${issue.file}:${issue.line}:${issue.column}: ${issue.code ? `${issue.code} ` : ""}${issue.message}${allowed}\n`,
       );
     }
     return EXIT.usage;
@@ -1072,6 +1339,7 @@ function errorExit(error: unknown, out: CliIo, verbose: boolean): number {
   }
   if (
     error instanceof UsageError ||
+    error instanceof WorkflowError ||
     error instanceof SpecEditError ||
     error instanceof SyncUsageError
   ) {

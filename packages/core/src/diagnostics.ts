@@ -324,6 +324,65 @@ export const CODES = {
       "With `--run-tests`, the `tests.command` of `catspec.yaml` failed for a `test` rule. The " +
       "command runs without a shell; `{test}` in it is replaced with the test symbol.",
   },
+  CS0700: {
+    severity: "error",
+    title: "invalid workflow config",
+    docs:
+      "The `workflow:` section of `catspec.yaml` is invalid: an unknown preset, stage key, gate, " +
+      "status or placeholder (valid placeholders: `{feature}`, `{feature_dir}`, `{spec}`). The " +
+      "message names the value and suggests close matches. `catspec workflow doctor` also reports " +
+      "it as a warning when the preset doesn't match the repository (no `openspec/` folder for " +
+      "`openspec`, no `.specify/` for `spec-kit`).",
+  },
+  CS0701: {
+    severity: "error",
+    title: "start gate failed",
+    docs:
+      "`catspec stage start` (or MCP `start_stage`) refused the stage: one of its start gates " +
+      "failed. The message names the gate and why, followed by the diagnostics of the underlying " +
+      "check. Fix them and start the stage again; `--force` starts it anyway and logs the override.",
+  },
+  CS0702: {
+    severity: "error",
+    title: "finish gate failed",
+    docs:
+      "`catspec stage finish` (or MCP `finish_stage`) refused the stage: one of its finish gates " +
+      "failed, e.g. `contracts_pass` while a contract fails or `tasks_done` while a task is " +
+      "unticked. The status isn't changed. Fix what it reports and finish the stage again.",
+  },
+  CS0703: {
+    severity: "warning",
+    title: "implemented spec fails its final gates",
+    docs:
+      "An `implemented` spec in the commit no longer passes the built-in gates of its workflow's " +
+      "final stage (the one that sets `implemented`), e.g. a task was unticked. Reported by the " +
+      "pre-commit hook with the severity of `workflow.enforce_in_hook`; `command:` gates never run " +
+      "in the hook.",
+  },
+  CS0704: {
+    severity: "error",
+    title: "driver not found",
+    docs:
+      "`catspec workflow doctor` couldn't find what a stage needs: a skill's file " +
+      "(`<skills_dir>/<name>/SKILL.md`) or a command's program on PATH. The message names the " +
+      "skill or command and the expected path.",
+  },
+  CS0705: {
+    severity: "error",
+    title: "stage out of order",
+    docs:
+      "A stage was started or finished before an earlier stage is done (its finish gates pass and " +
+      "its status is reached). Run `catspec next <feature>` to see the current stage. `--force` " +
+      "overrides the order and logs the override.",
+  },
+  CS0706: {
+    severity: "warning",
+    title: "command gate skipped",
+    docs:
+      "A `command:` gate wasn't run because `workflow.allow_commands` is false (the default), so " +
+      "it doesn't block the stage. Run the command yourself, or set `workflow.allow_commands: " +
+      "true` to let CatSpec run it (without a shell).",
+  },
   CS0901: {
     severity: "warning",
     title: "parse error in file",

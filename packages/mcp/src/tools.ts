@@ -28,6 +28,13 @@ import {
   sortDiagnostics,
   SPEC_STATUSES,
   statusGate,
+  formatNextStep,
+  formatStageRun,
+  describeStage,
+  Workflow,
+  WorkflowError,
+  workflowProfile,
+  writeStage,
   type CatspecConfig,
   type Codebase,
   type Diagnostic,
@@ -97,6 +104,18 @@ export class Workspace {
     const { config, file } = await loadConfig(this.root, this.configFile);
     const staged = await this.engine.loadStaged(this.root, config, file);
     return { model: staged.model, codebase: staged.codebase };
+  }
+
+  /** The workflow (plan §D17) over the repository as it is on disk now. */
+  async workflow(model?: SpecModel): Promise<Workflow> {
+    const current = model ?? (await this.model());
+    const files = (await current.source.list()).map((e) => e.path);
+    return new Workflow(
+      current,
+      await this.codebase(current.config),
+      workflowProfile(current.config),
+      files,
+    );
   }
 
   /** A path argument, refused when it is outside the repository. */
@@ -252,6 +271,20 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     status: model.specs.get(id)?.status ?? "missing",
     satisfied: model.specs.get(id)?.status === "implemented",
   }));
+  const next = await (await ws.workflow(model)).next(spec.id);
+  const workflow = {
+    ...(next.feature ? { feature: next.feature } : {}),
+    done: next.done,
+    ...(next.stage
+      ? {
+          stage: next.stage.id,
+          per: next.stage.per,
+          driver: next.stage.driverText,
+          start_gates: next.stage.start.gates,
+          finish_gates: next.stage.finish.gates,
+        }
+      : {}),
+  };
   const data = {
     id: spec.id,
     title: spec.title,
@@ -259,6 +292,7 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     status: spec.status,
     file: spec.file,
     body: spec.source.body.text,
+    workflow,
     contract: { bindings: spec.bindings.map(withoutIndex), rules: rulesByClass },
     waivers: spec.waivers.map(withoutIndex),
     dependencies,
@@ -280,6 +314,9 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     `bindings: ${spec.bindings.map((b) => `${b.id} → ${b.symbol}${files[b.id] ? ` (${files[b.id]!.join(", ")})` : " (not found)"}`).join("; ") || "none"}`,
     `rules: ${spec.rules.map((r) => `${r.id} (${r.class})`).join(", ") || "none"}`,
     `architecture rules that apply: ${architectureRules.map((r) => r.id).join(", ") || "none"}`,
+    next.stage
+      ? `workflow: stage ${next.stage.id}, use ${next.stage.driverText}; finish gates: ${next.stage.finish.gates.join(", ") || "none"}`
+      : "workflow: every stage is done",
     `compliance: ${done ? "DONE" : `NOT DONE (${plural(failing.length, "failing item")}: ${failing.map((i) => i.item).join(", ")})`}`,
     ...(done ? [] : [diagnosticsText(result.diagnostics)]),
     "",
@@ -731,4 +768,55 @@ export async function syncSpecs(
     text: outcome.text.trimEnd(),
     data: { ...outcome.report, dry_run: dryRun, done: outcome.problems === 0 },
   };
+}
+
+/** A workflow tool's error (unknown stage or target) as a tool error. */
+async function workflowCall<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    if (error instanceof WorkflowError) throw new ToolError(error.message);
+    throw error;
+  }
+}
+
+/** `next_step` (plan §D17.5): the same answer as `catspec next`. */
+export async function nextStep(ws: Workspace, input: { feature: string }): Promise<ToolOutput> {
+  return workflowCall(async () => {
+    const workflow = await ws.workflow();
+    const next = await workflow.next(input.feature);
+    const text = formatNextStep(next, (id) => describeStage(workflow.stage(id)).driverText);
+    return { text, data: next as unknown as Record<string, unknown> };
+  });
+}
+
+/**
+ * `start_stage` / `finish_stage` (plan §D17.5): like `catspec stage start|finish`. Without
+ * `stage`, the target's current stage.
+ */
+export async function runStage(
+  ws: Workspace,
+  phase: "start" | "finish",
+  input: { feature: string; stage?: string | undefined; force?: boolean | undefined },
+): Promise<ToolOutput> {
+  return workflowCall(async () => {
+    const workflow = await ws.workflow();
+    let stage = input.stage;
+    if (stage === undefined) {
+      const next = await workflow.next(input.feature);
+      if (!next.stage) throw new ToolError(`"${input.feature}" has done every stage`);
+      stage = next.stage.id;
+    }
+    const run = await workflow.run(phase, stage, input.feature, input.force ? { force: true } : {});
+    if (run.ok) await writeStage(ws.root, run);
+    const text = [
+      formatStageRun(run).trimEnd(),
+      ...(run.ok ? [] : ["", diagnosticsText(run.diagnostics)]),
+    ].join("\n");
+    const data = {
+      ...run,
+      changes: run.changes.map((c) => ({ spec: c.spec, file: c.file, from: c.from, to: c.to })),
+    };
+    return { text, data: data as unknown as Record<string, unknown> };
+  });
 }

@@ -7,7 +7,7 @@
  */
 import { posix } from "node:path";
 
-import type { CatspecConfig } from "./config.js";
+import { workflowProfile, type CatspecConfig } from "./config.js";
 import {
   compareStrings,
   createDiagnostic,
@@ -18,7 +18,7 @@ import { WorkingTreeProvider, type SourceProvider } from "./git/providers.js";
 import { DependencyGraph } from "./graph.js";
 import { hasLockFile, lockPathOf, parseLock, type LockFile } from "./lock.js";
 import { readSpec, specLocation, type Spec } from "./spec.js";
-import { didYouMean, globMatcher, listOf } from "./util.js";
+import { didYouMean, escapeRegExp, globMatcher, listOf } from "./util.js";
 
 /** All specs of a repository, by id and by file. */
 export class SpecSet {
@@ -66,8 +66,6 @@ export interface SpecModel {
   source: SourceProvider;
 }
 
-/** The feature-folder layout: `docs/spec/<feature>/<file>.spec.md`. */
-const FEATURE_FOLDER = /^docs\/spec\/[^/]+\/[^/]+$/;
 const SPEC_FILE = /(^|\/)[^/]+\.spec\.md$/;
 
 /**
@@ -168,24 +166,31 @@ export async function loadSpecModel(
     }
   }
 
-  // Layout (CS0106): machine specs live directly in docs/spec/<feature>/, and the architecture
-  // spec at specs.architecture.
+  // Layout (CS0106): machine specs live directly in a feature folder (`docs/spec/<feature>/`, or
+  // the workflow's `feature_dir`), and the architecture spec at specs.architecture.
   if (config.layout === "feature-folders") {
+    const featureDir = workflowProfile(config).featureDir;
+    const parts = featureDir.split("{feature}").map(escapeRegExp);
+    const folder = parts.join("[^/]+");
+    const direct = new RegExp(`^${folder}/[^/]+$`);
+    const deeperIn = new RegExp(`^(${folder})/.+/`);
+    const generic = featureDir.replaceAll("{feature}", "<feature>");
     for (const file of files) {
-      if (!SPEC_FILE.test(file) || FEATURE_FOLDER.test(file) || architectureFiles.includes(file)) {
+      if (!SPEC_FILE.test(file) || direct.test(file) || architectureFiles.includes(file)) {
         continue;
       }
       const name = file.split("/").pop()!;
-      const deeper = /^docs\/spec\/([^/]+)\/.+\//.exec(file);
-      const target = deeper ? `docs/spec/${deeper[1]}/${name}` : `docs/spec/<feature>/${name}`;
+      const deeper = deeperIn.exec(file);
+      const target = deeper ? `${deeper[1]}/${name}` : `${generic}/${name}`;
+      const where = generic.replace(/\/?<feature>.*$/, "") || ".";
       diagnostics.push(
         createDiagnostic("CS0106", {
           ...(specs.byFile.get(file) ? { spec: specs.byFile.get(file)!.id } : {}),
           specLocation: { file, line: 1, column: 1 },
           message: deeper
-            ? `${file} is more than one folder deep in docs/spec/; move it to ${target}`
+            ? `${file} is more than one folder deep in ${where}/; move it to ${target}`
             : `${file} is outside a feature folder; move it to ${target}`,
-          expected: "docs/spec/<feature>/<id>.spec.md",
+          expected: `${generic}/<id>.spec.md`,
           actual: file,
           suggestions: [{ message: `move it to ${target}, or set layout: free in catspec.yaml` }],
         }),

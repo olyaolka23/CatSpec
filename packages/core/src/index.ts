@@ -131,3 +131,7 @@ export {
   type SyncOptions,
   type SyncPlan,
 } from "./sync.js";
+export * from "./workflow/schema.js";
+export * from "./workflow/engine.js";
+export * from "./workflow/doctor.js";
+export * from "./workflow/format.js";

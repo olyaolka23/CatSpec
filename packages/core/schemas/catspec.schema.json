@@ -16,7 +16,213 @@
       "enum": ["feature-folders", "free"]
     },
     "workflow": {
-      "description": "Workflow profile (plan §D17); validated by the workflow commands."
+      "default": {},
+      "type": "object",
+      "properties": {
+        "preset": {
+          "default": "catspec",
+          "description": "A ready-made profile, or custom.",
+          "type": "string",
+          "enum": ["catspec", "openspec", "spec-kit", "custom"]
+        },
+        "allow_commands": {
+          "default": false,
+          "description": "Let `command:` gates run commands (without a shell).",
+          "type": "boolean"
+        },
+        "enforce_in_hook": {
+          "default": "warn",
+          "description": "Re-check implemented specs' final gates in the pre-commit hook (CS0703).",
+          "type": "string",
+          "enum": ["off", "warn", "error"]
+        },
+        "feature_dir": {
+          "description": "Where features live, e.g. \"docs/spec/{feature}\".",
+          "type": "string",
+          "minLength": 1
+        },
+        "skills_dir": {
+          "description": "Where `skill:` drivers are found.",
+          "type": "string",
+          "minLength": 1
+        },
+        "stages": {
+          "description": "The stages, in order; replaces the preset's stages.",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+              "per": {
+                "default": "feature",
+                "description": "feature: once for the feature folder; spec: once per work item (spec).",
+                "type": "string",
+                "enum": ["feature", "spec"]
+              },
+              "driver": {
+                "default": "manual",
+                "anyOf": [
+                  { "type": "string", "const": "manual" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skill": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "An agent skill, in skills_dir."
+                      }
+                    },
+                    "required": ["skill"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "slash": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "An agent slash command."
+                      }
+                    },
+                    "required": ["slash"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "command": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "A command the person or agent runs."
+                      }
+                    },
+                    "required": ["command"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "manual": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "What the person does."
+                      }
+                    },
+                    "required": ["manual"],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "Who performs the stage."
+              },
+              "produces": {
+                "default": [],
+                "description": "Path templates of the stage's artifacts.",
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "start": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "gates": {
+                    "default": [],
+                    "description": "Gates that must pass.",
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "specs_valid",
+                            "artifacts",
+                            "contracts_declared",
+                            "deps_known",
+                            "deps_ready",
+                            "contracts_pass",
+                            "tasks_done",
+                            "no_drift",
+                            "adr_valid"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "command": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "A command that must exit with 0, run without a shell; only with workflow.allow_commands."
+                            }
+                          },
+                          "required": ["command"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "status": {
+                    "description": "The status the stage's specs get when the gates pass.",
+                    "type": "string",
+                    "enum": ["draft", "ready", "in-progress", "implemented", "deprecated"]
+                  }
+                },
+                "additionalProperties": false
+              },
+              "finish": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "gates": {
+                    "default": [],
+                    "description": "Gates that must pass.",
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "specs_valid",
+                            "artifacts",
+                            "contracts_declared",
+                            "deps_known",
+                            "deps_ready",
+                            "contracts_pass",
+                            "tasks_done",
+                            "no_drift",
+                            "adr_valid"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "command": {
+                              "type": "string",
+                              "minLength": 1,
+                              "description": "A command that must exit with 0, run without a shell; only with workflow.allow_commands."
+                            }
+                          },
+                          "required": ["command"],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "status": {
+                    "description": "The status the stage's specs get when the gates pass.",
+                    "type": "string",
+                    "enum": ["draft", "ready", "in-progress", "implemented", "deprecated"]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": ["id"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "Workflow profile (plan §D17)."
     },
     "specs": {
       "default": {},
