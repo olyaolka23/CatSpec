@@ -59,7 +59,7 @@ drift (severity from `enforcement.drift`), `CS0301` regression (error), `CS0902`
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F5-1..4` are automated and pass in CI on 3 OSes
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close git-integration-and-hook` passes
+- [x] `catspec stage finish close git-integration-and-hook` passes
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `git-access`

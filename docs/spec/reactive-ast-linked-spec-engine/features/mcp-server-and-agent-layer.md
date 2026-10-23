@@ -52,7 +52,7 @@ Feature: F7 mcp-server-and-agent-layer
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F7-1..3` are automated and pass in CI on 3 OSes; `@AC-F7-4` is a recorded manual run (transcript in `examples/`)
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close mcp-server-and-agent-layer` passes
+- [x] `catspec stage finish close mcp-server-and-agent-layer` passes
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `mcp-server-core`

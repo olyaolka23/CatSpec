@@ -58,7 +58,7 @@ Feature: F3 rule-engine-and-check
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F3-1..5` are automated and pass in CI on 3 OSes
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close rule-engine-and-check` passes (first feature closed by CatSpec itself)
+- [x] `catspec stage finish close rule-engine-and-check` passes (first feature closed by CatSpec itself)
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `binding-resolver`

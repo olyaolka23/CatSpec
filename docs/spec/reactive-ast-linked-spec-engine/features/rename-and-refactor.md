@@ -66,7 +66,7 @@ sync details: plan §D11.4 and §D11.8.
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F6-1..4` are automated and pass in CI on 3 OSes
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close rename-and-refactor` passes
+- [x] `catspec stage finish close rename-and-refactor` passes
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `rename-detection`

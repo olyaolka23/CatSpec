@@ -47,7 +47,7 @@ Feature: F4 csharp-language-support
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F4-1..3` are automated and pass in CI on 3 OSes
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close csharp-language-support` passes
+- [x] `catspec stage finish close csharp-language-support` passes
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `csharp-declarations`

@@ -3,7 +3,7 @@ catspec: 1
 id: workflow-profiles
 title: Workflow profiles
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [mcp-server-and-agent-layer]
 ---

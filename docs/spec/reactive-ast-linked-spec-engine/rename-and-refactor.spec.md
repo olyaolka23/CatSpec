@@ -3,7 +3,7 @@ catspec: 1
 id: rename-and-refactor
 title: Rename and refactor
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [git-integration-and-hook]
 ---
