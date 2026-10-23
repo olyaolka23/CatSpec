@@ -129,6 +129,19 @@ describe("F8 workflow-profiles: PBI workflow-mcp", () => {
     });
   });
 
+  it("get_spec_context still serves the architecture spec, without a workflow block; start_stage has no force", async () => {
+    await withServer(async (_dir, client) => {
+      const context = await call(client, "get_spec_context", { spec_id: "architecture" });
+      expect(context.isError).toBeFalsy();
+      expect(context.structuredContent?.id).toBe("architecture");
+      expect(context.structuredContent).not.toHaveProperty("workflow");
+      const { tools } = await client.listTools();
+      const start = tools.find((t) => t.name === "start_stage")!;
+      expect(Object.keys(start.inputSchema.properties ?? {})).toEqual(["feature", "stage"]);
+      expect(start.annotations?.idempotentHint).toBe(false);
+    });
+  });
+
   it("serves one stage-<id> prompt per workflow stage", async () => {
     await withServer(async (_dir, client) => {
       const prompt = await client.getPrompt({

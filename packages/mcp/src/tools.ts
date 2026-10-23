@@ -271,8 +271,10 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     status: model.specs.get(id)?.status ?? "missing",
     satisfied: model.specs.get(id)?.status === "implemented",
   }));
-  const next = await (await ws.workflow(model)).next(spec.id);
-  const workflow = {
+  // The architecture spec isn't a work item: it has no workflow stage.
+  const next =
+    spec.type === "architecture" ? undefined : await (await ws.workflow(model)).next(spec.id);
+  const workflow = next && {
     ...(next.feature ? { feature: next.feature } : {}),
     done: next.done,
     ...(next.stage
@@ -292,7 +294,7 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     status: spec.status,
     file: spec.file,
     body: spec.source.body.text,
-    workflow,
+    ...(workflow ? { workflow } : {}),
     contract: { bindings: spec.bindings.map(withoutIndex), rules: rulesByClass },
     waivers: spec.waivers.map(withoutIndex),
     dependencies,
@@ -314,9 +316,11 @@ export async function getSpecContext(ws: Workspace, input: { spec_id: string }) 
     `bindings: ${spec.bindings.map((b) => `${b.id} → ${b.symbol}${files[b.id] ? ` (${files[b.id]!.join(", ")})` : " (not found)"}`).join("; ") || "none"}`,
     `rules: ${spec.rules.map((r) => `${r.id} (${r.class})`).join(", ") || "none"}`,
     `architecture rules that apply: ${architectureRules.map((r) => r.id).join(", ") || "none"}`,
-    next.stage
-      ? `workflow: stage ${next.stage.id}, use ${next.stage.driverText}; finish gates: ${next.stage.finish.gates.join(", ") || "none"}`
-      : "workflow: every stage is done",
+    !next
+      ? "workflow: none (the architecture spec)"
+      : next.stage
+        ? `workflow: stage ${next.stage.id}, use ${next.stage.driverText}; finish gates: ${next.stage.finish.gates.join(", ") || "none"}`
+        : "workflow: every stage is done",
     `compliance: ${done ? "DONE" : `NOT DONE (${plural(failing.length, "failing item")}: ${failing.map((i) => i.item).join(", ")})`}`,
     ...(done ? [] : [diagnosticsText(result.diagnostics)]),
     "",
@@ -797,7 +801,7 @@ export async function nextStep(ws: Workspace, input: { feature: string }): Promi
 export async function runStage(
   ws: Workspace,
   phase: "start" | "finish",
-  input: { feature: string; stage?: string | undefined; force?: boolean | undefined },
+  input: { feature: string; stage?: string | undefined },
 ): Promise<ToolOutput> {
   return workflowCall(async () => {
     const workflow = await ws.workflow();
@@ -807,7 +811,8 @@ export async function runStage(
       if (!next.stage) throw new ToolError(`"${input.feature}" has done every stage`);
       stage = next.stage.id;
     }
-    const run = await workflow.run(phase, stage, input.feature, input.force ? { force: true } : {});
+    // No force over MCP: the gates exist to stop agents; overriding is the developer's call.
+    const run = await workflow.run(phase, stage, input.feature);
     if (run.ok) await writeStage(ws.root, run);
     const text = [
       formatStageRun(run).trimEnd(),

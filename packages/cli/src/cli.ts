@@ -17,6 +17,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import {
   applyPatch,
+  CONFIG_FILE,
   checkCode,
   ConfigError,
   coverage,
@@ -235,9 +236,12 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           ...(options.preset === undefined ? {} : { preset: options.preset }),
         });
         const style = styleFor(opts, out);
+        // The config in effect: the one just written, or the one that was already there.
+        const profile = workflowProfile((await loadConfig(root)).config);
+        const first = profile.stages[0]!;
         if (!opts.quiet) {
           const lines = [
-            ...(result.detected
+            ...(result.detected && result.created.includes(CONFIG_FILE)
               ? [
                   `detected ${PRESET_SIGNS[result.preset]}: proposing workflow preset ${result.preset} ` +
                     "(change workflow.preset in catspec.yaml, or run init with --preset)",
@@ -246,7 +250,9 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             ...result.created.map((f) => `${style.green("created")} ${f}`),
             ...result.skipped.map((s) => `${style.yellow("skipped")} ${s.file} (${s.reason})`),
             "",
-            "Next: describe a feature in docs/spec/<feature>/ and run `catspec check --specs-only`.",
+            `Next: start a feature in ${profile.featureDir.replaceAll("{feature}", "<feature>")}/ ` +
+              `(first stage ${first.id}: ${describeStage(first).driverText}), then run ` +
+              "`catspec next <feature>`.",
           ];
           out.stdout.write(`${lines.join("\n")}\n`);
         }
@@ -255,8 +261,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           if (!opts.quiet) out.stdout.write(hookReport(hook, style));
         }
         if (options.agents) {
-          const { config } = await loadConfig(root);
-          const agents = await setupAgents(root, workflowProfile(config));
+          const agents = await setupAgents(root, profile);
           if (!opts.quiet) {
             const lines = agents.changes.map((c) =>
               c.action === "unchanged"

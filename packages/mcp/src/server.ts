@@ -272,16 +272,13 @@ export function createServer(options: WorkspaceOptions): McpServer {
           "Without stage, the current stage. Failing gates come back with their diagnostics; " +
           "fix them and call again. Like `catspec stage " +
           phase +
-          "`.",
+          "`; overriding a gate (`--force`) is left to the developer on the command line.",
         inputSchema: z.object({
           feature: target,
           stage: z.string().min(1).optional().describe("the stage id (default: the current one)"),
-          force: z
-            .boolean()
-            .optional()
-            .describe("override failing gates (logged); only when the developer asks for it"),
         }),
-        annotations: { destructiveHint: false, idempotentHint: true, openWorldHint: false },
+        // It writes spec files, so a repeated call isn't guaranteed to do nothing.
+        annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
       },
       async (input) => result(await runStage(ws, phase, input)),
     );

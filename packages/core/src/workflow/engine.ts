@@ -34,6 +34,7 @@ import {
   type Transition,
   type WorkflowProfile,
 } from "./schema.js";
+import { findProgram, isBatchScript } from "./doctor.js";
 
 /** A workflow command that can't run: an unknown stage or target (a usage error). */
 export class WorkflowError extends Error {}
@@ -180,13 +181,34 @@ export class Workflow {
     );
   }
 
+  /**
+   * True for a per-spec stage before the one that sets `implemented`: aggregate specs (plan
+   * §D17.1) have no work of their own, so they skip it and go straight to that stage.
+   */
+  skipsAggregates(stage: Stage): boolean {
+    if (stage.per !== "spec") return false;
+    const stages = this.profile.stages;
+    const final = stages.findIndex(
+      (s) => s.start.status === "implemented" || s.finish.status === "implemented",
+    );
+    return final >= 0 && stages.indexOf(stage) < final;
+  }
+
   /** The specs a stage runs on for a target. */
   scope(stage: Stage, target: Target): { feature?: Feature; specs: Spec[] } {
     if (stage.per === "spec") {
+      if (target.spec?.aggregate && this.skipsAggregates(stage)) {
+        throw new WorkflowError(
+          `"${target.name}" is an aggregate spec: it has no stage "${stage.id}" of its own; ` +
+            "it is closed once its dependencies are implemented",
+        );
+      }
       const specs = target.spec ? [target.spec] : (target.feature?.specs ?? []);
       return {
         ...(target.feature ? { feature: target.feature } : {}),
-        specs: specs.filter((s) => s.status !== "deprecated"),
+        specs: specs.filter(
+          (s) => s.status !== "deprecated" && !(s.aggregate && this.skipsAggregates(stage)),
+        ),
       };
     }
     if (!target.feature) {
@@ -471,7 +493,8 @@ export class Workflow {
   // Stage resolution ------------------------------------------------------------------------
 
   /** True when a stage is done for these specs: finish gates pass and its status is reached. */
-  async done(stage: Stage, feature: Feature | undefined, specs: readonly Spec[]): Promise<boolean> {
+  async done(stage: Stage, feature: Feature | undefined, all: readonly Spec[]): Promise<boolean> {
+    const specs = this.skipsAggregates(stage) ? all.filter((s) => !s.aggregate) : all;
     const status = stageStatus(stage);
     if (status !== undefined && !specs.every((s) => reached(s.status, status))) return false;
     if (stage.per === "spec" && specs.length === 0) return true;
@@ -719,7 +742,8 @@ export class Workflow {
       })),
       produces: stage.produces.flatMap((t) => this.expand(t, feature, specs)),
       ok,
-      forced: force && diagnostics.some((d) => d.severity === "warning" && FORCED.has(d.code)),
+      forced:
+        ok && force && diagnostics.some((d) => d.severity === "warning" && FORCED.has(d.code)),
       changes: ok ? changes : [],
       diagnostics: sortDiagnostics(diagnostics),
     };
@@ -845,16 +869,31 @@ export async function writeStage(root: string, run: StageRun, now = new Date()):
   await appendFile(join(dir, "workflow-overrides.log"), `${JSON.stringify(entry)}\n`, "utf8");
 }
 
-/** Runs a `command:` gate without a shell (ADR-009). */
+/**
+ * Runs a `command:` gate without a shell (ADR-009). On Windows the program is looked up with
+ * PATHEXT; a batch script (`.cmd`, `.bat`, e.g. an npm shim) can't start without a shell, so the
+ * gate fails with a message saying so.
+ */
 export function runCommand(
   root: string,
   args: string[],
   timeoutMs = 10 * 60_000,
+  platform: NodeJS.Platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ exitCode: number; output: string }> {
   const [file, ...rest] = args;
+  const found = platform === "win32" ? findProgram(file!, root, env, platform) : undefined;
+  if (found && isBatchScript(found)) {
+    return Promise.resolve({
+      exitCode: 1,
+      output:
+        `${file} is the batch script ${found}, which CatSpec can't start without a shell ` +
+        "(ADR-009); run the command yourself, or point the gate at the program it wraps",
+    });
+  }
   return new Promise((resolve) => {
     execFile(
-      file!,
+      found ?? file!,
       rest,
       { cwd: root, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024, windowsHide: true },
       (error, stdout, stderr) => {

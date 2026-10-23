@@ -11,6 +11,7 @@ import {
   customWorkflowYaml,
   loadConfig,
   loadSpecModel,
+  runCommand,
   Workflow,
   workflowProfile,
   type CommandRunner,
@@ -185,6 +186,53 @@ describe("F8 workflow-profiles", () => {
   });
 
   describe("PBI stage-resolution", () => {
+    it("closes aggregate specs once their PBIs are implemented, then the whole epic (plan §D17.6 steps 14–15)", async () => {
+      const epic = "docs/spec/user-account-management";
+      await inRepo(
+        {
+          ...CUSTOM,
+          [`${epic}/spec.md`]: "# Accounts\n",
+          [`${epic}/plan.md`]: "# Plan\n",
+          [`${epic}/register-api.spec.md`]: specText("register-api", {
+            status: "in-progress",
+            extra: "bindings:\n  - symbol: register\n    kind: function\n",
+          }),
+          [`${epic}/registration.spec.md`]: specText("registration", {
+            status: "ready",
+            dependsOn: ["register-api"],
+          }),
+          "src/auth.ts": "export function register(): void {}\n",
+        },
+        async (dir) => {
+          // The aggregate has no task stage: it waits for its PBI, then goes to close.
+          const before = await json<NextStep>(dir, ["next", "user-account-management"]);
+          expect(before.items.find((i) => i.spec === "registration")).toMatchObject({
+            stage: "close",
+            state: "waiting",
+            waitingOn: ["register-api"],
+          });
+          const task = await catspec(dir, ["stage", "start", "task", "registration"]);
+          expect(task.code).toBe(2);
+          expect(task.stderr).toContain("aggregate spec");
+
+          expect((await catspec(dir, ["stage", "finish", "close", "register-api"])).code).toBe(0);
+          const after = await json<NextStep>(dir, ["next", "user-account-management"]);
+          expect(after.items.find((i) => i.spec === "registration")).toMatchObject({
+            stage: "close",
+            state: "ready",
+          });
+          const aggregate = await catspec(dir, ["stage", "finish", "close", "registration"]);
+          expect(aggregate.code, aggregate.stdout).toBe(0);
+          expect(await statusOf(dir, `${epic}/registration.spec.md`)).toBe("implemented");
+
+          const whole = await catspec(dir, ["stage", "finish", "close", "user-account-management"]);
+          expect(whole.code, whole.stdout).toBe(0);
+          expect(whole.stdout).not.toContain("CS0705");
+          expect((await json<NextStep>(dir, ["next", "user-account-management"])).done).toBe(true);
+        },
+      );
+    });
+
     it("[AC-stage-resolution-1] the current stage follows the artifacts: plan, then task for each ready work item", async () => {
       await inRepo(
         {
@@ -338,6 +386,17 @@ describe("F8 workflow-profiles", () => {
     });
   });
 
+  describe("command gates on Windows", () => {
+    it("don't try to start a batch-script shim (.cmd) without a shell, and say why", async () => {
+      await inRepo({ "bin/openspec.cmd": "@exit /b 0\r\n" }, async (dir) => {
+        const env = { PATH: join(dir, "bin"), PATHEXT: ".EXE;.CMD" };
+        const result = await runCommand(dir, ["openspec", "validate", "x"], 1000, "win32", env);
+        expect(result.exitCode).toBe(1);
+        expect(result.output).toContain("can't start without a shell");
+      });
+    });
+  });
+
   describe("PBI workflow-cli", () => {
     const account = "docs/spec/user-account-management";
     const accountFiles = (statuses: Record<string, string>) => ({
@@ -410,6 +469,24 @@ describe("F8 workflow-profiles", () => {
       );
     });
 
+    it("a refused --force run doesn't claim an override", async () => {
+      await inRepo(
+        {
+          "catspec.yaml": "workflow:\n  preset: openspec\n",
+          "openspec/changes/c/proposal.md": "# c\n",
+          "openspec/changes/c/tasks.md": "- [x] a\n",
+          "openspec/changes/c/login.spec.md": loginSpec("in-progress"),
+          "src/auth.ts": withoutLogin,
+        },
+        async (dir) => {
+          const forced = await catspec(dir, ["stage", "start", "archive", "c", "--force"]);
+          expect(forced.code).toBe(1);
+          expect(forced.stderr).not.toContain("overrode");
+          expect(existsSync(join(dir, ".git/catspec/workflow-overrides.log"))).toBe(false);
+        },
+      );
+    });
+
     it("rejects an unknown stage or target with a usage error and a suggestion", async () => {
       await inRepo(accountFiles({}), async (dir) => {
         const stage = await catspec(dir, ["stage", "start", "tsak", "register-api"]);
@@ -449,6 +526,22 @@ describe("F8 workflow-profiles", () => {
         expect(config).toContain("preset: openspec");
         expect(config).toContain('include: ["openspec/changes/**/*.spec.md"]');
         expect((await catspec(dir, ["check", "--specs-only"])).code).toBe(0);
+      });
+    });
+
+    it("init proposes a preset only when it writes catspec.yaml, and its next step follows the preset", async () => {
+      await inRepo(
+        { "openspec/project.md": "# Project\n", "catspec.yaml": "version: 1\n" },
+        async (dir) => {
+          const init = await catspec(dir, ["init"]);
+          expect(init.stdout).not.toContain("proposing");
+          expect(init.stdout).toContain("skipped catspec.yaml");
+        },
+      );
+      await inRepo({ "openspec/project.md": "# Project\n" }, async (dir) => {
+        expect((await catspec(dir, ["init"])).stdout).toContain(
+          "Next: start a feature in openspec/changes/<feature>/ (first stage proposal: slash command /opsx:propose)",
+        );
       });
     });
 

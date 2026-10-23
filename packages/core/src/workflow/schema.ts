@@ -112,6 +112,15 @@ export const WorkflowSchema = z
       .describe("The stages, in order; replaces the preset's stages."),
   })
   .superRefine((value, ctx) => {
+    const dir = value.feature_dir;
+    if (dir !== undefined && (dir.split("{feature}").length !== 2 || dir.includes("{spec}"))) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["feature_dir"],
+        message:
+          'feature_dir must contain "{feature}" exactly once and no "{spec}", e.g. "docs/spec/{feature}"',
+      });
+    }
     const seen = new Set<string>();
     for (const [index, stage] of (value.stages ?? []).entries()) {
       if (seen.has(stage.id)) {

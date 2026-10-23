@@ -46,27 +46,47 @@ function configLocator(
   };
 }
 
-/** True when `name` is a program on PATH (or a path to a file). */
-export function onPath(name: string, root: string, env: NodeJS.ProcessEnv = process.env): boolean {
+/**
+ * Where a program is: a path (relative to `root`), or the first match on PATH, with the PATHEXT
+ * extensions on Windows. Undefined when it isn't found.
+ */
+export function findProgram(
+  name: string,
+  root: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
   if (name.includes("/") || name.includes("\\")) {
-    return existsSync(isAbsolute(name) ? name : join(root, name));
+    const path = isAbsolute(name) ? name : join(root, name);
+    return existsSync(path) ? path : undefined;
   }
   const extensions =
-    process.platform === "win32"
+    platform === "win32"
       ? ["", ...(env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";").map((e) => e.toLowerCase())]
       : [""];
   const dirs = (env.PATH ?? env.Path ?? "").split(delimiter).filter(Boolean);
-  return dirs.some((dir) =>
-    extensions.some((ext) => {
+  for (const dir of dirs) {
+    for (const ext of extensions) {
       const file = join(dir, name + ext);
       try {
-        return statSync(file).isFile();
+        if (statSync(file).isFile()) return file;
       } catch {
-        return false;
+        // not here
       }
-    }),
-  );
+    }
+  }
+  return undefined;
 }
+
+/** True when `name` is a program on PATH (or a path to a file). */
+export const onPath = (name: string, root: string, env: NodeJS.ProcessEnv = process.env): boolean =>
+  findProgram(name, root, env) !== undefined;
+
+/**
+ * A Windows batch script (`.cmd`, `.bat`, e.g. an npm shim): Node can't start one without a
+ * shell, and CatSpec runs commands without one (ADR-009).
+ */
+export const isBatchScript = (path: string): boolean => /\.(cmd|bat)$/i.test(path);
 
 /** The SDD workflow a repository already uses, by what is on disk (plan §D17.3). */
 export function detectPreset(root: string, skillsDir = ".claude/skills"): PresetName | undefined {
@@ -135,7 +155,19 @@ export function workflowDoctor(
       for (const [g, gate] of stage[phase].gates.entries()) {
         if (typeof gate === "string") continue;
         const program = testCommandArgs(gate.command)[0]!;
-        if (onPath(program, root, options.env)) continue;
+        const found = findProgram(program, root, options.env);
+        if (found && process.platform === "win32" && isBatchScript(found)) {
+          diagnostics.push(
+            createDiagnostic("CS0704", {
+              severity: "warning",
+              ...location(["stages", index, phase, "gates", g]),
+              message: `stage "${stage.id}": the ${phase} gate \`${gate.command}\` would start ${found}, a batch script, which CatSpec can't run without a shell; run the command yourself`,
+              actual: found,
+            }),
+          );
+          continue;
+        }
+        if (found) continue;
         diagnostics.push(
           createDiagnostic("CS0704", {
             ...(profile.allowCommands ? {} : { severity: "warning" as const }),

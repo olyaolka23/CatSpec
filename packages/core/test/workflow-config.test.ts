@@ -46,6 +46,16 @@ describe("F8 workflow-profiles: PBI workflow-config", () => {
     expect(new ConfigError([issue!]).message).toContain("CS0700 ");
   });
 
+  it("reports a feature_dir without exactly one {feature}, or with {spec}, as CS0700", () => {
+    for (const dir of ["docs/features", "a/{feature}/{feature}", "docs/{feature}/{spec}"]) {
+      expect(issuesOf(`workflow:\n  feature_dir: "${dir}"\n`)[0]).toMatchObject({
+        code: "CS0700",
+        key: "workflow.feature_dir",
+        message: expect.stringContaining("exactly once") as string,
+      });
+    }
+  });
+
   it("reports an unknown preset, an unknown stage key and a duplicate stage id as CS0700", () => {
     expect(issuesOf("workflow:\n  preset: opensepc\n")[0]).toMatchObject({
       code: "CS0700",
