@@ -1039,11 +1039,12 @@ workflow:
 | Preset | Feature dir | Stages → driver | CatSpec attaches |
 |---|---|---|---|
 | `catspec` (default) | `docs/spec/{feature}` | spec → plan → task → close, driven by CatSpec's MCP prompts | the gates in §D17.2 |
-| `openspec` | `openspec/changes/{feature}` (machine specs: `openspec/changes/**/*.spec.md`, archived ones included) | proposal (`/openspec:proposal`) → apply (`/openspec:apply`) → archive (`/openspec:archive`) | proposal finish: `openspec validate {feature}` + `specs_valid`; apply start: `deps_ready` → `in-progress`; **archive start: `contracts_pass`, `tasks_done`** → `implemented` |
-| `spec-kit` | `specs/{feature}` | specify → plan → tasks → implement (`/speckit.*` commands) | specify finish: `specs_valid`; implement start: `deps_ready`; implement finish: `contracts_pass`, `tasks_done` → `implemented`; `.specify/memory/constitution.md` is passed to agents as extra architecture context |
+| `openspec` | `openspec/changes/{feature}` (machine specs: `openspec/changes/**/*.spec.md`, archived ones included) | proposal (`/opsx:propose`) → apply (`/opsx:apply`) → archive (`/opsx:archive`) | proposal finish: `openspec validate {feature}` + `specs_valid` + `artifacts` (`proposal.md`, `tasks.md`); apply start: `deps_ready` → `in-progress`; **archive start: `contracts_pass`, `tasks_done`** → `implemented` |
+| `spec-kit` | `specs/{feature}` | specify → plan → tasks → implement (`/speckit.*` commands) | specify finish: `specs_valid`, `artifacts`; plan finish: `artifacts`, `deps_known` → `ready`; tasks finish: `artifacts`; implement start: `deps_ready`; implement finish: `contracts_pass`, `tasks_done` → `implemented`; `.specify/memory/constitution.md` is passed to agents as extra architecture context |
 | `custom` | from config | from config | from config |
 
-Preset paths and command names follow the tools' public layouts at the time of writing. They are
+Preset paths and command names follow the tools' public layouts at the time of writing (checked
+2026-10-22: OpenSpec 1.x names its commands `/opsx:*`; pinned as `openspec-1` and `spec-kit-1`). They are
 pinned per preset version and checked against fixture repos (feature [`workflow-profiles`](./features/workflow-profiles.md)), because those tools change.
 
 `catspec init` detects an existing workflow (`openspec/` folder, `.specify/` folder, `sdd-*`
@@ -1144,3 +1145,51 @@ Over MCP, an agent does the same with `next_step`, `start_stage`, `check_complia
 | CS0704 | driver not found (missing skill file, command not on PATH) |
 | CS0705 | stage out of order (starting a stage before the previous one's finish gates pass; `--force` to override, logged) |
 | CS0706 | `command` gate skipped because `workflow.allow_commands` is false |
+
+Implementation notes (F8):
+- A problem in `workflow:` is a `catspec.yaml` error (`CS0700`, exit 2), like any other config key,
+  so `check` and the hook stop until it is fixed. `feature_dir` must contain `{feature}` exactly
+  once and no `{spec}`.
+- `stages:` replaces the preset's list as a whole; the other `workflow` keys override one by one.
+  A preset also changes the defaults of `specs.include` and `layout` (`openspec`:
+  `openspec/changes/**/*.spec.md` with `layout: free`, because archived changes sit one folder
+  deeper; `spec-kit`: `specs/*/*.spec.md`; a custom `feature_dir`: `<dir>/*.spec.md`). Values
+  written in the file win, and `CS0106` follows `feature_dir`.
+- The `catspec` preset's drivers are `manual`; their text points at the MCP prompts `stage-<id>`.
+  Spec Kit's `.specify/memory/constitution.md` is an input of every stage.
+- A stage is done when its finish gates pass and its specs have reached the status it sets (at
+  finish, else at start). Deriving the current stage never runs `command:` gates; they count as
+  passing there. With `allow_commands: false` a `command:` gate counts as passed, with `CS0706`.
+- Starting or finishing a stage before an earlier one is done gives `CS0705`, reported together with
+  any gate failures. `--force` (CLI only, not over MCP) turns `CS0701`, `CS0702` and `CS0705` into
+  warnings, but never sets `implemented` while contracts fail, and the `status` rules of §D8 apply.
+  A forced run is logged as a JSON line in `<git-common-dir>/catspec/workflow-overrides.log`.
+- Targets: a name that is both a feature and a spec id means the feature. A per-feature stage given a
+  spec id runs for that spec's feature; a per-spec stage given a feature runs for every
+  non-deprecated spec in it. For per-feature stages, dependencies inside the same feature don't
+  block `deps_ready` or the status change, because an OpenSpec change moves all its specs together.
+- Aggregate specs skip the per-spec stages before the one that sets `implemented`: they go
+  straight to that stage (`close` in the `catspec` preset), and `contracts_pass` waits until their
+  dependencies are `implemented`. `contracts_declared` fails for a feature with no machine spec yet.
+- `tasks_done` counts the `## Tasks` of each spec for per-spec stages and `{feature_dir}/tasks.md`
+  (outside code blocks) for per-feature stages. The hook re-check (`CS0703`) runs per spec, so it
+  uses the spec's own `## Tasks`. With the `openspec` preset the archive gate reads the change's
+  `tasks.md` while the hook reads each spec's `## Tasks`; the two can disagree when a change keeps
+  its tasks only in one place.
+- `CS0703` uses the gates of the transition that sets `implemented`, limited to those a staged check
+  can decide: `specs_valid`, `contracts_pass`, `tasks_done`, `no_drift`, `deps_known`,
+  `contracts_declared`. It skips `artifacts`, `deps_ready`, `adr_valid` and `command:`.
+- `workflow doctor` checks skills at `<skills_dir>/<name>/SKILL.md` and that command drivers and
+  gates are on `PATH` (with `PATHEXT` on Windows). A missing gate tool is a warning while
+  `allow_commands` is false. Slash commands aren't checked. A preset that doesn't match the repository
+  is a `CS0700` warning. On Windows a `command:` gate that resolves to a `.cmd` or `.bat` shim fails
+  with a clear message, since running it would need a shell (ADR-009); doctor warns about it.
+- `catspec init` takes `--preset`; otherwise it detects one and writes it to `catspec.yaml`.
+  `openspec` and `spec-kit` get no example feature under `docs/spec/`. The `AGENTS.md` block uses
+  the profile's stage commands.
+- MCP: in `start_stage` / `finish_stage`, `stage` is optional and defaults to the current stage;
+  they have no `force` input. `get_spec_context` gives no `workflow` block for the architecture
+  spec. The `stage-<id>` prompts are built from the config when the server starts.
+- This repository's features F3–F8 have aggregate specs (`<feature-id>.spec.md` in the epic
+  folder) that depend on the features before them in §2 (F3 on `core-public-api`), so
+  `catspec stage finish close <feature>` in each Definition of Done names a real target.

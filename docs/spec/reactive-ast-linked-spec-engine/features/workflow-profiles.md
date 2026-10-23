@@ -51,7 +51,7 @@ Feature: F8 workflow-profiles
 
 ## PBI `workflow-config`
 The `workflow:` section of `catspec.yaml`: stages, who drives them, what they produce and which gates apply.
-- depends on: `claude-code-validation`
+- depends on: `mcp-resources-and-prompts` (F7; F7's `claude-code-validation` runs after F8)
 - refs: §D17.1, §D17.2
 - [ ] schema: presets, stages, `per: feature|spec`, drivers (`skill`, `slash`, `command`, `manual`), `produces`, `start` / `finish` gates and statuses, placeholders `{feature}`, `{feature_dir}`, `{spec}`
 - [ ] CS0700 invalid config; JSON Schema export

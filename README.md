@@ -290,6 +290,14 @@ catspec workflow snippet task      # the 2 lines to paste into your sdd-task ski
 catspec next <feature>             # what to do next, and with which skill
 ```
 
+With `preset: openspec` the stages are `proposal`, `apply` and `archive`, driven by OpenSpec's
+`/opsx:propose`, `/opsx:apply` and `/opsx:archive`. With `preset: spec-kit` they are `specify`,
+`plan`, `tasks` and `implement` (`/speckit.*`).
+
+If a gate blocks a step and you know why, `catspec stage start|finish … --force` goes ahead with a
+warning and logs the override in `.git/catspec/workflow-overrides.log`. It still never marks a spec
+`implemented` while its contracts fail, and agents can't force a step over MCP.
+
 ### Example: an epic with features, PBIs and tasks
 
 ```
@@ -342,7 +350,7 @@ catspec stage finish close user-account-management   # re-checks every spec; the
 | `accept <spec>` · `baseline --rebuild` | accept intentional signature changes · rebuild lock files |
 | `sync [--apply] [--map f]` | fix spec locations after renames / moves |
 | `refactor [--scope g]` · `refactor status` · `refactor abort` | large refactors |
-| `next <feature>` · `stage start\|finish <stage> <feature\|spec>` | workflow steps |
+| `next <feature>` · `stage start\|finish <stage> <feature\|spec> [--force]` | workflow steps |
 | `workflow show\|doctor\|snippet` | workflow profile tools |
 
 Exit codes: `0` ok, `1` errors, `2` usage or config error, `3` internal error. With `--format agent`:
