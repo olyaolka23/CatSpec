@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/assets/catspec-logo.svg" alt="CatSpec logo: a cat on a laptop" width="160">
+</p>
+
 # CatSpec
 
 **Specs that check the code.** CatSpec links your Markdown specs to real classes and methods,
