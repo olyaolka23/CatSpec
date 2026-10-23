@@ -5,11 +5,22 @@
  * - Tools (§D14.1): see `./tools.ts`.
  * - Resources (§D14.2): `catspec://spec/{id}` (the raw spec file), `catspec://architecture` (the
  *   ADR log), `catspec://graph` (mermaid) and `catspec://diagnostics` (the last check, as JSON).
- * - Prompts (§D14.2): `implement-spec` and `fix-drift`.
+ * - Prompts (§D14.2): `implement-spec` and `fix-drift`, and one `stage-<id>` prompt per workflow
+ *   stage, generated from the config when the server starts (§D17.5).
  */
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-import { checkCode, SPEC_STATUSES } from "@catspec/core";
+import {
+  checkCode,
+  defaultConfig,
+  describeStage,
+  findConfig,
+  parseConfig,
+  SPEC_STATUSES,
+  workflowProfile,
+  type CatspecConfig,
+} from "@catspec/core";
 import {
   McpServer,
   ResourceNotFoundError,
@@ -30,6 +41,8 @@ import {
   findSpecsForFile,
   getSpecContext,
   listSpecs,
+  nextStep,
+  runStage,
   setSpecStatus,
   startRefactor,
   syncSpecs,
@@ -42,9 +55,10 @@ import {
 const { version } = createRequire(import.meta.url)("../package.json") as { version: string };
 
 const INSTRUCTIONS =
-  "CatSpec checks code against specs (docs/spec/<feature>/<id>.spec.md). To implement a spec: " +
-  "get_spec_context, check_dependencies, set_spec_status in-progress, write the code, then " +
-  "check_compliance until done is true, then set_spec_status implemented. Never weaken a " +
+  "CatSpec checks code against specs (docs/spec/<feature>/<id>.spec.md). next_step names the " +
+  "current workflow stage of a feature and how to do it; start_stage and finish_stage run the " +
+  "stage's gates. To implement a spec: get_spec_context, start_stage, write the code, then " +
+  "check_compliance until done is true, then finish_stage. Never weaken a " +
   "contract to make a check pass: update_spec_bindings only proposes contract edits; show the " +
   "proposal to the developer.";
 
@@ -233,6 +247,43 @@ export function createServer(options: WorkspaceOptions): McpServer {
     async (input) => result(await syncSpecs(ws, input)),
   );
 
+  const target = z.string().min(1).describe("a feature (folder name) or a spec id");
+
+  server.registerTool(
+    "next_step",
+    {
+      description:
+        "What to do next for a feature or a work item: the current workflow stage, its driver " +
+        "(skill, slash command, command), the files to read and to produce, its gates, and " +
+        "which work items are ready or waiting. The same answer as `catspec next`.",
+      inputSchema: z.object({ feature: target }),
+      annotations: readOnly,
+    },
+    async (input) => result(await nextStep(ws, input)),
+  );
+
+  for (const phase of ["start", "finish"] as const) {
+    server.registerTool(
+      `${phase}_stage`,
+      {
+        description:
+          `${phase === "start" ? "Start" : "Finish"} a workflow stage for a feature or a spec: ` +
+          `runs the stage's ${phase} gates and, when they pass, sets the status the stage sets. ` +
+          "Without stage, the current stage. Failing gates come back with their diagnostics; " +
+          "fix them and call again. Like `catspec stage " +
+          phase +
+          "`; overriding a gate (`--force`) is left to the developer on the command line.",
+        inputSchema: z.object({
+          feature: target,
+          stage: z.string().min(1).optional().describe("the stage id (default: the current one)"),
+        }),
+        // It writes spec files, so a repeated call isn't guaranteed to do nothing.
+        annotations: { destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      },
+      async (input) => result(await runStage(ws, phase, input)),
+    );
+  }
+
   // Resources -------------------------------------------------------------------------------
 
   server.registerResource(
@@ -369,7 +420,48 @@ export function createServer(options: WorkspaceOptions): McpServer {
     },
   );
 
+  // One prompt per workflow stage (plan §D17.5).
+  const targetArgs = z.object({
+    target: z.string().describe("a feature (folder name) or a spec id"),
+  });
+  for (const stage of workflowProfile(startupConfig(options)).stages) {
+    const info = describeStage(stage);
+    server.registerPrompt(
+      `stage-${stage.id}`,
+      {
+        description: `Do the workflow stage "${stage.id}" (${info.driverText}) with its CatSpec gates`,
+        argsSchema: targetArgs,
+      },
+      ({ target }) =>
+        user(
+          [
+            `Do the workflow stage "${stage.id}" for "${target}".`,
+            "",
+            `1. Call start_stage with feature "${target}" and stage "${stage.id}". If it is refused, stop and tell the developer why.`,
+            `2. Do the stage: ${info.driverText}.` +
+              (stage.produces.length > 0 ? ` It must produce ${stage.produces.join(", ")}.` : ""),
+            stage.per === "spec"
+              ? `3. For each spec, call check_compliance with its spec_id after each change and fix everything it reports, until done is true.`
+              : "3. Check your work against the finish gates listed by start_stage.",
+            `4. Call finish_stage with feature "${target}" and stage "${stage.id}", and fix everything it reports until it passes.`,
+            "",
+            "Never weaken a contract in a spec to make a check pass; ask the developer instead.",
+          ].join("\n"),
+        ),
+    );
+  }
+
   return server;
+}
+
+/** The config when the server starts (for the stage prompts); the defaults if it can't be read. */
+function startupConfig(options: WorkspaceOptions): CatspecConfig {
+  try {
+    const file = options.configFile ?? findConfig(options.root);
+    return file ? parseConfig(readFileSync(file, "utf8")) : defaultConfig();
+  } catch {
+    return defaultConfig();
+  }
 }
 
 /** Serves the repository over stdio until the client disconnects or the connection fails. */

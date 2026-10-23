@@ -12,6 +12,7 @@ import * as z from "zod";
 
 import { formatPath, locate, schemaIssues } from "./schema-issues.js";
 import { listOf, relativePosix } from "./util.js";
+import { resolveWorkflow, WorkflowSchema, type WorkflowProfile } from "./workflow/schema.js";
 
 export const CONFIG_FILE = "catspec.yaml";
 
@@ -32,10 +33,7 @@ export const ConfigSchema = z
       .enum(["feature-folders", "free"])
       .default("feature-folders")
       .describe("feature-folders: specs live in docs/spec/<feature>/ (CS0106 otherwise)."),
-    workflow: z
-      .unknown()
-      .optional()
-      .describe("Workflow profile (plan §D17); validated by the workflow commands."),
+    workflow: WorkflowSchema.prefault({}),
     specs: z
       .strictObject({
         include: globList.default(["docs/spec/*/*.spec.md"]).describe("Machine spec files."),
@@ -120,12 +118,18 @@ export interface ConfigIssue {
   message: string;
   /** Allowed values, when the key has a fixed set. */
   allowed?: string[];
+  /** CS0700 for a problem in the `workflow:` section (plan §D17.7). */
+  code?: "CS0700";
 }
 
 /** An invalid `catspec.yaml`; the CLI reports it as a usage/config error (exit code 2). */
 export class ConfigError extends Error {
   constructor(readonly issues: ConfigIssue[]) {
-    super(issues.map((i) => `${i.file}:${i.line}:${i.column}: ${i.message}`).join("\n"));
+    super(
+      issues
+        .map((i) => `${i.file}:${i.line}:${i.column}: ${i.code ? `${i.code} ` : ""}${i.message}`)
+        .join("\n"),
+    );
     this.name = "ConfigError";
   }
 }
@@ -160,7 +164,7 @@ export function parseConfig(text: string, file = CONFIG_FILE): CatspecConfig {
     ]);
   }
   const result = ConfigSchema.safeParse(value);
-  if (result.success) return result.data;
+  if (result.success) return withWorkflowDefaults(result.data, value);
 
   throw new ConfigError(
     schemaIssues(result.error.issues, doc, ConfigSchema).map((issue) => {
@@ -177,9 +181,31 @@ export function parseConfig(text: string, file = CONFIG_FILE): CatspecConfig {
         key: formatPath(issue.path),
         message: issue.message + hint,
         ...(allowed ? { allowed } : {}),
+        ...(issue.path[0] === "workflow" ? { code: "CS0700" as const } : {}),
       };
     }),
   );
+}
+
+/** The workflow profile in effect (plan §D17): the preset with the config's overrides. */
+export const workflowProfile = (config: CatspecConfig): WorkflowProfile =>
+  resolveWorkflow(config.workflow);
+
+/**
+ * A preset whose features live outside `docs/spec/` (OpenSpec, Spec Kit, a custom `feature_dir`)
+ * changes the defaults of `specs.include` and `layout`; values written in the file win.
+ */
+function withWorkflowDefaults(config: CatspecConfig, raw: unknown): CatspecConfig {
+  const written = (raw ?? {}) as { layout?: unknown; specs?: { include?: unknown } | null };
+  const profile = workflowProfile(config);
+  return {
+    ...config,
+    layout: written.layout === undefined ? profile.layout : config.layout,
+    specs: {
+      ...config.specs,
+      include: written.specs?.include === undefined ? profile.specsInclude : config.specs.include,
+    },
+  };
 }
 
 export interface LoadedConfig {

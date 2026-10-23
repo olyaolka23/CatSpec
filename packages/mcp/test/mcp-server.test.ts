@@ -202,17 +202,20 @@ describe("F7 mcp-server-and-agent-layer: the MCP server", () => {
       });
     });
 
-    it("serves every tool of plan §D14.1 that exists before F8", async () => {
+    it("serves every tool of plan §D14.1", async () => {
       await withAuthRepo(async ({ mcp }) => {
         const { tools } = await mcp.client.listTools();
         expect(tools.map((t) => t.name).sort()).toEqual([
           "check_compliance",
           "check_dependencies",
           "find_specs_for_file",
+          "finish_stage",
           "get_spec_context",
           "list_specs",
+          "next_step",
           "set_spec_status",
           "start_refactor",
+          "start_stage",
           "sync_specs",
           "update_spec_bindings",
         ]);
@@ -515,7 +518,14 @@ describe("F7 mcp-server-and-agent-layer: the MCP server", () => {
     it("the prompts implement-spec and fix-drift name the spec and the tools to call", async () => {
       await withAuthRepo(async ({ mcp }) => {
         const { prompts } = await mcp.client.listPrompts();
-        expect(prompts.map((p) => p.name).sort()).toEqual(["fix-drift", "implement-spec"]);
+        expect(prompts.map((p) => p.name).sort()).toEqual([
+          "fix-drift",
+          "implement-spec",
+          "stage-close",
+          "stage-plan",
+          "stage-spec",
+          "stage-task",
+        ]);
         const implement = await mcp.client.getPrompt({
           name: "implement-spec",
           arguments: { spec_id: "login" },

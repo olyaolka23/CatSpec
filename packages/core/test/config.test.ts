@@ -35,10 +35,11 @@ const issuesOf = (text: string): ConfigIssue[] => {
   throw new Error("expected a ConfigError");
 };
 
-/** The defaults of plan §D4 (the `workflow` section is validated by the workflow profiles). */
+/** The defaults of plan §D4 (the `workflow` section: plan §D17). */
 const PLAN_D4_DEFAULTS = {
   version: 1,
   layout: "feature-folders",
+  workflow: { preset: "catspec", allow_commands: false, enforce_in_hook: "warn" },
   specs: {
     include: ["docs/spec/*/*.spec.md"],
     architecture: "docs/architecture/adr/*-adr.md",
@@ -149,10 +150,12 @@ describe("config-loader", () => {
     expect(yaml!.message).toContain("invalid YAML");
   });
 
-  it("keeps the workflow section as written for the workflow profiles", () => {
-    const config = parseConfig("workflow:\n  preset: custom\n  stages: []\n");
-    expect(config.workflow).toEqual({ preset: "custom", stages: [] });
+  it("validates the workflow section with the config: its problems are CS0700", () => {
+    const config = parseConfig("workflow:\n  preset: custom\n");
+    expect(config.workflow).toMatchObject({ preset: "custom", allow_commands: false });
     expect(ConfigSchema.shape.workflow).toBeDefined();
+    const [issue] = issuesOf("workflow:\n  preset: custom\n  stages: []\n");
+    expect(issue).toMatchObject({ code: "CS0700", key: "workflow.stages", line: 3 });
   });
 
   it("reports a config with too many aliases as a config error", () => {

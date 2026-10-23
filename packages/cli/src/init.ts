@@ -6,7 +6,18 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { CONFIG_FILE, globMatcher, kebabCase, listFiles, loadConfig } from "@catspec/core";
+import {
+  CONFIG_FILE,
+  customWorkflowYaml,
+  detectPreset,
+  globMatcher,
+  kebabCase,
+  listFiles,
+  loadConfig,
+  resolveWorkflow,
+  WorkflowSchema,
+  type PresetName,
+} from "@catspec/core";
 
 export const EXAMPLE_FEATURE = "example-feature";
 export const EXAMPLE_SPEC = "example-greeter";
@@ -15,16 +26,28 @@ export interface InitResult {
   root: string;
   created: string[];
   skipped: { file: string; reason: string }[];
+  /** The workflow preset written to `catspec.yaml`. */
+  preset: PresetName;
+  /** True when the preset was found from what is in the repository (plan §D17.3). */
+  detected: boolean;
 }
 
 /** Creates the CatSpec layout in `root`. `name` names the ADR log (`<name>-adr.md`). */
 export async function initRepository(
   root: string,
-  options: { name?: string; date?: string } = {},
+  options: { name?: string; date?: string; preset?: PresetName } = {},
 ): Promise<InitResult> {
   const name = kebabCase(options.name ?? basename(root)) || "project";
   const date = options.date ?? new Date().toISOString().slice(0, 10);
-  const result: InitResult = { root, created: [], skipped: [] };
+  const detected = options.preset === undefined ? detectPreset(root) : undefined;
+  const preset = options.preset ?? detected ?? "catspec";
+  const result: InitResult = {
+    root,
+    created: [],
+    skipped: [],
+    preset,
+    detected: detected !== undefined,
+  };
 
   const write = async (file: string, content: string): Promise<void> => {
     const path = join(root, file);
@@ -37,7 +60,7 @@ export async function initRepository(
     result.created.push(file);
   };
 
-  await write(CONFIG_FILE, configTemplate());
+  await write(CONFIG_FILE, configTemplate(preset));
 
   // One ADR log per repository: don't add a second one next to an existing log (CS0107).
   const { config } = await loadConfig(root);
@@ -53,6 +76,8 @@ export async function initRepository(
     await write(adrFile, adrTemplate(name, date));
   }
 
+  // OpenSpec and Spec Kit keep their own feature folders: no example under docs/spec/.
+  if (preset === "openspec" || preset === "spec-kit") return result;
   const feature = `docs/spec/${EXAMPLE_FEATURE}`;
   await write(`${feature}/spec.md`, featureSpecTemplate());
   await write(`${feature}/plan.md`, featurePlanTemplate());
@@ -60,13 +85,25 @@ export async function initRepository(
   return result;
 }
 
-const configTemplate =
-  (): string => `# yaml-language-server: $schema=./node_modules/@catspec/core/schemas/catspec.schema.json
+/** The `workflow:` section for a preset (plan §D17.2, §D17.3). */
+const workflowTemplate = (preset: PresetName): string =>
+  preset === "custom"
+    ? customWorkflowYaml()
+    : `# The SDD workflow CatSpec gates (plan §D17): catspec | openspec | spec-kit | custom.
+workflow:
+  preset: ${preset}
+  allow_commands: false  # let \`command:\` gates run commands
+  enforce_in_hook: warn  # off | warn | error
+`;
+
+const configTemplate = (preset: PresetName): string => {
+  const profile = resolveWorkflow(WorkflowSchema.parse({ preset }));
+  return `# yaml-language-server: $schema=./node_modules/@catspec/core/schemas/catspec.schema.json
 # CatSpec configuration. Every key is optional and has a default.
 version: 1
-layout: feature-folders
-specs:
-  include: ["docs/spec/*/*.spec.md"]
+layout: ${profile.layout}
+${workflowTemplate(preset)}specs:
+  include: [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
   architecture: "docs/architecture/adr/*-adr.md"
 # Both languages are always on; a file's extension picks its language. Point the globs at your
 # sources, or set \`include: []\` to leave a language out.
@@ -78,6 +115,7 @@ languages:
     include: ["src/**/*.cs"]
     exclude: ["**/obj/**", "**/bin/**", "**/*.g.cs"]
 `;
+};
 
 const adrTemplate = (name: string, date: string): string => `---
 catspec: 1
