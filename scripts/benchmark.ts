@@ -4,9 +4,9 @@
  * time is compared with its budget. `npm run bench` runs the built CLI as a new process, the way the
  * pre-commit hook and CI run it; the test runs it in process.
  *
- * - full check, cold: `catspec check` with an empty parse cache, at most 10 seconds;
+ * - full check, cold: `catspec check` with an empty parse cache, at most 10.5 seconds;
  * - staged check, warm: `catspec check --staged` on a commit that changes every bound file, with
- *   the cache filled, at most 1 second (the median of three runs).
+ *   the cache filled, at most 1.1 seconds (the median of three runs).
  *
  * The CLI entry point is `scripts/run-benchmark.ts` (`npm run bench`).
  */
@@ -29,7 +29,11 @@ export interface BenchmarkResult {
   report: string[];
 }
 
-export const BUDGETS = { stagedWarmMs: 1000, fullColdMs: 10_000 } as const;
+/**
+ * The plan's 1 s and 10 s (§D11.7) with the margin the owner set on 2026-10-24 for the time shared
+ * CI runners vary.
+ */
+export const BUDGETS = { stagedWarmMs: 1100, fullColdMs: 10_500 } as const;
 
 /** Compares each measured time with its budget. */
 export function evaluate(measurements: Measurement[]): BenchmarkResult {
