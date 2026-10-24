@@ -90,7 +90,10 @@ describe("monorepo", () => {
     // test: this run is `npm test`; check that Vitest collects every package's tests.
     const listed = node("vitest/vitest.mjs", ["list", "--filesOnly"]);
     expectSuccess(listed, "vitest list");
-    const testFiles = listed.stdout.split(/\r?\n/).map((f) => toPosix(f.trim()));
+    // Each line starts with the Vitest project's name (vitest.config.ts), e.g. `[unit] `.
+    const testFiles = listed.stdout
+      .split(/\r?\n/)
+      .map((f) => toPosix(f.trim().replace(/^\[[^\]]+\]\s*/, "")));
     expect(testFiles).toEqual(expect.arrayContaining(tests));
   }, 300_000);
 
@@ -232,6 +235,7 @@ describe("CI workflow", () => {
       "npm run lint",
       "npm run typecheck",
       "npm test",
+      "npm run bench",
       "node packages/cli/dist/bin.js check",
       "npm run check:acceptance",
     ]);

@@ -12,6 +12,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./bin": {
+      "source": "./src/bin.ts",
+      "types": "./dist/bin.d.ts",
+      "import": "./dist/bin.js"
     }
   },
   "main": "./dist/index.js",

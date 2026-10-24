@@ -94,7 +94,7 @@ export async function evaluateRule(
     if (!adapter?.runQuery || adapter.checkQuery?.(rule.query) !== undefined) return []; // CS0130
     const hits: { path: string; range: Range }[] = [];
     for (const file of scope.files) {
-      if (file.lang !== rule.lang) continue;
+      if (file.lang !== rule.lang || file.skipped !== undefined) continue;
       const source = await context.codebase.source(file.path);
       for (const range of adapter.runQuery(source, rule.query)) {
         if (inScope(file.path, range)) hits.push({ path: file.path, range });

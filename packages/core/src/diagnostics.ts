@@ -389,7 +389,8 @@ export const CODES = {
     docs:
       "A source file has a syntax error at the reported location. CatSpec still uses the " +
       "declarations it could read before and after the error, so results for that file may be " +
-      "incomplete. Fix the syntax error.",
+      "incomplete. Fix the syntax error. A file larger than 1 MiB, or one the language adapter " +
+      "fails on, isn't parsed at all: it gets one CS0901 at its first line and no facts.",
   },
   CS0902: {
     severity: "error",

@@ -13,6 +13,10 @@
  * - a feature file breaks the tagging rules (plan §3): a scenario without exactly one `@AC-…` tag,
  *   an `@AC-…` tag that isn't on a scenario, or a scenario outside the acceptance criteria and PBIs.
  *
+ * With `--all` (the release sweep, PBI `release-packaging`) every feature counts as closed, so every
+ * scenario of every feature needs a passing test, and every MVP acceptance scenario of each epic's
+ * `spec.md` §5 must be claimed by a feature in its `plan.md` §2 (`spec AC-n`).
+ *
  * The CLI entry point is `scripts/check-acceptance.ts`.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -278,6 +282,52 @@ export function checkAcceptance(features: Feature[], tests: TaggedTest[]): Check
   return { errors, checkedScenarios };
 }
 
+/**
+ * The MVP acceptance scenarios of a `spec.md` (the numbered items of §5 not marked Post-MVP) that
+ * no feature of the `plan.md` §2 table claims with `spec AC-n`.
+ */
+export function unclaimedSpecScenarios(specText: string, planText: string): number[] {
+  const mvp: number[] = [];
+  let inScenarios = false;
+  for (const line of specText.split(/\r?\n/)) {
+    if (line.startsWith("## ")) inScenarios = /^##\s+5\./.test(line);
+    const item = inScenarios ? /^(\d+)\.\s/.exec(line) : null;
+    if (item && !/post-mvp/i.test(line)) mvp.push(Number(item[1]));
+  }
+  const claimed = new Set<number>();
+  for (const line of planText.split(/\r?\n/)) {
+    if (!/^\|\s*F\d+\s*\|/.test(line)) continue;
+    for (const match of line.matchAll(/\bspec AC-(\d+)((?:,\s*AC-\d+)*)/g)) {
+      claimed.add(Number(match[1]));
+      for (const more of match[2]!.matchAll(/AC-(\d+)/g)) claimed.add(Number(more[1]));
+    }
+  }
+  return mvp.filter((n) => !claimed.has(n));
+}
+
+/** `unclaimedSpecScenarios` of every epic under `root` that has a `spec.md` and a `plan.md`. */
+export function checkSpecScenarios(root: string): string[] {
+  const specDir = join(root, "docs", "spec");
+  if (!existsSync(specDir)) return [];
+  const errors: string[] = [];
+  for (const epic of readdirSync(specDir, { withFileTypes: true })) {
+    if (!epic.isDirectory()) continue;
+    const spec = join(specDir, epic.name, "spec.md");
+    const plan = join(specDir, epic.name, "plan.md");
+    if (!existsSync(spec) || !existsSync(plan)) continue;
+    for (const n of unclaimedSpecScenarios(
+      readFileSync(spec, "utf8"),
+      readFileSync(plan, "utf8"),
+    )) {
+      errors.push(
+        `${relative(root, spec).replace(/\\/g, "/")}: MVP acceptance scenario ${n} is not ` +
+          `claimed by any feature in plan.md §2 ("spec AC-${n}")`,
+      );
+    }
+  }
+  return errors;
+}
+
 /** Loads every `docs/spec/<epic>/features/*.md` under `root`, applying each epic's plan Progress. */
 export function loadFeatures(root: string): Feature[] {
   const specDir = join(root, "docs", "spec");
@@ -315,9 +365,11 @@ export function run(argv: string[]): number {
     return 1;
   }
   const results = JSON.parse(readFileSync(resultsPath, "utf8")) as VitestJson;
-  const features = loadFeatures(root);
+  const all = argv.includes("--all");
+  const features = loadFeatures(root).map((f) => (all ? { ...f, closed: true } : f));
   const tests = parseVitestResults(results, root);
   const { errors, checkedScenarios } = checkAcceptance(features, tests);
+  if (all) errors.push(...checkSpecScenarios(root));
 
   if (errors.length > 0) {
     console.error(`acceptance-coverage: ${errors.length} problem(s)`);
@@ -325,7 +377,7 @@ export function run(argv: string[]): number {
     return 1;
   }
   console.log(
-    `acceptance-coverage: OK (${features.length} feature file(s), ` +
+    `acceptance-coverage: OK${all ? " (release sweep: every scenario)" : ""} (${features.length} feature file(s), ` +
       `${checkedScenarios} required scenario(s), ${tests.length} tagged test(s))`,
   );
   return 0;

@@ -16,6 +16,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "catspec": "./dist/bin.js"
+  },
   "files": [
     "dist"
   ],

@@ -23,6 +23,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.json",
     "check:acceptance": "tsx scripts/check-acceptance.ts",
+    "bench": "tsx scripts/run-benchmark.ts",
     "changeset": "changeset",
     "schemas": "tsx scripts/generate-schemas.ts"
   },

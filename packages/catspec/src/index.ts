@@ -1,2 +1,4 @@
-/** Package name; placeholder export until the package gets its first feature. */
+/** Package name. */
 export const packageName = "catspec";
+
+export { run, type CliIo } from "@catspec/cli";

@@ -43,6 +43,10 @@ jobs:
         run: npm run typecheck
       - name: Test
         run: npm test
+      # The performance budgets with the built CLI as a new process (plan §D11.7, PBI
+      # `performance-budgets`): staged check ≤ 1 s warm, full check ≤ 10 s cold on 10k files.
+      - name: Benchmark
+        run: npm run bench
       # CatSpec checks its own repository: the ADR log's rules (PBI `dogfood-specs`).
       - name: CatSpec check
         run: node packages/cli/dist/bin.js check

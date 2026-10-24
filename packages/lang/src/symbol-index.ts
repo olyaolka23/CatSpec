@@ -82,5 +82,6 @@ export async function repositoryFacts(
     }
   };
   await Promise.all(Array.from({ length: Math.min(32, entries.length) }, worker));
+  await provider.flush();
   return facts.filter((f): f is FileFacts => f !== undefined);
 }
