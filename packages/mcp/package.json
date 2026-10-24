@@ -2,7 +2,7 @@
   "name": "@catspec/mcp",
   "version": "0.0.0",
   "description": "CatSpec MCP server.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"

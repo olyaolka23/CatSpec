@@ -68,4 +68,15 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
     expect(body).toContain("Known limits:");
     expect(body).toMatch(/Syntax only/);
   });
+
+  it("ships every package under the repository's license, Apache-2.0, with the LICENSE file", () => {
+    const license = read("LICENSE");
+    expect(license).toContain("Apache License");
+    for (const dir of PACKAGES) {
+      const manifest = JSON.parse(read(`packages/${dir}/package.json`)) as { license: string };
+      expect(manifest.license, dir).toBe("Apache-2.0");
+      // npm packs a package's LICENSE file whatever its `files` say.
+      expect(read(`packages/${dir}/LICENSE`), dir).toBe(license);
+    }
+  });
 });

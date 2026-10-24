@@ -2,7 +2,7 @@
   "name": "@catspec/lang",
   "version": "0.0.0",
   "description": "Tree-sitter (WASM) loader, query runner and symbol normaliser for CatSpec.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"

@@ -2,7 +2,7 @@
   "name": "@catspec/core",
   "version": "0.0.0",
   "description": "Spec model, rule engine, diagnostics and git access for CatSpec.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"

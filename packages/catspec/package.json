@@ -2,7 +2,7 @@
   "name": "catspec",
   "version": "0.0.0",
   "description": "CatSpec: the CLI, MCP server and default language adapters in one install.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"

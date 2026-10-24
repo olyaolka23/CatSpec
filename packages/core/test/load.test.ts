@@ -8,10 +8,13 @@ import {
   adrLogText,
   createRepo,
   specText,
+  withRepo,
   type TempRepo,
 } from "../../../test/temp-repo.js";
 import {
   defaultConfig,
+  Git,
+  IndexProvider,
   loadConfig,
   loadSpecModel,
   parseConfig,
@@ -76,6 +79,32 @@ describe("spec-loader", () => {
     );
     expect(free.diagnostics).toEqual([]);
     expect(free.specs.get("login")).toBeDefined();
+  });
+
+  it("leaves out nested projects: a folder with its own catspec.yaml is checked on its own", async () => {
+    const files = {
+      [ADR_LOG]: adrLogText(),
+      "docs/spec/auth/login.spec.md": specText("login"),
+      "examples/shop/catspec.yaml": "version: 1\n",
+      "examples/shop/docs/spec/cart/cart.spec.md": specText("cart"),
+      "examples/shop/docs/architecture/adr/shop-adr.md": adrLogText(),
+    };
+    const model = await load(files);
+    expect(model.diagnostics).toEqual([]);
+    expect([...model.specs.byFile.keys()]).toEqual([ADR_LOG, "docs/spec/auth/login.spec.md"]);
+
+    // The git index (`check --staged`) leaves them out too.
+    await withRepo(async (repo) => {
+      repo.git("add", "--", ".");
+      const git = new Git(repo.dir);
+      try {
+        const staged = await loadSpecModel(repo.dir, defaultConfig(), new IndexProvider(git));
+        expect(staged.diagnostics).toEqual([]);
+        expect(staged.specs.size).toBe(2);
+      } finally {
+        await git.close();
+      }
+    }, files);
   });
 
   it("[AC-spec-loader-3] reports CS0112 at a rule that references an unknown ADR", async () => {

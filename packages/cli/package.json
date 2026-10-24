@@ -2,7 +2,7 @@
   "name": "@catspec/cli",
   "version": "0.0.0",
   "description": "The catspec command-line interface.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"

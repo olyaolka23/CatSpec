@@ -97,7 +97,7 @@ export const kebabCase = (name: string): string =>
 
 /**
  * Lists every file under `root` as a sorted, root-relative POSIX path. Skips `node_modules`,
- * dot-folders (`.git`, `.github`, …) and symbolic links.
+ * dot-folders (`.git`, `.github`, …), symbolic links and nested projects (`withoutNestedProjects`).
  */
 export async function listFiles(root: string): Promise<string[]> {
   const files: string[] = [];
@@ -117,8 +117,21 @@ export async function listFiles(root: string): Promise<string[]> {
     );
   };
   await walk(root);
-  return files.sort(compareStrings);
+  return withoutNestedProjects(files.sort(compareStrings));
 }
+
+/**
+ * Leaves out the files of nested projects: a folder below the root with its own `catspec.yaml`
+ * (an example repository, a vendored project) is checked on its own, not as part of the root.
+ */
+export const withoutNestedProjects = (paths: readonly string[]): string[] => {
+  const nested = paths
+    .filter((path) => path.endsWith("/catspec.yaml"))
+    .map((path) => path.slice(0, -"catspec.yaml".length));
+  return nested.length === 0
+    ? [...paths]
+    : paths.filter((path) => !nested.some((folder) => path.startsWith(folder)));
+};
 
 /**
  * True for a root-relative POSIX path that `listFiles` would list: no `node_modules` and no

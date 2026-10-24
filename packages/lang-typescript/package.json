@@ -2,7 +2,7 @@
   "name": "@catspec/lang-typescript",
   "version": "0.0.0",
   "description": "TypeScript/TSX language adapter for CatSpec.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "engines": {
     "node": ">=22.12"
