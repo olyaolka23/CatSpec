@@ -3,7 +3,7 @@ catspec: 1
 id: git-integration-and-hook
 title: Git integration and hook
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [rule-engine-and-check]
 ---

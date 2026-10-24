@@ -46,15 +46,15 @@ Feature: F8 workflow-profiles
 - [ ] all PBIs meet the PBI checklist
 - [ ] `@AC-F8-1..3` are automated and pass in CI on 3 OSes
 - [ ] requirements review done; differences approved by the owner
-- [ ] `catspec stage finish close workflow-profiles` passes
+- [x] `catspec stage finish close workflow-profiles` passes
 - [ ] owner approved closing the feature and ticking it in plan §1 Progress
 
 ## PBI `workflow-config`
 The `workflow:` section of `catspec.yaml`: stages, who drives them, what they produce and which gates apply.
 - depends on: `mcp-resources-and-prompts` (F7; F7's `claude-code-validation` runs after F8)
 - refs: §D17.1, §D17.2
-- [ ] schema: presets, stages, `per: feature|spec`, drivers (`skill`, `slash`, `command`, `manual`), `produces`, `start` / `finish` gates and statuses, placeholders `{feature}`, `{feature_dir}`, `{spec}`
-- [ ] CS0700 invalid config; JSON Schema export
+- [x] schema: presets, stages, `per: feature|spec`, drivers (`skill`, `slash`, `command`, `manual`), `produces`, `start` / `finish` gates and statuses, placeholders `{feature}`, `{feature_dir}`, `{spec}`
+- [x] CS0700 invalid config; JSON Schema export
 
 ```gherkin
   @AC-workflow-config-1
@@ -74,8 +74,8 @@ The `workflow:` section of `catspec.yaml`: stages, who drives them, what they pr
 Works out where each feature and work item currently is in the workflow, without storing any extra state.
 - depends on: `workflow-config`
 - refs: §D17.1, ADR-004
-- [ ] derive the current stage per feature and per work item
-- [ ] feature targets for `per: spec` stages (run for every spec of the feature)
+- [x] derive the current stage per feature and per work item
+- [x] feature targets for `per: spec` stages (run for every spec of the feature)
 
 ```gherkin
   @AC-stage-resolution-1
@@ -96,9 +96,9 @@ Works out where each feature and work item currently is in the workflow, without
 Runs the named checks (gates) when a stage starts or finishes.
 - depends on: `stage-resolution`
 - refs: §D17.4, §D17.7, ADR-009
-- [ ] gates `specs_valid`, `artifacts`, `contracts_declared`, `deps_known`, `deps_ready`, `contracts_pass`, `tasks_done`, `no_drift`, `adr_valid`
-- [ ] `command:` gates only with `workflow.allow_commands`, via `execFile` (CS0706 when skipped)
-- [ ] CS0701 / CS0702 / CS0705
+- [x] gates `specs_valid`, `artifacts`, `contracts_declared`, `deps_known`, `deps_ready`, `contracts_pass`, `tasks_done`, `no_drift`, `adr_valid`
+- [x] `command:` gates only with `workflow.allow_commands`, via `execFile` (CS0706 when skipped)
+- [x] CS0701 / CS0702 / CS0705
 
 ```gherkin
   @AC-gate-runner-1
@@ -126,8 +126,8 @@ Runs the named checks (gates) when a stage starts or finishes.
 The workflow commands: `next`, `stage start|finish`, and `workflow show|doctor|snippet`.
 - depends on: `gate-runner`
 - refs: §D10, §D17.5
-- [ ] `catspec next <feature>`; `catspec stage start|finish <stage> <feature|spec-id> [--force]`
-- [ ] `catspec workflow show [feature]`, `workflow doctor` (CS0704), `workflow snippet <stage|agents>`
+- [x] `catspec next <feature>`; `catspec stage start|finish <stage> <feature|spec-id> [--force]`
+- [x] `catspec workflow show [feature]`, `workflow doctor` (CS0704), `workflow snippet <stage|agents>`
 
 ```gherkin
   @AC-workflow-cli-1
@@ -149,7 +149,7 @@ The workflow commands: `next`, `stage start|finish`, and `workflow show|doctor|s
 The workflow for agents over MCP: `next_step`, `start_stage`, `finish_stage` and per-stage prompts.
 - depends on: `workflow-cli`
 - refs: §D14.1, §D17.5
-- [ ] MCP `next_step`, `start_stage`, `finish_stage`; `workflow` block in `get_spec_context`; generated `stage-<id>` prompts
+- [x] MCP `next_step`, `start_stage`, `finish_stage`; `workflow` block in `get_spec_context`; generated `stage-<id>` prompts
 
 ```gherkin
   @AC-workflow-mcp-1
@@ -163,9 +163,9 @@ The workflow for agents over MCP: `next_step`, `start_stage`, `finish_stage` and
 Ready-made profiles for CatSpec's own flow, custom skills, OpenSpec and Spec Kit, detected automatically by `init`.
 - depends on: `workflow-cli`
 - refs: §D17.3
-- [ ] presets `catspec` and `custom`
-- [ ] presets `openspec` and `spec-kit`: first verify their current layouts and command names, then pin per preset version; fixture repos for both
-- [ ] detection in `catspec init` (`openspec/`, `.specify/`, `sdd-*` skills)
+- [x] presets `catspec` and `custom`
+- [x] presets `openspec` and `spec-kit`: first verify their current layouts and command names, then pin per preset version; fixture repos for both
+- [x] detection in `catspec init` (`openspec/`, `.specify/`, `sdd-*` skills)
 
 ```gherkin
   @AC-workflow-presets-1
@@ -185,7 +185,7 @@ Ready-made profiles for CatSpec's own flow, custom skills, OpenSpec and Spec Kit
 Optionally re-checks, on every commit, that implemented specs still pass their final workflow gates, without slowing the hook.
 - depends on: `gate-runner`, `hook-installer`
 - refs: §D17.5
-- [ ] `workflow.enforce_in_hook`: CS0703 for `implemented` specs, built-in gates only (never `command:`)
+- [x] `workflow.enforce_in_hook`: CS0703 for `implemented` specs, built-in gates only (never `command:`)
 
 ```gherkin
   @AC-workflow-hook-1

@@ -3,7 +3,7 @@ catspec: 1
 id: csharp-language-support
 title: C# language support
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [rule-engine-and-check]
 ---

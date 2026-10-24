@@ -3,7 +3,7 @@ catspec: 1
 id: rule-engine-and-check
 title: Rule engine and check
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [core-public-api]
 ---

@@ -3,7 +3,7 @@ catspec: 1
 id: mcp-server-and-agent-layer
 title: MCP server and agent layer
 type: feature
-status: ready
+status: implemented
 owners: ["@olyaolka23"]
 depends_on: [rename-and-refactor]
 ---
