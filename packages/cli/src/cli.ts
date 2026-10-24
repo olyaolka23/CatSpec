@@ -176,6 +176,13 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     .configureOutput({
       writeOut: (text) => out.stdout.write(text),
       writeErr: (text) => out.stderr.write(text),
+      // Help is wrapped to the terminal only when it goes to the terminal; otherwise (a pipe, or
+      // the output a caller passes in) at 80 columns, commander's default, so it is the same
+      // everywhere (the command reference of the user guide is generated from it).
+      getOutHelpWidth: () =>
+        out.stdout === process.stdout && process.stdout.isTTY ? process.stdout.columns : 80,
+      getErrHelpWidth: () =>
+        out.stderr === process.stderr && process.stderr.isTTY ? process.stderr.columns : 80,
     })
     .showSuggestionAfterError(true)
     .hook("preAction", (_, action) => {

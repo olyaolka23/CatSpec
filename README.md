@@ -7,13 +7,17 @@
 **Specs that check the code.** CatSpec links your Markdown specs to real classes and methods,
 checks them on every commit, and lets AI agents verify their own work before they say "done".
 
-> **Status: design stage.** CatSpec isn't implemented yet. This README describes the planned
-> MVP (v0.1) so developers can review how it will be used. Commands and file formats may still
-> change. Design documents: [analysis](docs/spec/reactive-ast-linked-spec-engine/analysis.md) ·
-> [spec](docs/spec/reactive-ast-linked-spec-engine/spec.md) ·
-> [plan](docs/spec/reactive-ast-linked-spec-engine/plan.md) ·
-> [features](docs/spec/reactive-ast-linked-spec-engine/features/) ·
-> [ADR log](docs/architecture/adr/reactive-ast-adr.md).
+> **Version 0.1.** TypeScript and C#, on Linux, macOS and Windows (Node.js 22.12+). Read the
+> [user guide](docs/spec/catspec-user-guide/spec.md): [quick start](docs/spec/catspec-user-guide/quick-start.md) ·
+> [spec format](docs/spec/catspec-user-guide/spec-format.md) ·
+> [rules](docs/spec/catspec-user-guide/rules.md) ·
+> [diagnostics](docs/spec/catspec-user-guide/diagnostics.md) ·
+> [commands](docs/spec/catspec-user-guide/commands.md) ·
+> [agents](docs/spec/catspec-user-guide/agents.md) ·
+> [workflows](docs/spec/catspec-user-guide/workflow-presets.md) ·
+> [FAQ and limits](docs/spec/catspec-user-guide/faq.md). Examples:
+> [`examples/ts-auth-service`](examples/ts-auth-service/) and
+> [`examples/dotnet-user-sync`](examples/dotnet-user-sync/).
 
 ---
 
@@ -342,6 +346,8 @@ catspec stage finish close user-account-management   # re-checks every spec; the
 
 ## Command reference (v0.1)
 
+Every command and option: [command reference](docs/spec/catspec-user-guide/commands.md).
+
 | Command | Purpose |
 |---|---|
 | `init [--preset p] [--hooks] [--agents]` | set up the repo |
@@ -371,6 +377,9 @@ Exit codes: `0` ok, `1` errors, `2` usage or config error, `3` internal error. W
 - **No agent locks.** Parallel agents use git branches; `catspec check` after a merge catches broken
   contracts. Locks are planned for later (ADR-014).
 - **Local only.** CI integration (SARIF, PR comments) and the GitHub App come after v0.1.
+- **Big files.** Files over 1 MiB aren't parsed (one CS0901 warning).
+
+More in the [FAQ](docs/spec/catspec-user-guide/faq.md).
 
 ---
 
@@ -378,7 +387,10 @@ Exit codes: `0` ok, `1` errors, `2` usage or config error, `3` internal error. W
 
 This repo is developed spec-first. Read [`AGENTS.md`](AGENTS.md) for where docs and decisions live,
 the [ADR log](docs/architecture/adr/reactive-ast-adr.md) for architecture decisions, and the
-[design documents](docs/spec/reactive-ast-linked-spec-engine/).
+design documents: [analysis](docs/spec/reactive-ast-linked-spec-engine/analysis.md) ·
+[spec](docs/spec/reactive-ast-linked-spec-engine/spec.md) ·
+[plan](docs/spec/reactive-ast-linked-spec-engine/plan.md) ·
+[features](docs/spec/reactive-ast-linked-spec-engine/features/).
 
 ## License
 

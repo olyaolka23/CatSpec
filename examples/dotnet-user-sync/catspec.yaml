@@ -1,0 +1,9 @@
+# CatSpec configuration of the example. Every key is optional and has a default.
+version: 1
+languages:
+  typescript:
+    include: []
+  csharp:
+    include: ["src/**/*.cs"]
+heal:
+  mode: suggest # a rename is reported with the spec edit; `catspec sync --apply` makes it

@@ -1,0 +1,8 @@
+{
+  "name": "ts-auth-service-example",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "catspec": "^0.1.0"
+  }
+}

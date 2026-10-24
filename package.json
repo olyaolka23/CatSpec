@@ -25,7 +25,8 @@
     "check:acceptance": "tsx scripts/check-acceptance.ts",
     "bench": "tsx scripts/run-benchmark.ts",
     "changeset": "changeset",
-    "schemas": "tsx scripts/generate-schemas.ts"
+    "schemas": "tsx scripts/generate-schemas.ts",
+    "guide": "tsx scripts/generate-guide.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

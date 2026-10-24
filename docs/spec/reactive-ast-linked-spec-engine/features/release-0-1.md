@@ -30,7 +30,7 @@ Feature: F9 release-0-1
   Scenario: Performance budgets
     Given the synthetic 10k-file repository
     When the benchmark job runs
-    Then the staged check takes at most 1 second warm and the full check at most 10 seconds cold
+    Then the staged check takes at most 1.1 seconds warm and the full check at most 10.5 seconds cold
 
   @AC-F9-3
   Scenario: The whole epic is verified
@@ -51,14 +51,14 @@ Measures and enforces the speed targets on a large synthetic repository.
 - depends on: `workflow-hook`, `csharp-acceptance`
 - refs: §D11.7, spec §4, analysis F-16
 - [ ] synthetic 10k-file repo generator (TS + C#)
-- [ ] benchmark job: staged ≤ 1 s warm, full ≤ 10 s cold; profile and fix hot spots
+- [ ] benchmark job: staged ≤ 1.1 s warm, full ≤ 10.5 s cold; profile and fix hot spots
 
 ```gherkin
   @AC-performance-budgets-1
   Scenario: A slower commit fails the benchmark
     Given a change that makes the warm staged check take 1.3 seconds
     When the benchmark job runs
-    Then it fails and reports the measured time against the 1-second budget
+    Then it fails and reports the measured time against the 1.1-second budget
 ```
 
 ## PBI `robustness-fuzzing`
@@ -119,3 +119,22 @@ Packages and publishes 0.1.0 after the final acceptance sweep.
     When the acceptance sweep is green and the owner approves
     Then 0.1.0 is published to npm with release notes listing the known limits
 ```
+
+## Implementation notes
+
+- Budgets: 1.1 s staged warm and 10.5 s full cold (owner's decision, 2026-10-24; first targets
+  1 s and 10 s). Benchmark and cache changes: plan §D11.7.
+- `robustness-fuzzing`: `test/robustness-fuzzing.test.ts` runs 10,000 fast-check inputs (random
+  text, random syntax, truncated and cut fixtures) through both adapters; the limit for parsing is
+  1 MiB (`MAX_SOURCE_BYTES`, plan §D11.2).
+- `user-guide`: [`docs/spec/catspec-user-guide/`](../../catspec-user-guide/spec.md). Its diagnostics and command
+  references are generated (`npm run guide`); `@AC-user-guide-1` checks them and every code and
+  command the guide and README name.
+- `example-repos`: [`examples/ts-auth-service`](../../../../examples/ts-auth-service/) and
+  [`examples/dotnet-user-sync`](../../../../examples/dotnet-user-sync/); `test/example-repos.test.ts` runs
+  their journeys (spec AC-1 and AC-2).
+- `release-packaging`: `catspec` has the `catspec` bin; `test/clean-install.test.ts` packs every
+  package and runs `npx catspec init` and `check` after an install with `--ignore-scripts`.
+  `npm run check:acceptance -- --all` is the sweep. `.github/workflows/release.yml` (started by hand)
+  publishes with `changeset publish` after the sweep on 3 OSes and the approval of the `npm-release`
+  environment; the release notes are `.changeset/release-0-1.md`.
