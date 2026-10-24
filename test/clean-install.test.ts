@@ -68,7 +68,9 @@ async function pack(dir: string, staging: string, tarballs: string): Promise<str
     config: false,
     entry: ["index.ts", "bin.ts"]
       .map((file) => join(source, "src", file))
-      .filter((file) => existsSync(file)),
+      .filter((file) => existsSync(file))
+      // tsup matches entries as globs, which need forward slashes on Windows.
+      .map((file) => file.replace(/\\/g, "/")),
     outDir: join(target, "dist"),
     format: ["esm"],
     target: "node22",

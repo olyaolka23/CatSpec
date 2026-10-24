@@ -58,7 +58,6 @@ import {
   type SpecModel,
   type SpecStatus,
 } from "@catspec/core";
-import { serveMcp } from "@catspec/mcp";
 import { Argument, Command, CommanderError, Option } from "commander";
 
 import {
@@ -1241,6 +1240,9 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       const opts = globals(command);
       const cwd = workingDirectory(out.cwd, opts.cwd);
       const { root, file } = await loadConfig(cwd, opts.config);
+      // Loaded on demand: the MCP SDK isn't needed by the other commands, and the pre-commit hook
+      // pays for every module it loads (plan §D11.7).
+      const { serveMcp } = await import("@catspec/mcp");
       await serveMcp({
         root,
         ...(opts.config !== undefined && file ? { configFile: file } : {}),
