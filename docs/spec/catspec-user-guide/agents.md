@@ -35,17 +35,20 @@ start `npx` (it is `npx.cmd`):
 [mcp_servers.catspec]
 command = "node"
 args = ["/path/to/repo/node_modules/catspec/dist/bin.js", "--cwd", "/path/to/repo", "mcp"]
+```
 
+```toml
 # Windows: single quotes keep the backslashes
 [mcp_servers.catspec]
 command = "node"
 args = ['C:\path\to\repo\node_modules\catspec\dist\bin.js', "--cwd", 'C:\path\to\repo', "mcp"]
 ```
 
-Use one of the two entries. Then start a new Codex session: servers load when a session starts,
-and `/mcp` lists them. The `/mcp__catspec__<prompt>` slash commands are Claude Code's; in Codex,
-ask in words ("do the CatSpec spec stage for `<feature>`"), or let the agent use the CLI, which
-does the same.
+The file may hold only one `[mcp_servers.catspec]`. Then restart Codex: servers load when it
+starts, and `/mcp` lists them. If CatSpec is missing, run the `node … mcp` command in a terminal:
+it should print nothing and wait (Ctrl+C stops it); an error there is why Codex can't start it.
+The `/mcp__catspec__<prompt>` slash commands are Claude Code's; in Codex, ask in words ("do the
+CatSpec spec stage for `<feature>`"), or let the agent use the CLI, which does the same.
 
 Tools:
 
