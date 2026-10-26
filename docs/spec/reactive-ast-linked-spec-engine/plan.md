@@ -870,6 +870,8 @@ exec npx --no-install catspec check --staged --format text
 - `bin.ts` sets the V8 flag `--liftoff-only`: without it the process waits about 1.7 s at exit
   for background optimisation of the grammar WebAssembly (hook on a 10k-file repository:
   2.2 s → 0.5 s).
+- The hook runs the project's `node_modules/.bin/catspec`, else one on the PATH, else lets the
+  commit through with a message (ADR-026). `catspec uninstall` removes it with the agent setup.
 
 ---
 
@@ -1210,3 +1212,11 @@ Implementation notes (F8):
 - This repository's features F3–F8 have aggregate specs (`<feature-id>.spec.md` in the epic
   folder) that depend on the features before them in §2 (F3 on `core-public-api`), so
   `catspec stage finish close <feature>` in each Definition of Done names a real target.
+- `feature_dir` may be a list of patterns for features at several depths (ADR-025), e.g.
+  `["docs/spec/billing/{feature}", "docs/spec/{feature}"]`.
+- `catspec init` looks for `sdd-*` skills in `.claude/skills` and `.agents/skills`, writes the
+  folder it found, and uses `sdd-<stage>` or `sdd-<stage>s` for each stage; a stage without a
+  skill gets a manual driver. It writes `specs.include` only as a comment, so the default follows
+  `feature_dir`.
+- `check --staged` reports CS0107 as a warning, naming the file to stage, when the ADR log exists
+  on disk but isn't staged (right after `catspec init`), so the first commits aren't blocked.

@@ -49,6 +49,14 @@ workflow:
       finish: { gates: [contracts_pass, tasks_done, no_drift], status: implemented }
 ```
 
+Features split by domain folder? Give `feature_dir` a list. The most specific pattern wins, and
+the domain folders themselves aren't features:
+
+```yaml
+workflow:
+  feature_dir: ["docs/spec/billing/{feature}", "docs/spec/shipping/{feature}", "docs/spec/{feature}"]
+```
+
 ## Gates
 
 | Gate | Passes when |

@@ -41,6 +41,13 @@ they have passed once. `catspec check --spec <id>` shows what's left, as if impl
 on Linux, macOS and Windows). Parsed files are cached by content in
 `<git-common-dir>/catspec/cache/`.
 
+**How do I remove CatSpec?** Run `npx catspec uninstall` before removing the package. It takes
+out the pre-commit hook, the Claude Code Stop hook and the CatSpec block of `AGENTS.md`;
+`--files` also deletes `catspec.yaml` and the files `init` wrote that you haven't changed. Your
+specs stay. Then `npm uninstall catspec`, and `claude mcp remove catspec` if you connected it.
+If the package is already gone, the hook lets commits through and says so; delete
+`.git/hooks/pre-commit` to silence it.
+
 **Where are the lock files, and can I delete them?** `<spec-id>.lock.json` next to each spec. Commit
 them. `catspec baseline --rebuild` recreates them, but loses the ratchet history (what passed
 before).

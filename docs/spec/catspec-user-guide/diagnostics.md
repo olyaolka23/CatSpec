@@ -95,7 +95,7 @@ With `layout: feature-folders`, every `*.spec.md` lives directly in `docs/spec/<
 
 **architecture spec missing or ambiguous** · error
 
-Exactly one file must match `specs.architecture` (default `docs/architecture/adr/*-adr.md`). Create it with `catspec init`, remove the extra matches, or change `specs.architecture` in `catspec.yaml`.
+Exactly one file must match `specs.architecture` (default `docs/architecture/adr/*-adr.md`). Create it with `catspec init`, remove the extra matches, or change `specs.architecture` in `catspec.yaml`. In `check --staged`, an ADR log that exists on disk but isn't staged yet is a warning that names the file to stage, so the first commit after `catspec init` isn't blocked.
 
 ## CS0108
 
