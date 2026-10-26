@@ -188,7 +188,7 @@ that go with it, lives in a folder named after its feature (epic).
     claims/<spec-id>.json               # post-MVP (§D9)
 ```
 
-- `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and an example feature folder
+- `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and, with `--with-sdd-example`, an example feature folder
   with `spec.md`, `plan.md` and one `*.spec.md`. `catspec init --agents` also appends
   the layout rules to `AGENTS.md` (created if missing) so coding agents follow them.
 - `catspec check --specs-only` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
@@ -536,7 +536,7 @@ hook convention:
 
 | Command | Description |
 |---|---|
-| `catspec init [--hooks] [--agents]` | create `catspec.yaml`, `docs/spec/`, `docs/architecture/adr/<name>-adr.md` and an example feature folder (§D3); optionally install hooks and add layout rules to `AGENTS.md` |
+| `catspec init [--hooks] [--agents] [--with-sdd-example]` | create `catspec.yaml`, `docs/spec/`, `docs/architecture/adr/<name>-adr.md` and, with `--with-sdd-example`, an example feature folder (§D3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode). `--in-progress`: only the specs whose status is `in-progress` on the current branch, i.e. the work items the agent is working on (exit 0 when there are none) |
 | `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
 | `catspec show <spec-id>` | normalised model + compliance + deps |
@@ -1223,3 +1223,6 @@ Implementation notes (F8):
 - The snippet and the MCP prompt of a stage that writes `*.spec.md` also tell the agent what goes
   into it (bindings, rules, `catspec bind` for classes that already exist), so the spec-first flow
   produces the contract without a human writing YAML.
+- `catspec init` writes the preset's `feature_dir` and `skills_dir`, with a list example as a
+  comment, and writes the example feature only with `--with-sdd-example` (owner's decision,
+  2026-10-26), so re-running `init` never brings back a deleted example.

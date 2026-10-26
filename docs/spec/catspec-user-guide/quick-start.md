@@ -8,7 +8,7 @@ WebAssembly.
 
 ```bash
 npm install --save-dev catspec
-npx catspec init               # add --hooks for the pre-commit hook, --agents for AI agents
+npx catspec init --with-sdd-example   # add --hooks for the pre-commit hook, --agents for AI agents
 ```
 
 `init` writes:
@@ -16,6 +16,11 @@ npx catspec init               # add --hooks for the pre-commit hook, --agents f
 ```
 catspec.yaml                                   # config; every key is optional
 docs/architecture/adr/<repo>-adr.md            # architecture decisions + repository-wide rules
+```
+
+and, with `--with-sdd-example`, the example feature used below:
+
+```
 docs/spec/example-feature/spec.md, plan.md     # human docs of an example feature
 docs/spec/example-feature/example-greeter.spec.md   # an example machine spec
 ```

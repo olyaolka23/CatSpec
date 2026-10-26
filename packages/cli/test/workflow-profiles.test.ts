@@ -175,13 +175,16 @@ describe("F8 workflow-profiles", () => {
   it("[AC-F8-3] doctor finds a missing skill: CS0704 names sdd-plan and the expected path (spec AC-16)", async () => {
     const skills = { ...SKILLS };
     delete skills[".claude/skills/sdd-plan/SKILL.md"];
-    await inRepo({ "catspec.yaml": customWorkflowYaml(), ...skills }, async (dir) => {
+    const yaml = customWorkflowYaml();
+    // The diagnostic points at the plan stage's driver line.
+    const line = yaml.split("\n").findIndex((l) => l.includes("skill: sdd-plan")) + 1;
+    await inRepo({ "catspec.yaml": yaml, ...skills }, async (dir) => {
       const doctor = await catspec(dir, ["workflow", "doctor"]);
       expect(doctor.code).toBe(1);
       expect(doctor.stdout).toMatch(
         /CS0704 .*skill sdd-plan not found; expected \.claude\/skills\/sdd-plan\/SKILL\.md/,
       );
-      expect(doctor.stdout).toMatch(/catspec\.yaml\n {2}13:\d+/);
+      expect(doctor.stdout).toMatch(new RegExp(`catspec\\.yaml\\n {2}${line}:\\d+`));
     });
   });
 

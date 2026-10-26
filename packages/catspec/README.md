@@ -13,16 +13,18 @@ TypeScript and C#, on Linux, macOS and Windows, with Node.js 22.12 or newer.
    npx catspec init --hooks --agents
    ```
 
-   `init` writes `catspec.yaml`, the ADR log, an example feature in `docs/spec/example-feature/`,
-   the pre-commit hook and the agent setup. On Windows PowerShell, use `npx.cmd` and `npm.cmd`.
-2. **Check:** `npx catspec check`. Every problem has a code and a hint, and
-   `npx catspec guide diagnostics` explains each code.
-3. **Write your first spec:** copy `docs/spec/example-feature/example-greeter.spec.md` into
-   `docs/spec/<your-feature>/` and bind it to one of your classes
-   ([spec format](https://github.com/olyaolka23/CatSpec/blob/main/docs/spec/catspec-user-guide/spec-format.md)).
-4. **Connect your AI agent:** `claude mcp add catspec -- npx catspec mcp` for Claude Code; other
-   agents in [agent integration](https://github.com/olyaolka23/CatSpec/blob/main/docs/spec/catspec-user-guide/agents.md). Then ask it how to do
+   `init` writes `catspec.yaml`, the ADR log, the pre-commit hook and the agent setup. Add
+   `--with-sdd-example` for an example feature in `docs/spec/example-feature/`. On Windows
+   PowerShell, use `npx.cmd` and `npm.cmd`.
+2. **Connect your AI agent:** `claude mcp add catspec -- npx catspec mcp` for Claude Code; Codex,
+   Cursor, Copilot and other agents in [agent integration](https://github.com/olyaolka23/CatSpec/blob/main/docs/spec/catspec-user-guide/agents.md). Then ask it how to do
    something with CatSpec: it reads the user guide through the MCP server.
+3. **Write your first spec:** in `docs/spec/<your-feature>/`, write `<spec-id>.spec.md` and bind it
+   to one of your classes
+   ([spec format](https://github.com/olyaolka23/CatSpec/blob/main/docs/spec/catspec-user-guide/spec-format.md)).
+   `npx catspec init --with-sdd-example` writes a complete example to copy from.
+4. **Check:** `npx catspec check`. Every problem has a code and a hint, and
+   `npx catspec guide diagnostics` explains each code.
 5. **Commit.** The pre-commit hook stops commits that break a contract that already passed.
 
 The whole guide is also in your terminal: `npx catspec guide` lists the pages and

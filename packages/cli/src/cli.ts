@@ -90,7 +90,7 @@ import {
   type HookManager,
   type HookResult,
 } from "./hooks.js";
-import { initRepository } from "./init.js";
+import { EXAMPLE_FEATURE, initRepository } from "./init.js";
 import { cliEngine } from "./mcp-engine.js";
 import { writeLocks } from "./locks.js";
 import {
@@ -210,7 +210,8 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
   program
     .command("init")
     .description(
-      "create catspec.yaml, docs/spec/<example-feature>/ and the ADR log docs/architecture/adr/<name>-adr.md",
+      "create catspec.yaml and the ADR log docs/architecture/adr/<name>-adr.md; " +
+        "--with-sdd-example also writes an example feature",
     )
     .option(
       "--name <name>",
@@ -224,6 +225,11 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     )
     .option("--hooks", "also install the pre-commit hook (see install-hooks)")
     .option(
+      "--with-sdd-example",
+      `also write an example feature in docs/spec/${EXAMPLE_FEATURE}/: spec.md, plan.md and ` +
+        "one *.spec.md",
+    )
+    .option(
       "--agents",
       "also add the CatSpec workflow block to AGENTS.md and the Claude Code Stop hook to " +
         ".claude/settings.json (existing content is kept)",
@@ -235,6 +241,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           preset?: PresetName;
           hooks?: boolean;
           agents?: boolean;
+          withSddExample?: boolean;
         },
         command: Command,
       ) => {
@@ -244,6 +251,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
         const result = await initRepository(root, {
           ...(options.name === undefined ? {} : { name: options.name }),
           ...(options.preset === undefined ? {} : { preset: options.preset }),
+          withExample: options.withSddExample === true,
         });
         const style = styleFor(opts, out);
         // The config in effect: the one just written, or the one that was already there.
