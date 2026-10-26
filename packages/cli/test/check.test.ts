@@ -286,13 +286,21 @@ rules:
     );
   });
 
-  it("limits the report to the given paths and rejects unknown spec ids", async () => {
+  it("limits the report to the given paths and rejects unknown spec ids and paths", async () => {
     const dir = await repo({
       "docs/spec/auth/auth-service.spec.md": AUTH_SPEC("implemented"),
       "src/auth/AuthService.ts": AUTH_CODE("checkToken"),
+      "src/other/util.ts": "export const one = 1;\n",
     });
     expect((await catspec(dir, "check", "src/other")).code).toBe(0);
     expect((await catspec(dir, "check", "src/auth")).code).toBe(1);
+    // A path that names nothing would filter every diagnostic out and report success.
+    const specId = await catspec(dir, "check", "auth-service");
+    expect(specId.code).toBe(2);
+    expect(specId.stderr).toContain("run `catspec check --spec auth-service`");
+    const typo = await catspec(dir, "check", "src/auht");
+    expect(typo.code).toBe(2);
+    expect(typo.stderr).toContain('"src/auht" is not a file or folder');
     const unknown = await catspec(dir, "check", "--spec", "auth-servic");
     expect(unknown.code).toBe(2);
     expect(unknown.stderr).toContain('did you mean "auth-service"?');

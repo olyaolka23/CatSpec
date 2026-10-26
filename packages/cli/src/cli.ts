@@ -352,6 +352,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           options.format === "agent" ? parseHookInput(await out.stdin()) : undefined;
         const { model, style, opts } = await load(command);
         for (const id of options.spec ?? []) findSpec(model, id);
+        existingPaths(paths, workingDirectory(out.cwd, opts.cwd), model);
         if (options.inProgress) {
           const working = (await branchInProgressSpecs(model, gitEnv)).map((s) => s.id);
           if (working.length === 0) {
@@ -1481,6 +1482,22 @@ function styleFor(opts: GlobalOptions, io: CliIo): Style {
   const enabled =
     opts.color && io.env.NO_COLOR === undefined && (forced || io.stdout.isTTY === true);
   return enabled ? COLORS : PLAIN;
+}
+
+/**
+ * Refuses a `check` path that names nothing on disk: it would filter every diagnostic out and
+ * report success. It is usually a spec id or a feature name.
+ */
+function existingPaths(paths: string[], cwd: string, model: SpecModel): void {
+  for (const path of paths) {
+    if (/[*?[\]{}]/.test(path) || existsSync(resolve(cwd, path))) continue;
+    throw new UsageError(
+      `"${path}" is not a file or folder` +
+        (model.specs.get(path)
+          ? `; to check that spec, run \`catspec check --spec ${path}\``
+          : "; to check one spec, run `catspec check --spec <id>` (`catspec list` shows the ids)"),
+    );
+  }
 }
 
 /** True when a diagnostic's code or spec location is under one of `paths` (files, folders or globs). */
