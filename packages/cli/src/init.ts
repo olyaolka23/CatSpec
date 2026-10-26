@@ -80,10 +80,7 @@ export async function initRepository(
 
   // OpenSpec and Spec Kit keep their own feature folders: no example under docs/spec/.
   if (preset === "openspec" || preset === "spec-kit") return result;
-  const feature = `docs/spec/${EXAMPLE_FEATURE}`;
-  await write(`${feature}/spec.md`, featureSpecTemplate());
-  await write(`${feature}/plan.md`, featurePlanTemplate());
-  await write(`${feature}/${EXAMPLE_SPEC}.spec.md`, exampleSpecTemplate());
+  for (const [file, content] of Object.entries(exampleFeatureFiles())) await write(file, content);
   return result;
 }
 
@@ -122,7 +119,8 @@ languages:
 `;
 };
 
-const adrTemplate = (name: string, date: string): string => `---
+/** The ADR log `init` writes (also used by `uninstall` to see whether it is unchanged). */
+export const adrTemplate = (name: string, date: string): string => `---
 catspec: 1
 id: architecture
 title: ${name} architecture
@@ -150,6 +148,16 @@ to the frontmatter with \`adr: ADR-NNN\`.
 - **Decision:** Every architecture decision is recorded in this log.
 - **Consequences:** Decisions are easy to find, and the checkable ones become rules in the frontmatter.
 `;
+
+/** The example feature `init` writes, by path (also used by `uninstall`). */
+export const exampleFeatureFiles = (): Record<string, string> => {
+  const feature = `docs/spec/${EXAMPLE_FEATURE}`;
+  return {
+    [`${feature}/spec.md`]: featureSpecTemplate(),
+    [`${feature}/plan.md`]: featurePlanTemplate(),
+    [`${feature}/${EXAMPLE_SPEC}.spec.md`]: exampleSpecTemplate(),
+  };
+};
 
 const featureSpecTemplate = (): string => `# Example feature — Spec
 

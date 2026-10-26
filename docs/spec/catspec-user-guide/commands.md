@@ -61,6 +61,13 @@ Commands:
                                     --force
   uninstall-hooks [options]         remove the pre-commit hook, and restore the
                                     hook it replaced
+  uninstall [options]               remove what init added: the pre-commit hook,
+                                    the Claude Code Stop hook and the AGENTS.md
+                                    block; --files also deletes catspec.yaml,
+                                    the local cache, and the example feature and
+                                    the ADR log while unchanged (specs and lock
+                                    files are kept); run it before removing the
+                                    package
   sync [options]                    find renamed and moved declarations of
                                     bindings and fix the specs' locations
                                     (symbol and file only, never the contract);
@@ -278,6 +285,22 @@ Options:
   --manager <manager>  where the hook is installed (choices: "auto", "git",
                        "husky", "lefthook", default: "auto")
   -h, --help           display help for command
+```
+
+## catspec uninstall
+
+```text
+Usage: catspec uninstall [options]
+
+remove what init added: the pre-commit hook, the Claude Code Stop hook and the
+AGENTS.md block; --files also deletes catspec.yaml, the local cache, and the
+example feature and the ADR log while unchanged (specs and lock files are kept);
+run it before removing the package
+
+Options:
+  --files     also delete catspec.yaml, the local cache and init's unchanged
+              files
+  -h, --help  display help for command
 ```
 
 ## catspec sync

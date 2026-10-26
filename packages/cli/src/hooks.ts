@@ -20,10 +20,16 @@ export const MANAGED = "catspec-managed";
 const BACKUP = "pre-commit.catspec-backup";
 const LEFTHOOK_FILES = ["lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".lefthook.yaml"];
 
-/** The staged check, through the project's own install when there is one (plan §4, Risks). */
+/**
+ * The staged check, through the project's own install when there is one (plan §4, Risks), else a
+ * global one. Without CatSpec installed the hook lets the commit through and says why, so removing
+ * the package never blocks commits.
+ */
 const COMMAND =
   "if [ -f node_modules/.bin/catspec ]; then node_modules/.bin/catspec check --staged; " +
-  "else npx --no-install catspec check --staged; fi";
+  "elif command -v catspec >/dev/null 2>&1; then catspec check --staged; " +
+  'else echo "catspec: not installed, so the CatSpec check is skipped ' +
+  '(npm install -D catspec, or catspec uninstall to remove this hook)" >&2; fi';
 
 export interface HookResult {
   manager: Exclude<HookManager, "auto">;

@@ -74,6 +74,7 @@ import {
   type HookInput,
 } from "./agent-check.js";
 import { agentsBlock, AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
+import { uninstall } from "./uninstall.js";
 import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 import { formatDiff } from "./diff.js";
@@ -643,6 +644,35 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       const result = await uninstallHooks(git, options);
       if (!globals(command).quiet)
         out.stdout.write(hookReport(result, styleFor(globals(command), out)));
+    });
+
+  program
+    .command("uninstall")
+    .description(
+      "remove what init added: the pre-commit hook, the Claude Code Stop hook and the AGENTS.md " +
+        "block; --files also deletes catspec.yaml, the local cache, and the example feature and " +
+        "the ADR log while unchanged (specs and lock files are kept); run it before removing " +
+        "the package",
+    )
+    .option("--files", "also delete catspec.yaml, the local cache and init's unchanged files")
+    .action(async (options: { files?: boolean }, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const root = findGitRoot(cwd) ?? cwd;
+      const git = new Git(root, gitEnv);
+      const result = await uninstall(root, (await git.isRepository()) ? git : undefined, {
+        files: options.files === true,
+      });
+      if (opts.quiet) return;
+      const style = styleFor(opts, out);
+      const lines = result.steps.map((s) =>
+        s.action === "kept"
+          ? `${style.yellow("kept")} ${s.what} (${s.reason ?? ""})`
+          : `${style.green(s.action)} ${s.what}`,
+      );
+      if (result.steps.length === 0) lines.push("nothing of CatSpec was installed here");
+      lines.push(...result.next.map((n) => `Next: ${n}`));
+      out.stdout.write(`${lines.join("\n")}\n`);
     });
 
   /**
