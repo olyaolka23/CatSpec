@@ -12,7 +12,9 @@ workflow:
 ```
 
 `catspec init` detects `openspec/`, `.specify/` or `sdd-*` skills and picks the matching preset;
-`--preset` overrides it.
+`--preset` overrides it. Skills are looked for in `.claude/skills` and in `.agents/skills` (shared by
+all agents). For `custom`, `init` writes the folder it found and each stage's skill (`sdd-task` or
+`sdd-tasks`); a stage without a skill is `manual` until you name one.
 
 ## Presets
 
