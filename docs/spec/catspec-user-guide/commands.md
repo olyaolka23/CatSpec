@@ -24,9 +24,10 @@ Options:
   -h, --help                        display help for command
 
 Commands:
-  init [options]                    create catspec.yaml,
-                                    docs/spec/<example-feature>/ and the ADR log
-                                    docs/architecture/adr/<name>-adr.md
+  init [options]                    create catspec.yaml and the ADR log
+                                    docs/architecture/adr/<name>-adr.md;
+                                    --with-sdd-example also writes an example
+                                    feature
   check [options] [paths...]        check the code against the specs: bindings,
                                     contracts and rules, by spec status;
                                     --specs-only checks the spec files only,
@@ -107,20 +108,23 @@ Commands:
 ```text
 Usage: catspec init [options]
 
-create catspec.yaml, docs/spec/<example-feature>/ and the ADR log
-docs/architecture/adr/<name>-adr.md
+create catspec.yaml and the ADR log docs/architecture/adr/<name>-adr.md;
+--with-sdd-example also writes an example feature
 
 Options:
-  --name <name>      name of the ADR log (<name>-adr.md); default: the
-                     repository folder name
-  --preset <preset>  the SDD workflow to gate (default: detected from openspec/,
-                     .specify/ or sdd-* skills, else catspec) (choices:
-                     "catspec", "openspec", "spec-kit", "custom")
-  --hooks            also install the pre-commit hook (see install-hooks)
-  --agents           also add the CatSpec workflow block to AGENTS.md and the
-                     Claude Code Stop hook to .claude/settings.json (existing
-                     content is kept)
-  -h, --help         display help for command
+  --name <name>       name of the ADR log (<name>-adr.md); default: the
+                      repository folder name
+  --preset <preset>   the SDD workflow to gate (default: detected from
+                      openspec/, .specify/ or sdd-* skills, else catspec)
+                      (choices: "catspec", "openspec", "spec-kit", "custom")
+  --hooks             also install the pre-commit hook (see install-hooks)
+  --with-sdd-example  also write an example feature in
+                      docs/spec/example-feature/: spec.md, plan.md and one
+                      *.spec.md
+  --agents            also add the CatSpec workflow block to AGENTS.md and the
+                      Claude Code Stop hook to .claude/settings.json (existing
+                      content is kept)
+  -h, --help          display help for command
 ```
 
 ## catspec check
