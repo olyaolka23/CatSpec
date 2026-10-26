@@ -49,6 +49,9 @@ workflow:
       finish: { gates: [contracts_pass, tasks_done, no_drift], status: implemented }
 ```
 
+Paste `catspec workflow snippet <stage>` into each stage's skill. For the stage that writes the
+specs, the snippet also tells the agent what to put in `<spec-id>.spec.md`.
+
 Features split by domain folder? Give `feature_dir` a list. The most specific pattern wins, and
 the domain folders themselves aren't features:
 

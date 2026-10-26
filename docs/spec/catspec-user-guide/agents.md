@@ -22,6 +22,12 @@ Other clients start the same command and pass the repository with `--cwd`:
 | Cursor | `.cursor/mcp.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "${workspaceFolder}", "mcp"] }` |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "/path/to/repo", "mcp"] }` |
 
+GitHub Copilot in VS Code: `.vscode/mcp.json`, under `servers`:
+`"catspec": { "type": "stdio", "command": "npx", "args": ["catspec", "--cwd", "${workspaceFolder}", "mcp"] }`.
+Codex: `~/.codex/config.toml`, `[mcp_servers.catspec]` with `command = "npx"` and
+`args = ["catspec", "--cwd", "/path/to/repo", "mcp"]`. On Windows, start `npx` through `cmd`:
+`claude mcp add catspec -- cmd /c npx catspec mcp`.
+
 Tools:
 
 | Tool | What it does |
@@ -35,9 +41,10 @@ Tools:
 | `start_refactor`, `sync_specs` | the large-refactor flow of `catspec refactor` and `catspec sync` |
 | `next_step`, `start_stage`, `finish_stage` | the workflow steps (`catspec next`, `catspec stage`); no `--force` over MCP |
 | `set_spec_status` | lifecycle changes; `implemented` is refused while contracts fail |
+| `read_guide` | this user guide, page by page: commands, spec format, rules, diagnostics (`catspec guide`) |
 
 Resources: `catspec://spec/{id}`, `catspec://architecture`, `catspec://graph`,
-`catspec://diagnostics`. Prompts: `implement-spec`, `fix-drift`, and one `stage-<id>` prompt per
+`catspec://diagnostics`, `catspec://guide/{page}`. Prompts: `implement-spec`, `fix-drift`, and one `stage-<id>` prompt per
 workflow stage. The server only reads and writes inside the repository.
 
 ## 2. The rules, once, in `AGENTS.md`

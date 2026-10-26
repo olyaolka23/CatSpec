@@ -1220,3 +1220,6 @@ Implementation notes (F8):
   `feature_dir`.
 - `check --staged` reports CS0107 as a warning, naming the file to stage, when the ADR log exists
   on disk but isn't staged (right after `catspec init`), so the first commits aren't blocked.
+- The snippet and the MCP prompt of a stage that writes `*.spec.md` also tell the agent what goes
+  into it (bindings, rules, `catspec bind` for classes that already exist), so the spec-first flow
+  produces the contract without a human writing YAML.

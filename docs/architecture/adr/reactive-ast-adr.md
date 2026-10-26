@@ -372,3 +372,20 @@ reasoning for ADR-002…ADR-012 is in
   never deleted; they are listed as kept.
 - **Consequences:** Removing CatSpec is one command, run before `npm uninstall catspec`. A
   repository whose hook can't find CatSpec is no longer protected, and each commit says so.
+
+## ADR-027: The user guide ships with the CLI and is served to agents
+
+- **Status:** Accepted · **Date:** 2026-10-26 · **Ref:** plan §D14, ADR-024
+- **Context:** People and agents need the user guide while they work, but it lives only in the
+  repository. An agent can't open a link to a private repository, and a link shows the guide of
+  `main`, not of the installed version.
+- **Decision:** The build copies `docs/spec/catspec-user-guide/*.md` (without the guide's own
+  `spec.md`) into the published `guide/` folder of `@catspec/cli`. `catspec guide` lists the
+  pages and `catspec guide <page>` prints one. The CLI passes the pages to the MCP server
+  (`WorkspaceOptions.guide`, injected as in ADR-024), which serves the tool `read_guide` and the
+  resources `catspec://guide/{page}`, and names `read_guide` in its instructions. Links that leave
+  the guide folder are rewritten to the repository on GitHub. The `AGENTS.md` block names
+  `catspec guide` and `read_guide`.
+- **Consequences:** Every installed version answers from its own guide, offline; the package
+  grows by about 65 KB. Page names are now public: renaming a page changes `catspec guide <page>`
+  and its resource URI.
