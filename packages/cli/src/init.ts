@@ -1,6 +1,7 @@
 /**
- * `catspec init` (plan §D3): creates `catspec.yaml`, an example feature folder and the ADR log,
- * so `catspec check --specs-only` passes right away. Existing files are never overwritten.
+ * `catspec init` (plan §D3): creates `catspec.yaml` and the ADR log, so `catspec check --specs-only`
+ * passes right away, and with `--with-sdd-example` an example feature folder. Existing files are
+ * never overwritten.
  */
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -10,6 +11,7 @@ import {
   CONFIG_FILE,
   customWorkflowYaml,
   detectPreset,
+  featureDirYaml,
   findSddSkills,
   globMatcher,
   kebabCase,
@@ -36,7 +38,7 @@ export interface InitResult {
 /** Creates the CatSpec layout in `root`. `name` names the ADR log (`<name>-adr.md`). */
 export async function initRepository(
   root: string,
-  options: { name?: string; date?: string; preset?: PresetName } = {},
+  options: { name?: string; date?: string; preset?: PresetName; withExample?: boolean } = {},
 ): Promise<InitResult> {
   const name = kebabCase(options.name ?? basename(root)) || "project";
   const date = options.date ?? new Date().toISOString().slice(0, 10);
@@ -78,24 +80,37 @@ export async function initRepository(
     await write(adrFile, adrTemplate(name, date));
   }
 
+  if (!options.withExample) return result;
   // OpenSpec and Spec Kit keep their own feature folders: no example under docs/spec/.
-  if (preset === "openspec" || preset === "spec-kit") return result;
+  if (preset === "openspec" || preset === "spec-kit") {
+    result.skipped.push({
+      file: `docs/spec/${EXAMPLE_FEATURE}/`,
+      reason: `the ${preset} preset keeps its features in ${resolveWorkflow(WorkflowSchema.parse({ preset })).featureDir}`,
+    });
+    return result;
+  }
   for (const [file, content] of Object.entries(exampleFeatureFiles())) await write(file, content);
   return result;
 }
 
 type SddSkills = ReturnType<typeof findSddSkills>;
 
-/** The `workflow:` section for a preset (plan §D17.2, §D17.3). */
-const workflowTemplate = (preset: PresetName, found: SddSkills): string =>
-  preset === "custom"
-    ? customWorkflowYaml(found?.skills ?? [], found?.skillsDir)
-    : `# The SDD workflow CatSpec gates (plan §D17): catspec | openspec | spec-kit | custom.
+/**
+ * The `workflow:` section for a preset (plan §D17.2, §D17.3). It spells out the preset's
+ * `feature_dir` and `skills_dir`, so they are easy to find and change.
+ */
+const workflowTemplate = (preset: PresetName, found: SddSkills): string => {
+  if (preset === "custom") return customWorkflowYaml(found?.skills ?? [], found?.skillsDir);
+  const { featureDir, skillsDir } = resolveWorkflow(WorkflowSchema.parse({ preset }));
+  return `# The SDD workflow CatSpec gates (plan §D17): catspec | openspec | spec-kit | custom.
 workflow:
   preset: ${preset}
+${featureDirYaml(featureDir)}
+  skills_dir: "${skillsDir}"  # where \`skill:\` drivers are found
   allow_commands: false  # let \`command:\` gates run commands
   enforce_in_hook: warn  # off | warn | error
 `;
+};
 
 const configTemplate = (preset: PresetName, found: SddSkills): string => {
   const profile = resolveWorkflow(WorkflowSchema.parse({ preset }));

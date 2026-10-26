@@ -1,10 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { defaultConfig, kebabCase, parseConfig, type FileFacts } from "@catspec/core";
+import {
+  defaultConfig,
+  kebabCase,
+  parseConfig,
+  workflowProfile,
+  type FileFacts,
+} from "@catspec/core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { loadFixture } from "../../../test/fixtures.js";
@@ -55,37 +61,55 @@ async function catspec(
 }
 
 describe("F1 spec-model", () => {
-  it("[AC-F1-1] init creates a working layout that passes check --specs-only", async () => {
+  it("[AC-F1-1] init creates a working layout that passes check --specs-only; the example feature is opt-in", async () => {
     const dir = await repo({});
     const name = kebabCase(basename(dir));
+    const example = join(dir, "docs", "spec", "example-feature");
+    const checkSpecs = () =>
+      spawnSync(process.execPath, [...binArgs, "check", "--specs-only"], {
+        cwd: dir,
+        encoding: "utf8",
+      });
 
     // The bin entry in its own process, the way a user runs it.
     const init = spawnSync(process.execPath, [...binArgs, "init"], { cwd: dir, encoding: "utf8" });
     expect(init.status, init.stderr).toBe(0);
     expect(existsSync(join(dir, "catspec.yaml"))).toBe(true);
-    // The written config shows every language with exactly the built-in defaults.
-    const written = parseConfig(readFileSync(join(dir, "catspec.yaml"), "utf8"), "catspec.yaml");
-    expect(written).toEqual(defaultConfig());
-    expect(readFileSync(join(dir, "catspec.yaml"), "utf8")).toMatch(/^ {2}csharp:$/m);
-    expect(readdirSync(join(dir, "docs", "spec", "example-feature")).sort()).toEqual([
-      "example-greeter.spec.md",
-      "plan.md",
-      "spec.md",
-    ]);
+    // The written config shows every language with exactly the built-in defaults, and the
+    // preset's feature and skills folders, with a list example only as a comment.
+    const text = readFileSync(join(dir, "catspec.yaml"), "utf8");
+    const written = parseConfig(text, "catspec.yaml");
+    expect({ ...written, workflow: defaultConfig().workflow }).toEqual(defaultConfig());
+    expect(workflowProfile(written)).toEqual(workflowProfile(defaultConfig()));
+    expect(text).toMatch(/^ {2}csharp:$/m);
+    expect(text).toMatch(/^ {2}feature_dir: "docs\/spec\/\{feature\}"$/m);
+    expect(text).toMatch(/^ {2}skills_dir: "\.claude\/skills"/m);
+    expect(text).toMatch(/^ {2}# feature_dir: \["docs\/spec\/billing\/\{feature\}", /m);
     expect(existsSync(join(dir, "docs", "architecture", "adr", `${name}-adr.md`))).toBe(true);
+    expect(existsSync(example)).toBe(false);
 
-    const check = spawnSync(process.execPath, [...binArgs, "check", "--specs-only"], {
-      cwd: dir,
-      encoding: "utf8",
-    });
+    const check = checkSpecs();
     expect(check.stderr).toBe("");
-    expect(check.stdout).toContain("0 errors, 0 warnings in 2 specs");
+    expect(check.stdout).toContain("0 errors, 0 warnings in 1 spec");
     expect(check.status).toBe(0);
 
-    // Running init again changes nothing.
-    const again = await catspec(dir, "init");
-    expect(again.code).toBe(0);
-    expect(again.stdout).not.toContain("created");
+    // The example feature only on request; it passes too.
+    const withExample = await catspec(dir, "init", "--with-sdd-example");
+    expect(withExample.code).toBe(0);
+    expect(withExample.stdout).toContain(
+      "created docs/spec/example-feature/example-greeter.spec.md",
+    );
+    expect(readdirSync(example).sort()).toEqual(["example-greeter.spec.md", "plan.md", "spec.md"]);
+    const again = checkSpecs();
+    expect(again.stdout).toContain("0 errors, 0 warnings in 2 specs");
+    expect(again.status).toBe(0);
+
+    // Running init again changes nothing; without the flag, a deleted example stays deleted.
+    rmSync(example, { recursive: true });
+    const rerun = await catspec(dir, "init");
+    expect(rerun.code).toBe(0);
+    expect(rerun.stdout).not.toContain("created");
+    expect(existsSync(example)).toBe(false);
     expect((await catspec(dir, "check", "--specs-only")).code).toBe(0);
   });
 

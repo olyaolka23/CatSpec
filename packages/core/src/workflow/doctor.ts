@@ -382,6 +382,17 @@ export function hookWorkflowDiagnostics(
 }
 
 /**
+ * The `feature_dir:` line `catspec init` writes, with a commented example of a list, for features
+ * at several depths (domain folders). The example is a comment, so it never names a missing folder.
+ */
+export const featureDirYaml = (featureDir: string): string =>
+  [
+    "  # Where features live. A list for features at several depths, e.g.",
+    `  # feature_dir: ["${featureDir.replace("{feature}", "billing/{feature}")}", "${featureDir}"]`,
+    `  feature_dir: "${featureDir}"`,
+  ].join("\n");
+
+/**
  * The `custom` preset's stages as YAML, for `catspec init` (plan §D17.2). Each stage uses the
  * repository's skill of its name (`sdd-task`, or the plural `sdd-tasks`) from `skills`; a stage
  * without one gets a manual driver, so the new config passes `catspec workflow doctor`.
@@ -399,8 +410,8 @@ export const customWorkflowYaml = (
   return [
     "workflow:",
     "  preset: custom",
-    '  feature_dir: "docs/spec/{feature}"',
-    `  skills_dir: "${skillsDir}"`,
+    featureDirYaml("docs/spec/{feature}"),
+    `  skills_dir: "${skillsDir}"  # where \`skill:\` drivers are found`,
     "  stages:",
     "    - id: spec",
     "      per: feature",
