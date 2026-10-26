@@ -524,7 +524,11 @@ describe("F8 workflow-profiles", () => {
         expect(init.stdout).toContain("proposing workflow preset openspec");
         const config = await read(dir, "catspec.yaml");
         expect(config).toContain("preset: openspec");
-        expect(config).toContain('include: ["openspec/changes/**/*.spec.md"]');
+        // specs.include follows the preset's feature folders (shown as a comment).
+        expect(config).toContain('# ["openspec/changes/**/*.spec.md"]');
+        expect((await loadConfig(dir)).config.specs.include).toEqual([
+          "openspec/changes/**/*.spec.md",
+        ]);
         expect((await catspec(dir, ["check", "--specs-only"])).code).toBe(0);
       });
     });
@@ -715,6 +719,46 @@ describe("F8 workflow-profiles", () => {
           "catspec.yaml": hookConfig,
           "docs/spec/login/login.spec.md": loginSpec("implemented"),
           "src/auth.ts": withLogin,
+        },
+      );
+    });
+  });
+
+  describe("feature folders at several depths", () => {
+    it("feature_dir takes a list: features in domain folders and at the top level; domain folders aren't features", async () => {
+      const config = [
+        "workflow:",
+        "  preset: catspec",
+        '  feature_dir: ["docs/spec/{feature}", "docs/spec/billing/{feature}"]',
+        "",
+      ].join("\n");
+      await inRepo(
+        {
+          "catspec.yaml": config,
+          "docs/spec/billing/invoices/spec.md": "# Invoices\n",
+          "docs/spec/billing/invoices/invoice-export.spec.md": specText("invoice-export"),
+          "docs/spec/login/spec.md": "# Login\n",
+          "docs/spec/login/login.spec.md": loginSpec(),
+          "src/auth.ts": withLogin,
+        },
+        async (dir) => {
+          const show = await json<{ featureDirs: string[]; features: { feature: string }[] }>(dir, [
+            "workflow",
+            "show",
+          ]);
+          expect(show.featureDirs).toEqual(["docs/spec/billing/{feature}", "docs/spec/{feature}"]);
+          expect(show.features.map((f) => f.feature)).toEqual(["invoices", "login"]);
+
+          const check = await catspec(dir, ["check", "--specs-only"]);
+          expect(check.code, check.stdout).toBe(0);
+          expect(check.stdout).not.toContain("CS0106");
+          expect((await catspec(dir, ["next", "invoices"])).stdout).toContain(
+            "docs/spec/billing/invoices/spec.md",
+          );
+
+          // A spec directly in a domain folder is outside every feature folder.
+          await writeFile(join(dir, "docs/spec/billing/stray.spec.md"), specText("stray"));
+          expect((await catspec(dir, ["check", "--specs-only"])).stdout).toContain("CS0106");
         },
       );
     });

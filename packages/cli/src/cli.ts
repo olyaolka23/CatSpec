@@ -57,6 +57,7 @@ import {
   type Spec,
   type SpecModel,
   type SpecStatus,
+  featureDirsText,
 } from "@catspec/core";
 import { Argument, Command, CommanderError, Option } from "commander";
 
@@ -1136,7 +1137,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             )
           : workflow.features;
         if (name && features.length === 0) {
-          throw new UsageError(`"${name}" isn't in a feature folder (${profile.featureDir})`);
+          throw new UsageError(`"${name}" isn't in a feature folder (${featureDirsText(profile)})`);
         }
         const positions = [];
         for (const feature of features) positions.push(await workflow.position(feature));
@@ -1147,6 +1148,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
                 preset: profile.preset,
                 ...(profile.presetVersion ? { presetVersion: profile.presetVersion } : {}),
                 featureDir: profile.featureDir,
+                featureDirs: profile.featureDirs,
                 stages: profile.stages.map(describeStage),
                 features: positions.map((p) => ({
                   feature: p.feature,
@@ -1162,7 +1164,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           return;
         }
         const lines = [
-          `workflow: preset ${profile.preset}${profile.presetVersion ? ` (${profile.presetVersion})` : ""}, features in ${profile.featureDir}`,
+          `workflow: preset ${profile.preset}${profile.presetVersion ? ` (${profile.presetVersion})` : ""}, features in ${featureDirsText(profile)}`,
           "stages:",
         ];
         for (const [i, s] of profile.stages.entries()) {

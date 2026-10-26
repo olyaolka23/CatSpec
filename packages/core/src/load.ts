@@ -8,6 +8,7 @@
 import { posix } from "node:path";
 
 import { workflowProfile, type CatspecConfig } from "./config.js";
+import { featureFolderOf } from "./workflow/schema.js";
 import {
   compareStrings,
   createDiagnostic,
@@ -18,7 +19,7 @@ import { WorkingTreeProvider, type SourceProvider } from "./git/providers.js";
 import { DependencyGraph } from "./graph.js";
 import { hasLockFile, lockPathOf, parseLock, type LockFile } from "./lock.js";
 import { readSpec, specLocation, type Spec } from "./spec.js";
-import { didYouMean, escapeRegExp, globMatcher, listOf } from "./util.js";
+import { didYouMean, globMatcher, listFiles, listOf } from "./util.js";
 
 /** All specs of a repository, by id and by file. */
 export class SpecSet {
@@ -99,7 +100,21 @@ export async function loadSpecModel(
 
   // The architecture spec: exactly one file at `specs.architecture` (CS0107).
   let architecture: Spec | undefined;
-  if (architectureFiles.length === 0) {
+  // In the git index (`check --staged`), an ADR log that exists on disk but isn't staged yet,
+  // e.g. right after `catspec init`, is a warning: it doesn't block a commit that leaves it out.
+  const unstagedLog =
+    architectureFiles.length === 0 && source.kind === "index"
+      ? (await listFiles(root)).find((f) => isArchitecture(f))
+      : undefined;
+  if (unstagedLog) {
+    diagnostics.push(
+      createDiagnostic("CS0107", {
+        severity: "warning",
+        message: `the ADR log ${unstagedLog} isn't staged, so this commit is checked without it`,
+        suggestions: [{ message: `stage it: git add ${unstagedLog}` }],
+      }),
+    );
+  } else if (architectureFiles.length === 0) {
     diagnostics.push(
       createDiagnostic("CS0107", {
         message: `no architecture spec: no file matches specs.architecture "${config.specs.architecture}"`,
@@ -169,20 +184,18 @@ export async function loadSpecModel(
   // Layout (CS0106): machine specs live directly in a feature folder (`docs/spec/<feature>/`, or
   // the workflow's `feature_dir`), and the architecture spec at specs.architecture.
   if (config.layout === "feature-folders") {
-    const featureDir = workflowProfile(config).featureDir;
-    const parts = featureDir.split("{feature}").map(escapeRegExp);
-    const folder = parts.join("[^/]+");
-    const direct = new RegExp(`^${folder}/[^/]+$`);
-    const deeperIn = new RegExp(`^(${folder})/.+/`);
-    const generic = featureDir.replaceAll("{feature}", "<feature>");
+    const profile = workflowProfile(config);
+    const generic = profile.featureDir.replaceAll("{feature}", "<feature>");
     for (const file of files) {
-      if (!SPEC_FILE.test(file) || direct.test(file) || architectureFiles.includes(file)) {
-        continue;
-      }
+      if (!SPEC_FILE.test(file) || architectureFiles.includes(file)) continue;
       const name = file.split("/").pop()!;
-      const deeper = deeperIn.exec(file);
-      const target = deeper ? `${deeper[1]}/${name}` : `${generic}/${name}`;
-      const where = generic.replace(/\/?<feature>.*$/, "") || ".";
+      const folder = featureFolderOf(profile.featureDirs, file);
+      if (folder && file === `${folder.dir}/${name}`) continue;
+      const deeper = folder?.dir;
+      const target = deeper ? `${deeper}/${name}` : `${generic}/${name}`;
+      const where = deeper
+        ? deeper.slice(0, deeper.lastIndexOf("/")) || "."
+        : generic.replace(/\/?<feature>.*$/, "") || ".";
       diagnostics.push(
         createDiagnostic("CS0106", {
           ...(specs.byFile.get(file) ? { spec: specs.byFile.get(file)!.id } : {}),

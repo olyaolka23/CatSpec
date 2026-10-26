@@ -107,7 +107,8 @@ const configTemplate = (preset: PresetName, found: SddSkills): string => {
 version: 1
 layout: ${profile.layout}
 ${workflowTemplate(preset, found)}specs:
-  include: [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
+  # include defaults to the *.spec.md files in each workflow.feature_dir folder:
+  # [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
   architecture: "docs/architecture/adr/*-adr.md"
 # Both languages are always on; a file's extension picks its language. Point the globs at your
 # sources, or set \`include: []\` to leave a language out.

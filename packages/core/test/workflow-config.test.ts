@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ConfigError,
   configJsonSchema,
+  featureFolderOf,
   parseConfig,
   workflowProfile,
   type ConfigIssue,
@@ -54,6 +55,44 @@ describe("F8 workflow-profiles: PBI workflow-config", () => {
         message: expect.stringContaining("exactly once") as string,
       });
     }
+  });
+
+  it("takes a list of feature folder patterns for features at several depths (domain folders)", () => {
+    const config = parseConfig(
+      'workflow:\n  preset: custom\n  feature_dir: ["docs/spec/{feature}", "docs/spec/billing/{feature}"]\n',
+    );
+    // Most specific first; spec discovery follows every pattern.
+    expect(workflowProfile(config).featureDirs).toEqual([
+      "docs/spec/billing/{feature}",
+      "docs/spec/{feature}",
+    ]);
+    expect(workflowProfile(config).featureDir).toBe("docs/spec/{feature}");
+    expect(config.specs.include).toEqual([
+      "docs/spec/billing/*/*.spec.md",
+      "docs/spec/*/*.spec.md",
+    ]);
+
+    // Each pattern is checked on its own.
+    const [issue] = issuesOf('workflow:\n  feature_dir: ["docs/spec/{feature}", "docs/billing"]\n');
+    expect(issue).toMatchObject({
+      code: "CS0700",
+      key: expect.stringContaining("workflow.feature_dir") as string,
+      message: expect.stringContaining("exactly once") as string,
+    });
+  });
+
+  it("finds a path's feature folder by the most specific pattern; domain folders aren't features", () => {
+    const dirs = ["docs/spec/billing/{feature}", "docs/spec/{feature}"];
+    expect(featureFolderOf(dirs, "docs/spec/billing/invoices/spec.md")).toEqual({
+      name: "invoices",
+      dir: "docs/spec/billing/invoices",
+    });
+    expect(featureFolderOf(dirs, "docs/spec/login/login.spec.md")).toEqual({
+      name: "login",
+      dir: "docs/spec/login",
+    });
+    expect(featureFolderOf(dirs, "docs/spec/billing/README.md")).toBeUndefined();
+    expect(featureFolderOf(dirs, "docs/other/x.md")).toBeUndefined();
   });
 
   it("reports an unknown preset, an unknown stage key and a duplicate stage id as CS0700", () => {

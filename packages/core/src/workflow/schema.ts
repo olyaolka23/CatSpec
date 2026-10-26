@@ -10,6 +10,7 @@
 import * as z from "zod";
 
 import { SPEC_STATUSES, type SpecStatus } from "../spec-schema.js";
+import { escapeRegExp } from "../util.js";
 
 export const PRESETS = ["catspec", "openspec", "spec-kit", "custom"] as const;
 export type PresetName = (typeof PRESETS)[number];
@@ -103,7 +104,13 @@ export const WorkflowSchema = z
       .enum(["off", "warn", "error"])
       .default("warn")
       .describe("Re-check implemented specs' final gates in the pre-commit hook (CS0703)."),
-    feature_dir: template.optional().describe('Where features live, e.g. "docs/spec/{feature}".'),
+    feature_dir: z
+      .union([template, z.array(template).min(1)])
+      .optional()
+      .describe(
+        'Where features live, e.g. "docs/spec/{feature}", or a list for features at several depths ' +
+          '(domain folders): ["docs/spec/billing/{feature}", "docs/spec/{feature}"].',
+      ),
     skills_dir: z.string().min(1).optional().describe("Where `skill:` drivers are found."),
     stages: z
       .array(StageSchema)
@@ -112,14 +119,16 @@ export const WorkflowSchema = z
       .describe("The stages, in order; replaces the preset's stages."),
   })
   .superRefine((value, ctx) => {
-    const dir = value.feature_dir;
-    if (dir !== undefined && (dir.split("{feature}").length !== 2 || dir.includes("{spec}"))) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["feature_dir"],
-        message:
-          'feature_dir must contain "{feature}" exactly once and no "{spec}", e.g. "docs/spec/{feature}"',
-      });
+    const dirs = value.feature_dir;
+    for (const [index, dir] of (typeof dirs === "string" ? [dirs] : (dirs ?? [])).entries()) {
+      if (dir.split("{feature}").length !== 2 || dir.includes("{spec}")) {
+        ctx.addIssue({
+          code: "custom",
+          path: typeof dirs === "string" ? ["feature_dir"] : ["feature_dir", index],
+          message:
+            'feature_dir must contain "{feature}" exactly once and no "{spec}", e.g. "docs/spec/{feature}"',
+        });
+      }
     }
     const seen = new Set<string>();
     for (const [index, stage] of (value.stages ?? []).entries()) {
@@ -166,7 +175,10 @@ export interface WorkflowProfile {
   presetVersion?: string;
   allowCommands: boolean;
   enforceInHook: "off" | "warn" | "error";
+  /** The first feature folder pattern, for messages and templates. */
   featureDir: string;
+  /** Every feature folder pattern, most specific first (see `featureFolderOf`). */
+  featureDirs: string[];
   skillsDir: string;
   stages: Stage[];
   /** Folder names under the feature folder's parent that aren't features (OpenSpec's archive). */
@@ -251,7 +263,7 @@ const catspecStages = (drivers: Record<"spec" | "plan" | "task" | "close", Drive
   ),
 ];
 
-type Preset = Omit<WorkflowProfile, "allowCommands" | "enforceInHook" | "preset">;
+type Preset = Omit<WorkflowProfile, "allowCommands" | "enforceInHook" | "preset" | "featureDirs">;
 
 /**
  * The presets (plan §D17.3). Third-party layouts and command names were checked on 2026-10-22:
@@ -367,9 +379,43 @@ export const PRESET_PROFILES: Record<Exclude<PresetName, "custom">, Preset> = {
 export const SDD_SKILLS = ["sdd-spec", "sdd-plan", "sdd-task", "sdd-close"] as const;
 
 /** `specs.include` for machine specs directly in each feature folder. */
-const includeFor = (featureDir: string): string[] => [
-  `${featureDir.replaceAll("{feature}", "*").replace(/\/+$/, "")}/*.spec.md`,
-];
+const includeFor = (featureDirs: readonly string[]): string[] =>
+  featureDirs.map((dir) => `${dir.replaceAll("{feature}", "*").replace(/\/+$/, "")}/*.spec.md`);
+
+/** Feature folder patterns, most specific first: more folders, then longer. */
+const bySpecificity = (dirs: readonly string[]): string[] =>
+  [...new Set(dirs)].sort(
+    (a, b) => b.split("/").length - a.split("/").length || b.length - a.length,
+  );
+
+/** A feature folder: its name (`{feature}`) and its path. */
+export interface FeatureFolder {
+  name: string;
+  dir: string;
+}
+
+/**
+ * The feature folder a root-relative path is in, by the most specific matching pattern of
+ * `featureDirs`. The folders that hold another pattern's features (`docs/spec/billing` for
+ * `docs/spec/billing/{feature}`) are never features themselves.
+ */
+export function featureFolderOf(
+  featureDirs: readonly string[],
+  path: string,
+): FeatureFolder | undefined {
+  const parents = new Set(
+    featureDirs.map((dir) => dir.slice(0, dir.indexOf("{feature}")).replace(/\/+$/, "")),
+  );
+  for (const dir of featureDirs) {
+    const [before, after] = dir.split("{feature}").map(escapeRegExp);
+    const match = new RegExp(`^(${before}([^/]+)${after})/`).exec(path);
+    if (match && !parents.has(match[1]!)) return { name: match[2]!, dir: match[1]! };
+  }
+  return undefined;
+}
+
+/** The feature folder patterns in words, for messages: "docs/spec/{feature}". */
+export const featureDirsText = (profile: WorkflowProfile): string => profile.featureDirs.join(", ");
 
 /** The profile in effect for a validated `workflow:` section. */
 export function resolveWorkflow(input: WorkflowInput): WorkflowProfile {
@@ -390,7 +436,12 @@ export function resolveWorkflow(input: WorkflowInput): WorkflowProfile {
           layout: "feature-folders",
         }
       : PRESET_PROFILES[input.preset];
-  const featureDir = (input.feature_dir ?? base.featureDir).replace(/\/+$/, "");
+  const configured = input.feature_dir ?? base.featureDir;
+  const dirs = (typeof configured === "string" ? [configured] : configured).map((d) =>
+    d.replace(/\/+$/, ""),
+  );
+  const featureDir = dirs[0]!;
+  const featureDirs = bySpecificity(dirs);
   const stages =
     input.stages?.map((s) =>
       stage(
@@ -408,11 +459,15 @@ export function resolveWorkflow(input: WorkflowInput): WorkflowProfile {
     allowCommands: input.allow_commands,
     enforceInHook: input.enforce_in_hook,
     featureDir,
+    featureDirs,
     skillsDir: (input.skills_dir ?? base.skillsDir).replace(/\/+$/, ""),
     stages,
     notFeatures: base.notFeatures,
     context: base.context,
-    specsInclude: featureDir === base.featureDir ? base.specsInclude : includeFor(featureDir),
+    specsInclude:
+      dirs.length === 1 && featureDir === base.featureDir
+        ? base.specsInclude
+        : includeFor(featureDirs),
     layout: base.layout,
   };
 }

@@ -568,4 +568,25 @@ describe("hook installer and staged check details", { timeout: HOOK_TIMEOUT }, (
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("a commit that leaves out the not yet staged ADR log isn't blocked: CS0107 is a warning", async () => {
+    await withRepo(
+      async (repo) => {
+        repo.git("add", "--", "src.ts");
+        const { code, stdout } = await catspec(repo.dir, ["check", "--staged"]);
+        expect(code, stdout).toBe(0);
+        expect(stdout).toContain("CS0107");
+        expect(stdout).toContain(`git add ${ADR_LOG}`);
+
+        // Without the log anywhere, it is still an error.
+        await rm(join(repo.dir, ADR_LOG));
+        expect((await catspec(repo.dir, ["check", "--staged"])).code).toBe(1);
+      },
+      {
+        "catspec.yaml": "version: 1\n",
+        [ADR_LOG]: adrLogText(),
+        "src.ts": "export const one = 1;\n",
+      },
+    );
+  });
 });

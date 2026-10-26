@@ -37,9 +37,11 @@
           "enum": ["off", "warn", "error"]
         },
         "feature_dir": {
-          "description": "Where features live, e.g. \"docs/spec/{feature}\".",
-          "type": "string",
-          "minLength": 1
+          "description": "Where features live, e.g. \"docs/spec/{feature}\", or a list for features at several depths (domain folders): [\"docs/spec/billing/{feature}\", \"docs/spec/{feature}\"].",
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            { "minItems": 1, "type": "array", "items": { "type": "string", "minLength": 1 } }
+          ]
         },
         "skills_dir": {
           "description": "Where `skill:` drivers are found.",
