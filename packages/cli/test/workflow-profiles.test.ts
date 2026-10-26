@@ -507,6 +507,11 @@ describe("F8 workflow-profiles", () => {
         const snippet = await catspec(dir, ["workflow", "snippet", "task"]);
         expect(snippet.stdout).toContain("catspec stage start task <spec-id>");
         expect(snippet.stdout).toContain("catspec stage finish task <spec-id>");
+        expect(snippet.stdout).not.toContain("<spec-id>.spec.md");
+        // The stage that writes the machine specs tells the agent what goes into them.
+        const spec = await catspec(dir, ["workflow", "snippet", "spec"]);
+        expect(spec.stdout.split("\n")[1]).toMatch(/write `<spec-id>\.spec\.md`.*`bindings`/);
+        expect(spec.stdout).toContain("catspec bind <ClassName> --spec <spec-id>");
         const agents = await catspec(dir, ["workflow", "snippet", "agents"]);
         expect(agents.stdout).toContain("run `catspec stage start task <id>`");
         expect(agents.stdout).toContain(

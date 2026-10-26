@@ -235,11 +235,27 @@ export function workflowDoctor(
 /** `<feature>` or `<spec-id>`: what a stage command is run for. */
 const targetWord = (stage: Stage): string => (stage.per === "spec" ? "<spec-id>" : "<feature>");
 
+/** True when a stage writes the machine specs (`*.spec.md`), so its agent writes the contract. */
+export const writesSpecs = (stage: Stage): boolean =>
+  stage.produces.some((p) => p.endsWith(".spec.md")) ||
+  stage.finish.gates.includes("contracts_declared");
+
+/**
+ * How the agent of a stage that writes the machine specs writes them: CatSpec never calls an AI,
+ * so the spec-writing skill or prompt says what goes into `<spec-id>.spec.md`.
+ */
+export const SPEC_WRITING_STEP =
+  "Next to the feature's spec, write `<spec-id>.spec.md`: in its YAML header, list as `bindings` " +
+  "every class, interface and method this feature adds or changes, and under `rules` what must " +
+  "stay true. `catspec guide spec-format` and `catspec guide rules` show the format; for a class " +
+  "that already exists, `catspec bind <ClassName> --spec <spec-id>` writes its contract.";
+
 /** `catspec workflow snippet <stage>`: the lines to paste into the stage's skill. */
 export function stageSnippet(stage: Stage): string {
   const target = targetWord(stage);
   return [
     `First run \`catspec stage start ${stage.id} ${target}\`. If it fails, stop and report what it says.`,
+    ...(writesSpecs(stage) ? [SPEC_WRITING_STEP] : []),
     `End with \`catspec stage finish ${stage.id} ${target}\` and fix everything it reports until it passes.`,
   ].join("\n");
 }

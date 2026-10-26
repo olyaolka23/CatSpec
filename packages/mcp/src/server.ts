@@ -19,7 +19,9 @@ import {
   findConfig,
   parseConfig,
   SPEC_STATUSES,
+  SPEC_WRITING_STEP,
   workflowProfile,
+  writesSpecs,
   type CatspecConfig,
 } from "@catspec/core";
 import {
@@ -491,7 +493,8 @@ export function createServer(options: WorkspaceOptions): McpServer {
             "",
             `1. Call start_stage with feature "${target}" and stage "${stage.id}". If it is refused, stop and tell the developer why.`,
             `2. Do the stage: ${info.driverText}.` +
-              (stage.produces.length > 0 ? ` It must produce ${stage.produces.join(", ")}.` : ""),
+              (stage.produces.length > 0 ? ` It must produce ${stage.produces.join(", ")}.` : "") +
+              (writesSpecs(stage) ? ` ${SPEC_WRITING_STEP}` : ""),
             stage.per === "spec"
               ? `3. For each spec, call check_compliance with its spec_id after each change and fix everything it reports, until done is true.`
               : "3. Check your work against the finish gates listed by start_stage.",
