@@ -24,9 +24,28 @@ Other clients start the same command and pass the repository with `--cwd`:
 
 GitHub Copilot in VS Code: `.vscode/mcp.json`, under `servers`:
 `"catspec": { "type": "stdio", "command": "npx", "args": ["catspec", "--cwd", "${workspaceFolder}", "mcp"] }`.
-Codex: `~/.codex/config.toml`, `[mcp_servers.catspec]` with `command = "npx"` and
-`args = ["catspec", "--cwd", "/path/to/repo", "mcp"]`. On Windows, start `npx` through `cmd`:
-`claude mcp add catspec -- cmd /c npx catspec mcp`.
+Claude Code on Windows starts `npx` through `cmd`: `claude mcp add catspec -- cmd /c npx catspec mcp`.
+
+Codex reads `~/.codex/config.toml`. Start the CatSpec installed in the repository with `node`, so
+the server doesn't depend on the folder Codex starts in, and works on Windows, where Codex can't
+start `npx` (it is `npx.cmd`):
+
+```toml
+# macOS and Linux
+[mcp_servers.catspec]
+command = "node"
+args = ["/path/to/repo/node_modules/catspec/dist/bin.js", "--cwd", "/path/to/repo", "mcp"]
+
+# Windows: single quotes keep the backslashes
+[mcp_servers.catspec]
+command = "node"
+args = ['C:\path\to\repo\node_modules\catspec\dist\bin.js', "--cwd", 'C:\path\to\repo', "mcp"]
+```
+
+Use one of the two entries. Then start a new Codex session: servers load when a session starts,
+and `/mcp` lists them. The `/mcp__catspec__<prompt>` slash commands are Claude Code's; in Codex,
+ask in words ("do the CatSpec spec stage for `<feature>`"), or let the agent use the CLI, which
+does the same.
 
 Tools:
 
