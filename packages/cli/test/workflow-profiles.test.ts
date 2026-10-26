@@ -507,6 +507,11 @@ describe("F8 workflow-profiles", () => {
         const snippet = await catspec(dir, ["workflow", "snippet", "task"]);
         expect(snippet.stdout).toContain("catspec stage start task <spec-id>");
         expect(snippet.stdout).toContain("catspec stage finish task <spec-id>");
+        expect(snippet.stdout).not.toContain("<spec-id>.spec.md");
+        // The stage that writes the machine specs tells the agent what goes into them.
+        const spec = await catspec(dir, ["workflow", "snippet", "spec"]);
+        expect(spec.stdout.split("\n")[1]).toMatch(/write `<spec-id>\.spec\.md`.*`bindings`/);
+        expect(spec.stdout).toContain("catspec bind <ClassName> --spec <spec-id>");
         const agents = await catspec(dir, ["workflow", "snippet", "agents"]);
         expect(agents.stdout).toContain("run `catspec stage start task <id>`");
         expect(agents.stdout).toContain(
@@ -524,7 +529,11 @@ describe("F8 workflow-profiles", () => {
         expect(init.stdout).toContain("proposing workflow preset openspec");
         const config = await read(dir, "catspec.yaml");
         expect(config).toContain("preset: openspec");
-        expect(config).toContain('include: ["openspec/changes/**/*.spec.md"]');
+        // specs.include follows the preset's feature folders (shown as a comment).
+        expect(config).toContain('# ["openspec/changes/**/*.spec.md"]');
+        expect((await loadConfig(dir)).config.specs.include).toEqual([
+          "openspec/changes/**/*.spec.md",
+        ]);
         expect((await catspec(dir, ["check", "--specs-only"])).code).toBe(0);
       });
     });
@@ -555,6 +564,36 @@ describe("F8 workflow-profiles", () => {
         expect((await catspec(dir, ["init"])).stdout).toContain("proposing workflow preset custom");
         expect(await read(dir, "catspec.yaml")).toContain("driver: { skill: sdd-plan }");
         expect((await catspec(dir, ["workflow", "doctor"])).code).toBe(0);
+      });
+      // Only some of the sdd-* skills: the other stages are manual, and doctor still passes.
+      const some = {
+        ".claude/skills/sdd-spec/SKILL.md": "# sdd-spec\n",
+        ".claude/skills/sdd-plan/SKILL.md": "# sdd-plan\n",
+      };
+      await inRepo(some, async (dir) => {
+        expect((await catspec(dir, ["init"])).stdout).toContain("proposing workflow preset custom");
+        const config = await read(dir, "catspec.yaml");
+        expect(config).toContain("driver: { skill: sdd-plan }");
+        expect(config).not.toContain("skill: sdd-task }");
+        expect(config).toMatch(/driver: manual {2}# no sdd-task skill found/);
+        const doctor = await catspec(dir, ["workflow", "doctor"]);
+        expect(doctor.code, doctor.stdout).toBe(0);
+      });
+      // Skills shared by all agents in .agents/skills, with a plural task skill.
+      const shared = Object.fromEntries(
+        ["sdd-spec", "sdd-plan", "sdd-tasks", "sdd-close"].map((n) => [
+          `.agents/skills/${n}/SKILL.md`,
+          `# ${n}\n`,
+        ]),
+      );
+      await inRepo(shared, async (dir) => {
+        expect((await catspec(dir, ["init"])).stdout).toContain("proposing workflow preset custom");
+        const config = await read(dir, "catspec.yaml");
+        expect(config).toContain('skills_dir: ".agents/skills"');
+        expect(config).toContain("driver: { skill: sdd-tasks }");
+        expect(config).not.toContain("driver: manual");
+        const doctor = await catspec(dir, ["workflow", "doctor"]);
+        expect(doctor.code, doctor.stdout).toBe(0);
       });
       await inRepo({ "openspec/project.md": "# Project\n" }, async (dir) => {
         const init = await catspec(dir, ["init", "--preset", "catspec"]);
@@ -685,6 +724,46 @@ describe("F8 workflow-profiles", () => {
           "catspec.yaml": hookConfig,
           "docs/spec/login/login.spec.md": loginSpec("implemented"),
           "src/auth.ts": withLogin,
+        },
+      );
+    });
+  });
+
+  describe("feature folders at several depths", () => {
+    it("feature_dir takes a list: features in domain folders and at the top level; domain folders aren't features", async () => {
+      const config = [
+        "workflow:",
+        "  preset: catspec",
+        '  feature_dir: ["docs/spec/{feature}", "docs/spec/billing/{feature}"]',
+        "",
+      ].join("\n");
+      await inRepo(
+        {
+          "catspec.yaml": config,
+          "docs/spec/billing/invoices/spec.md": "# Invoices\n",
+          "docs/spec/billing/invoices/invoice-export.spec.md": specText("invoice-export"),
+          "docs/spec/login/spec.md": "# Login\n",
+          "docs/spec/login/login.spec.md": loginSpec(),
+          "src/auth.ts": withLogin,
+        },
+        async (dir) => {
+          const show = await json<{ featureDirs: string[]; features: { feature: string }[] }>(dir, [
+            "workflow",
+            "show",
+          ]);
+          expect(show.featureDirs).toEqual(["docs/spec/billing/{feature}", "docs/spec/{feature}"]);
+          expect(show.features.map((f) => f.feature)).toEqual(["invoices", "login"]);
+
+          const check = await catspec(dir, ["check", "--specs-only"]);
+          expect(check.code, check.stdout).toBe(0);
+          expect(check.stdout).not.toContain("CS0106");
+          expect((await catspec(dir, ["next", "invoices"])).stdout).toContain(
+            "docs/spec/billing/invoices/spec.md",
+          );
+
+          // A spec directly in a domain folder is outside every feature folder.
+          await writeFile(join(dir, "docs/spec/billing/stray.spec.md"), specText("stray"));
+          expect((await catspec(dir, ["check", "--specs-only"])).stdout).toContain("CS0106");
         },
       );
     });

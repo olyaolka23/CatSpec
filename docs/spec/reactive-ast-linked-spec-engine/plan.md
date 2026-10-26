@@ -608,6 +608,7 @@ interface FileFacts {
   imports: ImportFact[];        // module specifier, imported names, range
   calls: CallFact[];            // callee text, enclosing symbol id, range
   parseErrors: Range[];         // tree-sitter ERROR nodes
+  skipped?: string;             // why the file wasn't parsed (over 1 MiB, adapter failure): no facts, one CS0901
 }
 
 interface SymbolFact {
@@ -691,7 +692,23 @@ Golden round-trip tests guarantee `parse → no-op edit → write` is identity.
 
 - Parse cache: `<git-common-dir>/catspec/cache/<lang>/<blob-sha>.json` (FileFacts minus `bodyTokens`), versioned by adapter+grammar version.
 - Staged mode parses only staged files + files of bindings whose specs or files changed.
-- Budgets (asserted in a benchmark job): staged ≤ 1 s, full cold ≤ 10 s on a 10k-file synthetic repo.
+- Budgets (asserted in a benchmark job): staged ≤ 1.1 s warm, full cold ≤ 10.5 s on a 10k-file
+  synthetic repo, on Linux, macOS and Windows. (The first targets were 1 s and 10 s; the owner set
+  1.1 s and 10.5 s on 2026-10-24, after the first 3-OS CI run measured 1.05 s and 10.2 s on shared
+  runners.)
+
+Implementation notes (F9):
+- The benchmark (`npm run bench`, CI step "Benchmark") generates `scripts/synthetic-repo.ts`:
+  5,000 TypeScript and 5,000 C# files, 40 bound specs, and architecture rules over every file, so a
+  full check parses the whole repository. It runs the built CLI as a new process; the staged
+  time is the median of three runs on a commit that changes every bound file. The `[AC-F9-2]` test
+  runs the same benchmark in process, in its own Vitest project after the other tests.
+- The disk cache lists each language folder once and treats a blob it doesn't list as a miss,
+  instead of a failed open per file; it writes entries in the background and serves them from
+  memory meanwhile (`flush()`, awaited by `repositoryFacts`). Cold full check: 13.2 s → 8.3 s.
+- `@catspec/mcp` is imported only by `catspec mcp`, so other commands don't load the MCP SDK.
+- A source file over 1 MiB (`MAX_SOURCE_BYTES`), or one an adapter throws on, gets empty facts
+  with `skipped` set (§D11.2) and one CS0901 at line 1; such facts aren't cached.
 
 ### D11.8 Large refactorings (mass rename / move)
 
@@ -853,6 +870,8 @@ exec npx --no-install catspec check --staged --format text
 - `bin.ts` sets the V8 flag `--liftoff-only`: without it the process waits about 1.7 s at exit
   for background optimisation of the grammar WebAssembly (hook on a 10k-file repository:
   2.2 s → 0.5 s).
+- The hook runs the project's `node_modules/.bin/catspec`, else one on the PATH, else lets the
+  commit through with a message (ADR-026). `catspec uninstall` removes it with the agent setup.
 
 ---
 
@@ -1193,3 +1212,14 @@ Implementation notes (F8):
 - This repository's features F3–F8 have aggregate specs (`<feature-id>.spec.md` in the epic
   folder) that depend on the features before them in §2 (F3 on `core-public-api`), so
   `catspec stage finish close <feature>` in each Definition of Done names a real target.
+- `feature_dir` may be a list of patterns for features at several depths (ADR-025), e.g.
+  `["docs/spec/billing/{feature}", "docs/spec/{feature}"]`.
+- `catspec init` looks for `sdd-*` skills in `.claude/skills` and `.agents/skills`, writes the
+  folder it found, and uses `sdd-<stage>` or `sdd-<stage>s` for each stage; a stage without a
+  skill gets a manual driver. It writes `specs.include` only as a comment, so the default follows
+  `feature_dir`.
+- `check --staged` reports CS0107 as a warning, naming the file to stage, when the ADR log exists
+  on disk but isn't staged (right after `catspec init`), so the first commits aren't blocked.
+- The snippet and the MCP prompt of a stage that writes `*.spec.md` also tell the agent what goes
+  into it (bindings, rules, `catspec bind` for classes that already exist), so the spec-first flow
+  produces the contract without a human writing YAML.

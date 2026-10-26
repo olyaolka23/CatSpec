@@ -88,8 +88,10 @@ describe("parse cache", () => {
   it("[AC-F2-3] serves facts of an unchanged file from the cache without parsing it", async () => {
     const root = await repo(true);
     const adapter = countingAdapter("1");
-    const first = new FactsProvider(factsCacheFor(root)).facts(adapter, file("src/a.fake", "A"));
+    const provider = new FactsProvider(factsCacheFor(root));
+    const first = provider.facts(adapter, file("src/a.fake", "A"));
     expect(adapter.parsed).toBe(1);
+    await provider.flush();
 
     // A later run: a new provider over the same repository.
     const again = new FactsProvider(factsCacheFor(root)).facts(adapter, file("src/a.fake", "A"));
@@ -105,7 +107,9 @@ describe("parse cache", () => {
     const cache = factsCacheFor(root);
     expect(cache).toBeInstanceOf(DiskFactsCache);
     expect((cache as DiskFactsCache).dir).toBe(join(root, ".git", "catspec", "cache"));
-    new FactsProvider(cache).facts(countingAdapter("1"), file("src/a.fake", "A"));
+    const provider = new FactsProvider(cache);
+    provider.facts(countingAdapter("1"), file("src/a.fake", "A"));
+    await provider.flush();
     expect(
       new DiskFactsCache(join(root, ".git", "catspec", "cache")).get("fake", gitBlobSha("A"), "1"),
     ).toBeDefined();

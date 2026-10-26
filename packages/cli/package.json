@@ -2,7 +2,14 @@
   "name": "@catspec/cli",
   "version": "0.0.0",
   "description": "The catspec command-line interface.",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olyaolka23/CatSpec.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/olyaolka23/CatSpec#readme",
+  "bugs": "https://github.com/olyaolka23/CatSpec/issues",
   "type": "module",
   "engines": {
     "node": ">=22.12"
@@ -12,6 +19,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./bin": {
+      "source": "./src/bin.ts",
+      "types": "./dist/bin.d.ts",
+      "import": "./dist/bin.js"
     }
   },
   "main": "./dist/index.js",
@@ -20,10 +32,11 @@
     "catspec": "./dist/bin.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "guide"
   ],
   "scripts": {
-    "build": "tsup"
+    "build": "node scripts/copy-guide.js && tsup"
   },
   "dependencies": {
     "@catspec/core": "0.0.0",

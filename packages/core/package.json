@@ -2,7 +2,14 @@
   "name": "@catspec/core",
   "version": "0.0.0",
   "description": "Spec model, rule engine, diagnostics and git access for CatSpec.",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/olyaolka23/CatSpec.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/olyaolka23/CatSpec#readme",
+  "bugs": "https://github.com/olyaolka23/CatSpec/issues",
   "type": "module",
   "engines": {
     "node": ">=22.12"

@@ -67,7 +67,9 @@ export const CODES = {
     docs:
       "Exactly one file must match `specs.architecture` (default " +
       "`docs/architecture/adr/*-adr.md`). Create it with `catspec init`, remove the extra " +
-      "matches, or change `specs.architecture` in `catspec.yaml`.",
+      "matches, or change `specs.architecture` in `catspec.yaml`. In `check --staged`, an ADR " +
+      "log that exists on disk but isn't staged yet is a warning that names the file to stage, " +
+      "so the first commit after `catspec init` isn't blocked.",
   },
   CS0108: {
     severity: "warning",
@@ -389,7 +391,8 @@ export const CODES = {
     docs:
       "A source file has a syntax error at the reported location. CatSpec still uses the " +
       "declarations it could read before and after the error, so results for that file may be " +
-      "incomplete. Fix the syntax error.",
+      "incomplete. Fix the syntax error. A file larger than 1 MiB, or one the language adapter " +
+      "fails on, isn't parsed at all: it gets one CS0901 at its first line and no facts.",
   },
   CS0902: {
     severity: "error",

@@ -152,6 +152,15 @@ describe("F8 workflow-profiles: PBI workflow-mcp", () => {
       expect(text).toContain('start_stage with feature "user-account-management" and stage "plan"');
       expect(text).toContain("skill sdd-plan");
       expect(text).toContain("{feature_dir}/plan.md");
+      expect(text).not.toContain("<spec-id>.spec.md");
+
+      // The stage that writes the machine specs says what goes into them.
+      const spec = await client.getPrompt({
+        name: "stage-spec",
+        arguments: { target: "user-account-management" },
+      });
+      const specText = (spec.messages[0]!.content as { text: string }).text;
+      expect(specText).toMatch(/write `<spec-id>\.spec\.md`.*`bindings`/);
     });
   });
 });

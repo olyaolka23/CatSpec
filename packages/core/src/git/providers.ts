@@ -1,14 +1,14 @@
 /**
  * Source providers (plan §D11.3, analysis F-9), PBI `source-providers`: one interface to read the
  * files of a repository from the working tree, the git index or a revision, so every check runs
- * the same way on each. Listings skip `node_modules`, dot-folders, symbolic links and
- * submodules, like `listFiles`.
+ * the same way on each. Listings skip `node_modules`, dot-folders, symbolic links, submodules
+ * and nested projects, like `listFiles`.
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { compareStrings } from "../diagnostics.js";
-import { isListedPath, listFiles } from "../util.js";
+import { isListedPath, listFiles, withoutNestedProjects } from "../util.js";
 import type { Git, TreeEntry } from "./git.js";
 
 /** A file of a source: its root-relative POSIX path and, when known, its git blob SHA. */
@@ -71,7 +71,8 @@ abstract class GitTreeProvider implements SourceProvider {
         .filter((e) => e.stage === 0 && (e.mode === "100644" || e.mode === "100755"))
         .filter((e) => isListedPath(e.path))
         .sort((a, b) => compareStrings(a.path, b.path));
-      return new Map(regular.map((e) => [e.path, e.blobSha]));
+      const listed = new Set(withoutNestedProjects(regular.map((e) => e.path)));
+      return new Map(regular.filter((e) => listed.has(e.path)).map((e) => [e.path, e.blobSha]));
     });
     return this.listing;
   }

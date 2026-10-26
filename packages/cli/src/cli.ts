@@ -6,7 +6,7 @@
  * `refactor`; F7 (`agent-check-mode`, `agent-setup`, `mcp-server-core`): `check --in-progress
  * --format agent`, `init --agents` and `mcp`; F8 (`workflow-cli`, `workflow-presets`,
  * `workflow-hook`): `next`, `stage start|finish`, `workflow show|doctor|snippet`, `init --preset`
- * and the CS0703 re-check in `check --staged`.
+ * and the CS0703 re-check in `check --staged`; F9: `uninstall` and `guide`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
@@ -57,8 +57,9 @@ import {
   type Spec,
   type SpecModel,
   type SpecStatus,
+  featureDirsText,
 } from "@catspec/core";
-import { serveMcp } from "@catspec/mcp";
+import type { GuidePage } from "@catspec/mcp";
 import { Argument, Command, CommanderError, Option } from "commander";
 
 import {
@@ -74,6 +75,8 @@ import {
   type HookInput,
 } from "./agent-check.js";
 import { agentsBlock, AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
+import { uninstall } from "./uninstall.js";
+import { findGuidePage, guideIndex, loadGuide } from "./guide.js";
 import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 import { formatDiff } from "./diff.js";
@@ -177,6 +180,13 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     .configureOutput({
       writeOut: (text) => out.stdout.write(text),
       writeErr: (text) => out.stderr.write(text),
+      // Help is wrapped to the terminal only when it goes to the terminal; otherwise (a pipe, or
+      // the output a caller passes in) at 80 columns, commander's default, so it is the same
+      // everywhere (the command reference of the user guide is generated from it).
+      getOutHelpWidth: () =>
+        out.stdout === process.stdout && process.stdout.isTTY ? process.stdout.columns : 80,
+      getErrHelpWidth: () =>
+        out.stderr === process.stderr && process.stderr.isTTY ? process.stderr.columns : 80,
     })
     .showSuggestionAfterError(true)
     .hook("preAction", (_, action) => {
@@ -342,6 +352,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           options.format === "agent" ? parseHookInput(await out.stdin()) : undefined;
         const { model, style, opts } = await load(command);
         for (const id of options.spec ?? []) findSpec(model, id);
+        existingPaths(paths, workingDirectory(out.cwd, opts.cwd), model);
         if (options.inProgress) {
           const working = (await branchInProgressSpecs(model, gitEnv)).map((s) => s.id);
           if (working.length === 0) {
@@ -636,6 +647,35 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       const result = await uninstallHooks(git, options);
       if (!globals(command).quiet)
         out.stdout.write(hookReport(result, styleFor(globals(command), out)));
+    });
+
+  program
+    .command("uninstall")
+    .description(
+      "remove what init added: the pre-commit hook, the Claude Code Stop hook and the AGENTS.md " +
+        "block; --files also deletes catspec.yaml, the local cache, and the example feature and " +
+        "the ADR log while unchanged (specs and lock files are kept); run it before removing " +
+        "the package",
+    )
+    .option("--files", "also delete catspec.yaml, the local cache and init's unchanged files")
+    .action(async (options: { files?: boolean }, command: Command) => {
+      const opts = globals(command);
+      const cwd = workingDirectory(out.cwd, opts.cwd);
+      const root = findGitRoot(cwd) ?? cwd;
+      const git = new Git(root, gitEnv);
+      const result = await uninstall(root, (await git.isRepository()) ? git : undefined, {
+        files: options.files === true,
+      });
+      if (opts.quiet) return;
+      const style = styleFor(opts, out);
+      const lines = result.steps.map((s) =>
+        s.action === "kept"
+          ? `${style.yellow("kept")} ${s.what} (${s.reason ?? ""})`
+          : `${style.green(s.action)} ${s.what}`,
+      );
+      if (result.steps.length === 0) lines.push("nothing of CatSpec was installed here");
+      lines.push(...result.next.map((n) => `Next: ${n}`));
+      out.stdout.write(`${lines.join("\n")}\n`);
     });
 
   /**
@@ -1130,7 +1170,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
             )
           : workflow.features;
         if (name && features.length === 0) {
-          throw new UsageError(`"${name}" isn't in a feature folder (${profile.featureDir})`);
+          throw new UsageError(`"${name}" isn't in a feature folder (${featureDirsText(profile)})`);
         }
         const positions = [];
         for (const feature of features) positions.push(await workflow.position(feature));
@@ -1141,6 +1181,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
                 preset: profile.preset,
                 ...(profile.presetVersion ? { presetVersion: profile.presetVersion } : {}),
                 featureDir: profile.featureDir,
+                featureDirs: profile.featureDirs,
                 stages: profile.stages.map(describeStage),
                 features: positions.map((p) => ({
                   feature: p.feature,
@@ -1156,7 +1197,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           return;
         }
         const lines = [
-          `workflow: preset ${profile.preset}${profile.presetVersion ? ` (${profile.presetVersion})` : ""}, features in ${profile.featureDir}`,
+          `workflow: preset ${profile.preset}${profile.presetVersion ? ` (${profile.presetVersion})` : ""}, features in ${featureDirsText(profile)}`,
           "stages:",
         ];
         for (const [i, s] of profile.stages.entries()) {
@@ -1241,11 +1282,34 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       const opts = globals(command);
       const cwd = workingDirectory(out.cwd, opts.cwd);
       const { root, file } = await loadConfig(cwd, opts.config);
+      // Loaded on demand: the MCP SDK isn't needed by the other commands, and the pre-commit hook
+      // pays for every module it loads (plan §D11.7).
+      const { serveMcp } = await import("@catspec/mcp");
+      let guide: Promise<GuidePage[]> | undefined;
       await serveMcp({
         root,
         ...(opts.config !== undefined && file ? { configFile: file } : {}),
         engine: cliEngine(gitEnv),
+        guide: () => (guide ??= loadGuide()),
       });
+    });
+
+  program
+    .command("guide")
+    .description(
+      "print the user guide of this version: without a page, the list of pages (agents read " +
+        "it through the MCP tool read_guide)",
+    )
+    .argument("[page]", "a page, e.g. quick-start, commands, diagnostics, rules")
+    .action(async (name: string | undefined) => {
+      const pages = await loadGuide();
+      if (name === undefined) {
+        out.stdout.write(guideIndex(pages));
+        return;
+      }
+      const page = findGuidePage(pages, name);
+      if (typeof page === "string") throw new UsageError(page);
+      out.stdout.write(page.text.endsWith("\n") ? page.text : `${page.text}\n`);
     });
 
   program
@@ -1418,6 +1482,22 @@ function styleFor(opts: GlobalOptions, io: CliIo): Style {
   const enabled =
     opts.color && io.env.NO_COLOR === undefined && (forced || io.stdout.isTTY === true);
   return enabled ? COLORS : PLAIN;
+}
+
+/**
+ * Refuses a `check` path that names nothing on disk: it would filter every diagnostic out and
+ * report success. It is usually a spec id or a feature name.
+ */
+function existingPaths(paths: string[], cwd: string, model: SpecModel): void {
+  for (const path of paths) {
+    if (/[*?[\]{}]/.test(path) || existsSync(resolve(cwd, path))) continue;
+    throw new UsageError(
+      `"${path}" is not a file or folder` +
+        (model.specs.get(path)
+          ? `; to check that spec, run \`catspec check --spec ${path}\``
+          : "; to check one spec, run `catspec check --spec <id>` (`catspec list` shows the ids)"),
+    );
+  }
 }
 
 /** True when a diagnostic's code or spec location is under one of `paths` (files, folders or globs). */

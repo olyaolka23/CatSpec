@@ -126,7 +126,15 @@ export interface FileFacts {
   calls: CallFact[];
   /** Syntax errors; the facts around them are still extracted (see `parseErrorDiagnostics`). */
   parseErrors: Range[];
+  /**
+   * Why the file wasn't parsed (it is larger than `MAX_SOURCE_BYTES`, or the adapter failed on
+   * it); the facts are then empty and the file gets one CS0901 warning.
+   */
+  skipped?: string;
 }
+
+/** Source files larger than this (in bytes) aren't parsed (CS0901). */
+export const MAX_SOURCE_BYTES = 1024 * 1024;
 
 /** A language plug-in. `core` defines the interface; `cli` and `mcp` inject implementations. */
 export interface LanguageAdapter {
@@ -157,8 +165,19 @@ export interface LanguageAdapter {
   runQuery?(file: SourceFile, query: string): Range[];
 }
 
-/** One CS0901 warning per syntax error of the file, at the error's location. */
+/**
+ * One CS0901 warning per syntax error of the file, at the error's location; one at the start of a
+ * skipped file.
+ */
 export function parseErrorDiagnostics(facts: FileFacts): Diagnostic[] {
+  if (facts.skipped !== undefined) {
+    return [
+      createDiagnostic("CS0901", {
+        codeLocation: { file: facts.path, line: 1, column: 1 },
+        message: `file not parsed: ${facts.skipped}`,
+      }),
+    ];
+  }
   return facts.parseErrors.map(({ start, end }) =>
     createDiagnostic("CS0901", {
       codeLocation: {

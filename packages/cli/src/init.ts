@@ -10,6 +10,7 @@ import {
   CONFIG_FILE,
   customWorkflowYaml,
   detectPreset,
+  findSddSkills,
   globMatcher,
   kebabCase,
   listFiles,
@@ -60,7 +61,8 @@ export async function initRepository(
     result.created.push(file);
   };
 
-  await write(CONFIG_FILE, configTemplate(preset));
+  // The custom preset names only the sdd-* skills the repository has, where it has them.
+  await write(CONFIG_FILE, configTemplate(preset, findSddSkills(root)));
 
   // One ADR log per repository: don't add a second one next to an existing log (CS0107).
   const { config } = await loadConfig(root);
@@ -78,17 +80,16 @@ export async function initRepository(
 
   // OpenSpec and Spec Kit keep their own feature folders: no example under docs/spec/.
   if (preset === "openspec" || preset === "spec-kit") return result;
-  const feature = `docs/spec/${EXAMPLE_FEATURE}`;
-  await write(`${feature}/spec.md`, featureSpecTemplate());
-  await write(`${feature}/plan.md`, featurePlanTemplate());
-  await write(`${feature}/${EXAMPLE_SPEC}.spec.md`, exampleSpecTemplate());
+  for (const [file, content] of Object.entries(exampleFeatureFiles())) await write(file, content);
   return result;
 }
 
+type SddSkills = ReturnType<typeof findSddSkills>;
+
 /** The `workflow:` section for a preset (plan §D17.2, §D17.3). */
-const workflowTemplate = (preset: PresetName): string =>
+const workflowTemplate = (preset: PresetName, found: SddSkills): string =>
   preset === "custom"
-    ? customWorkflowYaml()
+    ? customWorkflowYaml(found?.skills ?? [], found?.skillsDir)
     : `# The SDD workflow CatSpec gates (plan §D17): catspec | openspec | spec-kit | custom.
 workflow:
   preset: ${preset}
@@ -96,14 +97,15 @@ workflow:
   enforce_in_hook: warn  # off | warn | error
 `;
 
-const configTemplate = (preset: PresetName): string => {
+const configTemplate = (preset: PresetName, found: SddSkills): string => {
   const profile = resolveWorkflow(WorkflowSchema.parse({ preset }));
   return `# yaml-language-server: $schema=./node_modules/@catspec/core/schemas/catspec.schema.json
 # CatSpec configuration. Every key is optional and has a default.
 version: 1
 layout: ${profile.layout}
-${workflowTemplate(preset)}specs:
-  include: [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
+${workflowTemplate(preset, found)}specs:
+  # include defaults to the *.spec.md files in each workflow.feature_dir folder:
+  # [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
   architecture: "docs/architecture/adr/*-adr.md"
 # Both languages are always on; a file's extension picks its language. Point the globs at your
 # sources, or set \`include: []\` to leave a language out.
@@ -117,7 +119,8 @@ languages:
 `;
 };
 
-const adrTemplate = (name: string, date: string): string => `---
+/** The ADR log `init` writes (also used by `uninstall` to see whether it is unchanged). */
+export const adrTemplate = (name: string, date: string): string => `---
 catspec: 1
 id: architecture
 title: ${name} architecture
@@ -145,6 +148,16 @@ to the frontmatter with \`adr: ADR-NNN\`.
 - **Decision:** Every architecture decision is recorded in this log.
 - **Consequences:** Decisions are easy to find, and the checkable ones become rules in the frontmatter.
 `;
+
+/** The example feature `init` writes, by path (also used by `uninstall`). */
+export const exampleFeatureFiles = (): Record<string, string> => {
+  const feature = `docs/spec/${EXAMPLE_FEATURE}`;
+  return {
+    [`${feature}/spec.md`]: featureSpecTemplate(),
+    [`${feature}/plan.md`]: featurePlanTemplate(),
+    [`${feature}/${EXAMPLE_SPEC}.spec.md`]: exampleSpecTemplate(),
+  };
+};
 
 const featureSpecTemplate = (): string => `# Example feature — Spec
 

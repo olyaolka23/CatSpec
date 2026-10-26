@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -11,6 +12,7 @@ import {
   parseClosedFeatures,
   parseFeatureFile,
   parseVitestResults,
+  unclaimedSpecScenarios,
   type TaggedTest,
 } from "./acceptance-coverage.js";
 
@@ -164,6 +166,26 @@ describe("tagging rules", () => {
   });
 });
 
+describe("unclaimedSpecScenarios", () => {
+  it("claims every MVP scenario of this repository's epic (spec §5 against plan §2)", () => {
+    const epic = join(resolve(fileURLToPath(import.meta.url), "..", ".."), "docs", "spec");
+    const dir = join(epic, "reactive-ast-linked-spec-engine");
+    expect(
+      unclaimedSpecScenarios(
+        readFileSync(join(dir, "spec.md"), "utf8"),
+        readFileSync(join(dir, "plan.md"), "utf8"),
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips Post-MVP items and reads lists of spec AC in the plan's feature table", () => {
+    const spec =
+      "## 5. Acceptance\n\n1. **A**\n2. *(Post-MVP, ADR-014.)* **B**\n3. **C**\n4. **D**\n";
+    expect(unclaimedSpecScenarios(spec, "| F1 | x | (spec AC-1, AC-3) |\n")).toEqual([4]);
+    expect(unclaimedSpecScenarios(spec, "spec AC-4 outside the table\n")).toEqual([1, 3, 4]);
+  });
+});
+
 describe("parseClosedFeatures", () => {
   it("returns the features ticked in plan Progress", () => {
     const plan = [
@@ -285,18 +307,80 @@ describe("acceptance-coverage CLI", () => {
     dir = undefined;
   });
 
-  async function runCli(feature: string, results: object, scriptPath = script) {
+  async function runCli(
+    feature: string,
+    results: object,
+    scriptPath = script,
+    options: { args?: string[]; epicFiles?: Record<string, string> } = {},
+  ) {
     dir = await mkdtemp(join(tmpdir(), "catspec-acceptance-"));
     const featuresDir = join(dir, "docs", "spec", "demo-epic", "features");
     await mkdir(featuresDir, { recursive: true });
     await writeFile(join(featuresDir, "demo.md"), feature);
+    for (const [name, text] of Object.entries(options.epicFiles ?? {})) {
+      await writeFile(join(dir, "docs", "spec", "demo-epic", name), text);
+    }
     await writeFile(join(dir, "results.json"), JSON.stringify(results));
     return spawnSync(
       process.execPath,
-      ["--import", "tsx", scriptPath, "--root", dir, "--results", "results.json"],
+      [
+        "--import",
+        "tsx",
+        scriptPath,
+        "--root",
+        dir,
+        "--results",
+        "results.json",
+        ...(options.args ?? []),
+      ],
       { encoding: "utf8" },
     );
   }
+
+  const passing = (...tags: string[]) => ({
+    testResults: [
+      {
+        name: "demo.test.ts",
+        assertionResults: tags.map((tag) => ({ title: `[${tag}] works`, status: "passed" })),
+      },
+    ],
+  });
+  const SPEC =
+    "# Spec\n\n## 5. Acceptance scenarios (MVP)\n\n1. **One**: a.\n2. *(Post-MVP.)* **Two**: b.\n" +
+    "3. **Three**: c.\n\n## 6. Later\n\n4. not a scenario\n";
+  const PLAN = (acceptance: string) =>
+    `# Plan\n\n| # | Feature | Acceptance |\n|---|---|---|\n| F9 | demo | ${acceptance} |\n`;
+
+  it("[AC-F9-3] the release sweep (--all) requires a passing test for every scenario of every feature, ticked or not, and a feature for every MVP spec scenario", async () => {
+    const feature = featureFile();
+    const epicFiles = { "spec.md": SPEC, "plan.md": PLAN("`@AC-F9-1` (spec AC-1, AC-3)") };
+
+    const missing = await runCli(feature, passing("AC-F9-1", "AC-demo-pbi-1"), script, {
+      args: ["--all"],
+      epicFiles,
+    });
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain('scenario AC-demo-pbi-2 "Second behaviour" has no test');
+
+    const unclaimed = await runCli(
+      feature,
+      passing("AC-F9-1", "AC-demo-pbi-1", "AC-demo-pbi-2"),
+      script,
+      { args: ["--all"], epicFiles: { ...epicFiles, "plan.md": PLAN("(spec AC-1)") } },
+    );
+    expect(unclaimed.status).toBe(1);
+    expect(unclaimed.stderr).toContain("MVP acceptance scenario 3 is not claimed");
+
+    const green = await runCli(
+      feature,
+      passing("AC-F9-1", "AC-demo-pbi-1", "AC-demo-pbi-2"),
+      script,
+      { args: ["--all"], epicFiles },
+    );
+    expect(green.stderr).toBe("");
+    expect(green.status).toBe(0);
+    expect(green.stdout).toContain("release sweep: every scenario");
+  });
 
   it("[AC-F0-2] rejects a ticked PBI whose scenario has no test, naming the missing tag", async () => {
     const results = {

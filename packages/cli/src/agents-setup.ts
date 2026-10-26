@@ -46,7 +46,7 @@ export const agentsBlock = (
     BLOCK_BEGIN,
     "## CatSpec workflow (agents must follow)",
     "",
-    `Specs live in \`${profile.featureDir.replaceAll("{feature}", "<feature>")}/<spec-id>.spec.md\`; the architecture rules in`,
+    `Specs live in ${profile.featureDirs.map((d) => `\`${d.replaceAll("{feature}", "<feature>")}/<spec-id>.spec.md\``).join(" or ")}; the architecture rules in`,
     "`docs/architecture/adr/`. For every work item (spec) `<id>` you work on" +
       (perFeature ? " (`<feature>` is its feature folder):" : ":"),
     "",
@@ -58,7 +58,8 @@ export const agentsBlock = (
     "",
     "Run `catspec next <feature>` to see the current stage and which work items are ready. With",
     "the CatSpec MCP server connected, the tools `next_step`, `start_stage`, `check_compliance` and",
-    "`finish_stage` do the same as these commands.",
+    "`finish_stage` do the same as these commands. How CatSpec works (commands, spec format, rules,",
+    "diagnostics): `catspec guide`, or the MCP tool `read_guide`.",
     BLOCK_END,
   ].join(eol);
 };
@@ -202,4 +203,50 @@ export function withStopHook(text: string | undefined): string {
     },
   };
   return `${JSON.stringify(next, null, 2)}\n`;
+}
+
+/** `AGENTS.md` without the CatSpec block; undefined when nothing else is left in it. */
+export function withoutAgentsBlock(text: string): string | undefined {
+  const begin = text.indexOf(BLOCK_BEGIN);
+  const end = text.indexOf(BLOCK_END);
+  if (begin === -1 || end === -1 || end < begin) return text;
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  let before = text.slice(0, begin);
+  let after = text.slice(end + BLOCK_END.length);
+  // `init --agents` puts the block after a blank line and ends it with a line break.
+  if (after.startsWith(eol)) after = after.slice(eol.length);
+  if (after === "" && before.endsWith(eol + eol)) before = before.slice(0, -eol.length);
+  const rest = before + after;
+  return rest.trim() === "" ? undefined : rest;
+}
+
+/**
+ * Claude Code settings without the CatSpec `Stop` hook; hook lists and keys left empty are removed,
+ * and undefined means nothing is left. Text that isn't a settings object comes back unchanged.
+ */
+export function withoutStopHook(text: string): string | undefined {
+  let settings: unknown;
+  try {
+    settings = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  if (settings === null || typeof settings !== "object" || Array.isArray(settings)) return text;
+  const object = settings as Record<string, unknown>;
+  const hooks = object.hooks as Record<string, unknown> | undefined;
+  if (!hooks || typeof hooks !== "object" || !Array.isArray(hooks.Stop)) return text;
+  // Entries that held only CatSpec hooks go; other entries keep their other hooks.
+  const before = hooks.Stop as HookEntry[];
+  const stop = before.flatMap((entry) => {
+    if (!Array.isArray(entry?.hooks)) return [entry];
+    const kept = entry.hooks.filter((h) => !isCatspecStopHook(h?.command));
+    if (kept.length === entry.hooks.length) return [entry];
+    return kept.length === 0 ? [] : [{ ...entry, hooks: kept }];
+  });
+  if (stop.length === before.length && stop.every((entry, i) => entry === before[i])) return text;
+  const nextHooks: Record<string, unknown> = { ...hooks, Stop: stop };
+  if (stop.length === 0) delete nextHooks.Stop;
+  const next: Record<string, unknown> = { ...object, hooks: nextHooks };
+  if (Object.keys(nextHooks).length === 0) delete next.hooks;
+  return Object.keys(next).length === 0 ? undefined : `${JSON.stringify(next, null, 2)}\n`;
 }

@@ -342,3 +342,50 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** The MCP server reuses the CLI's code instead of duplicating it, and stays free
   of Tree-sitter and the adapters. Enforced by the rule `mcp-gets-adapters-injected` above and by
   `test/monorepo.test.ts`. Changing the MCP SDK's major version needs a new ADR.
+
+## ADR-025: `workflow.feature_dir` may list several folder patterns
+
+- **Status:** Accepted · **Date:** 2026-10-26 · **Ref:** plan §D17.2, ADR-015
+- **Context:** Repositories often split specs by domain: features live both in
+  `docs/spec/<feature>` and in domain folders such as `docs/spec/billing/<feature>`. One
+  `feature_dir` pattern can't describe that: `docs/spec/{feature}` makes `billing` a feature.
+- **Decision:** `workflow.feature_dir` is a pattern or a list of patterns, each with `{feature}`
+  exactly once. A path belongs to the most specific matching pattern (more folders, then longer).
+  A folder that holds another pattern's features (`docs/spec/billing`) is never a feature. The
+  default `specs.include` and the CS0106 layout check follow every pattern. A single string keeps
+  its meaning.
+- **Consequences:** Domain-split repositories need no `layout: free`. Two features with the same
+  name in different domain folders are one feature to `catspec next` and `stage` (the first one
+  found); give them distinct names. `catspec workflow show --format json` adds `featureDirs`.
+
+## ADR-026: `catspec uninstall`, and a pre-commit hook that never blocks without CatSpec
+
+- **Status:** Accepted · **Date:** 2026-10-26 · **Ref:** plan §D13, §D14.3
+- **Context:** After the package was removed from a project, the pre-commit hook still ran
+  `npx --no-install catspec`, which asked the registry, failed, and blocked every commit. The
+  files `init` wrote had to be found and removed by hand.
+- **Decision:** The hook runs `node_modules/.bin/catspec`, else a `catspec` on the PATH, else it
+  lets the commit through and prints that CatSpec isn't installed. `catspec uninstall` removes
+  the pre-commit hook, the Claude Code `Stop` hook and the `AGENTS.md` block, keeping all other
+  content byte for byte; `--files` also deletes `catspec.yaml`, the local cache, and the example
+  feature and ADR log while they are as `init` wrote them. Specs, lock files and edited files are
+  never deleted; they are listed as kept.
+- **Consequences:** Removing CatSpec is one command, run before `npm uninstall catspec`. A
+  repository whose hook can't find CatSpec is no longer protected, and each commit says so.
+
+## ADR-027: The user guide ships with the CLI and is served to agents
+
+- **Status:** Accepted · **Date:** 2026-10-26 · **Ref:** plan §D14, ADR-024
+- **Context:** People and agents need the user guide while they work, but it lives only in the
+  repository. An agent can't open a link to a private repository, and a link shows the guide of
+  `main`, not of the installed version.
+- **Decision:** The build copies `docs/spec/catspec-user-guide/*.md` (without the guide's own
+  `spec.md`) into the published `guide/` folder of `@catspec/cli`. `catspec guide` lists the
+  pages and `catspec guide <page>` prints one. The CLI passes the pages to the MCP server
+  (`WorkspaceOptions.guide`, injected as in ADR-024), which serves the tool `read_guide` and the
+  resources `catspec://guide/{page}`, and names `read_guide` in its instructions. Links that leave
+  the guide folder are rewritten to the repository on GitHub. The `AGENTS.md` block names
+  `catspec guide` and `read_guide`.
+- **Consequences:** Every installed version answers from its own guide, offline; the package
+  grows by about 65 KB. Page names are now public: renaming a page changes `catspec guide <page>`
+  and its resource URI.

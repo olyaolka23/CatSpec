@@ -24,9 +24,11 @@ import type { SpecModel } from "../load.js";
 import { applyPatch } from "../spec-editor.js";
 import type { SpecStatus } from "../spec-schema.js";
 import type { Spec } from "../spec.js";
-import { didYouMean, escapeRegExp, globMatcher, listOf } from "../util.js";
+import { didYouMean, globMatcher, listOf } from "../util.js";
 import {
   driverText,
+  featureDirsText,
+  featureFolderOf,
   gateName,
   type Driver,
   type Gate,
@@ -101,7 +103,6 @@ export const stageStatus = (stage: Stage): SpecStatus | undefined =>
 export class Workflow {
   readonly features: Feature[];
   private readonly checks = new Map<string, Promise<CheckResult>>();
-  private readonly featureRegex: RegExp;
 
   constructor(
     readonly model: SpecModel,
@@ -111,18 +112,12 @@ export class Workflow {
     readonly files: readonly string[],
     readonly options: WorkflowOptions = {},
   ) {
-    const pattern = escapeRegExp(profile.featureDir).replaceAll(
-      escapeRegExp("{feature}"),
-      "([^/]+)",
-    );
-    this.featureRegex = new RegExp(`^(${pattern})/`);
     const byName = new Map<string, Feature>();
     for (const file of files) {
-      const match = this.featureRegex.exec(file);
-      if (!match) continue;
-      const name = match[2]!;
-      if (profile.notFeatures.includes(name) || byName.has(name)) continue;
-      byName.set(name, { name, dir: match[1]!, specs: [] });
+      const folder = featureFolderOf(profile.featureDirs, file);
+      if (!folder) continue;
+      if (profile.notFeatures.includes(folder.name) || byName.has(folder.name)) continue;
+      byName.set(folder.name, { ...folder, specs: [] });
     }
     for (const spec of this.specs()) {
       const feature = this.featureNameOf(spec);
@@ -141,7 +136,7 @@ export class Workflow {
   }
 
   private featureNameOf(spec: Spec): string | undefined {
-    const name = this.featureRegex.exec(spec.file)?.[2];
+    const name = featureFolderOf(this.profile.featureDirs, spec.file)?.name;
     return name !== undefined && !this.profile.notFeatures.includes(name) ? name : undefined;
   }
 
@@ -176,7 +171,7 @@ export class Workflow {
       ...this.model.specs.byId.keys(),
     ]);
     throw new WorkflowError(
-      `"${name}" is neither a feature (a folder ${this.profile.featureDir}) nor a spec id` +
+      `"${name}" is neither a feature (a folder ${featureDirsText(this.profile)}) nor a spec id` +
         (close.length > 0 ? `; did you mean ${close.map((c) => `"${c}"`).join(", ")}?` : ""),
     );
   }
@@ -213,7 +208,7 @@ export class Workflow {
     }
     if (!target.feature) {
       throw new WorkflowError(
-        `stage "${stage.id}" runs per feature, and spec "${target.name}" isn't in a feature folder (${this.profile.featureDir})`,
+        `stage "${stage.id}" runs per feature, and spec "${target.name}" isn't in a feature folder (${featureDirsText(this.profile)})`,
       );
     }
     return {
