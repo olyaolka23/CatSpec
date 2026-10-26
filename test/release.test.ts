@@ -1,7 +1,7 @@
 /**
  * Feature F9 `release-0-1`, PBI `release-packaging`: 0.1.0 is published only by the release
- * workflow, after a green acceptance sweep on 3 OSes and the owner's approval, with release notes
- * that list the known limits.
+ * workflow, started by the owner after a green acceptance sweep and approved in the `npm-release`
+ * environment, with release notes that list the known limits.
  */
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -20,7 +20,6 @@ interface Step {
 interface Job {
   needs?: string | string[];
   environment?: string;
-  strategy?: { matrix?: { os?: string[] } };
   steps: Step[];
 }
 
@@ -35,17 +34,11 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
     // Started by hand only.
     expect(Object.keys(workflow.on)).toEqual(["workflow_dispatch"]);
 
-    // The sweep: every test, the benchmark and every scenario of every feature, on 3 OSes.
-    const sweep = workflow.jobs.sweep!;
-    expect(sweep.strategy?.matrix?.os).toEqual(["ubuntu-latest", "macos-latest", "windows-latest"]);
-    const runs = sweep.steps.map((s) => s.run).filter(Boolean);
-    expect(runs).toEqual(
-      expect.arrayContaining(["npm test", "npm run bench", "npm run check:acceptance -- --all"]),
-    );
-
-    // Publishing waits for the sweep and for the approval of the protected environment.
+    // The owner runs the sweep before starting the workflow, which runs no tests (Actions minutes):
+    // its only job publishes, after the approval of the protected environment.
+    expect(Object.keys(workflow.jobs)).toEqual(["publish"]);
     const publish = workflow.jobs.publish!;
-    expect(publish.needs).toBe("sweep");
+    expect(publish.needs).toBeUndefined();
     expect(publish.environment).toBe("npm-release");
     expect(publish.steps.map((s) => s.run)).toContain("npx changeset publish");
     // Nothing else in the repository publishes.
