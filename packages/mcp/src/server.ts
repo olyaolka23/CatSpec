@@ -4,7 +4,8 @@
  *
  * - Tools (§D14.1): see `./tools.ts`.
  * - Resources (§D14.2): `catspec://spec/{id}` (the raw spec file), `catspec://architecture` (the
- *   ADR log), `catspec://graph` (mermaid) and `catspec://diagnostics` (the last check, as JSON).
+ *   ADR log), `catspec://graph` (mermaid), `catspec://diagnostics` (the last check, as JSON) and,
+ *   when the CLI passes the user guide in, `catspec://guide/{page}` (with the tool `read_guide`).
  * - Prompts (§D14.2): `implement-spec` and `fix-drift`, and one `stage-<id>` prompt per workflow
  *   stage, generated from the config when the server starts (§D17.5).
  */
@@ -42,6 +43,7 @@ import {
   getSpecContext,
   listSpecs,
   nextStep,
+  readGuide,
   runStage,
   setSpecStatus,
   startRefactor,
@@ -61,6 +63,8 @@ const INSTRUCTIONS =
   "check_compliance until done is true, then finish_stage. Never weaken a " +
   "contract to make a check pass: update_spec_bindings only proposes contract edits; show the " +
   "proposal to the developer.";
+const GUIDE_INSTRUCTIONS =
+  " For how CatSpec works (commands, spec format, rules, diagnostics), call read_guide.";
 
 /**
  * A tool's answer as an MCP result: the text, and the same facts as structured content. The facts
@@ -82,7 +86,10 @@ export function createServer(options: WorkspaceOptions): McpServer {
   const ws = new Workspace(options);
   const server = new McpServer(
     { name: "catspec", version },
-    { instructions: INSTRUCTIONS, capabilities: { tools: {}, resources: {}, prompts: {} } },
+    {
+      instructions: options.guide ? INSTRUCTIONS + GUIDE_INSTRUCTIONS : INSTRUCTIONS,
+      capabilities: { tools: {}, resources: {}, prompts: {} },
+    },
   );
   const readOnly = { readOnlyHint: true, openWorldHint: false } as const;
 
@@ -284,6 +291,27 @@ export function createServer(options: WorkspaceOptions): McpServer {
     );
   }
 
+  if (options.guide) {
+    server.registerTool(
+      "read_guide",
+      {
+        description:
+          "The CatSpec user guide of the installed version: how to write specs and rules, " +
+          "every command and option, every diagnostic code, agents and workflows. Without " +
+          "page, the list of pages.",
+        inputSchema: z.object({
+          page: z
+            .string()
+            .min(1)
+            .optional()
+            .describe("a page name, e.g. commands, diagnostics, rules, spec-format, faq"),
+        }),
+        annotations: readOnly,
+      },
+      async (input) => result(await readGuide(ws, input)),
+    );
+  }
+
   // Resources -------------------------------------------------------------------------------
 
   server.registerResource(
@@ -368,6 +396,30 @@ export function createServer(options: WorkspaceOptions): McpServer {
       };
     },
   );
+
+  const guide = options.guide;
+  if (guide) {
+    server.registerResource(
+      "guide",
+      new ResourceTemplate("catspec://guide/{page}", {
+        list: async () => ({
+          resources: (await guide()).map((p) => ({
+            uri: `catspec://guide/${p.name}`,
+            name: p.name,
+            title: p.title,
+            mimeType: "text/markdown",
+          })),
+        }),
+      }),
+      { description: "A page of the CatSpec user guide", mimeType: "text/markdown" },
+      async (uri, variables) => {
+        const name = decodeURIComponent(String(variables.page));
+        const page = (await guide()).find((p) => p.name === name);
+        if (!page) throw new ResourceNotFoundError(uri.href);
+        return { contents: [{ uri: uri.href, mimeType: "text/markdown", text: page.text }] };
+      },
+    );
+  }
 
   // Prompts ---------------------------------------------------------------------------------
 

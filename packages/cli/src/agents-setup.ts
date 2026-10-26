@@ -58,7 +58,8 @@ export const agentsBlock = (
     "",
     "Run `catspec next <feature>` to see the current stage and which work items are ready. With",
     "the CatSpec MCP server connected, the tools `next_step`, `start_stage`, `check_compliance` and",
-    "`finish_stage` do the same as these commands.",
+    "`finish_stage` do the same as these commands. How CatSpec works (commands, spec format, rules,",
+    "diagnostics): `catspec guide`, or the MCP tool `read_guide`.",
     BLOCK_END,
   ].join(eol);
 };

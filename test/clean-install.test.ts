@@ -62,7 +62,18 @@ async function pack(dir: string, staging: string, tarballs: string): Promise<str
   const manifest = JSON.parse(readFileSync(join(source, "package.json"), "utf8")) as PackageJson;
   cpSync(join(source, "package.json"), join(target, "package.json"));
   for (const folder of manifest.files ?? []) {
-    if (folder !== "dist") cpSync(join(source, folder), join(target, folder), { recursive: true });
+    if (folder === "dist") continue;
+    if (folder === "guide") {
+      // The CLI's build copies the user guide in; the same script does it here.
+      const copied = spawnSync(
+        process.execPath,
+        [join(source, "scripts", "copy-guide.js"), join(target, "guide")],
+        { encoding: "utf8" },
+      );
+      expectSuccess(copied, "copy the user guide");
+      continue;
+    }
+    cpSync(join(source, folder), join(target, folder), { recursive: true });
   }
   await build({
     config: false,
@@ -127,5 +138,10 @@ describe("F9 release-0-1: packaging (PBI release-packaging)", () => {
     const check = npm(["--no-install", "catspec", "check"], project, true);
     expectSuccess(check, "npx catspec check");
     expect(check.stdout).toMatch(/0 errors/);
+
+    // The guide of this version ships in the package, for people and agents.
+    const guide = npm(["--no-install", "catspec", "guide", "quick-start"], project, true);
+    expectSuccess(guide, "npx catspec guide quick-start");
+    expect(guide.stdout).toMatch(/^# Quick start/);
   }, 600_000);
 });

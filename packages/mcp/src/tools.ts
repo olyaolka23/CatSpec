@@ -67,18 +67,30 @@ export interface LastCheck {
   diagnostics: Diagnostic[];
 }
 
+/** A page of the user guide, served by `read_guide` and `catspec://guide/<page>`. */
+export interface GuidePage {
+  /** The file name without `.md`, e.g. `commands`. */
+  name: string;
+  title: string;
+  /** The page, in Markdown. */
+  text: string;
+}
+
 export interface WorkspaceOptions {
   /** Absolute path of the repository root. */
   root: string;
   /** The `--config` file, if one was given (else `catspec.yaml` is found from the root). */
   configFile?: string;
   engine: Engine;
+  /** The user guide; the CLI ships it and passes it in. Without it there is no `read_guide`. */
+  guide?: () => Promise<GuidePage[]>;
 }
 
 /** One repository served over MCP: its config and specs (read per call) and the engine. */
 export class Workspace {
   readonly root: string;
   readonly engine: Engine;
+  readonly guide: (() => Promise<GuidePage[]>) | undefined;
   private readonly configFile: string | undefined;
   /** The last compliance check of this server. */
   last: LastCheck | undefined;
@@ -86,6 +98,7 @@ export class Workspace {
   constructor(options: WorkspaceOptions) {
     this.root = options.root;
     this.engine = options.engine;
+    this.guide = options.guide;
     this.configFile = options.configFile;
   }
 
@@ -824,4 +837,34 @@ export async function runStage(
     };
     return { text, data: data as unknown as Record<string, unknown> };
   });
+}
+
+// read_guide ------------------------------------------------------------------------------
+
+/** One page of the user guide, or without `page` the list of pages. */
+export async function readGuide(
+  ws: Workspace,
+  input: { page?: string | undefined },
+): Promise<ToolOutput> {
+  const pages = (await ws.guide?.()) ?? [];
+  if (input.page === undefined) {
+    return {
+      text: [
+        "CatSpec user guide; call read_guide with one of these pages:",
+        ...pages.map((p) => `- ${p.name}: ${p.title}`),
+      ].join("\n"),
+      data: { pages: pages.map(({ name, title }) => ({ name, title })) },
+    };
+  }
+  const name = input.page.replace(/\.md$/, "");
+  const page = pages.find((p) => p.name === name);
+  if (!page) {
+    const names = pages.map((p) => p.name);
+    const close = didYouMean(name, names);
+    throw new ToolError(
+      `no guide page "${name}" (pages: ${names.join(", ")})` +
+        (close.length > 0 ? `; did you mean "${close[0]}"?` : ""),
+    );
+  }
+  return { text: page.text, data: { page: page.name, title: page.title } };
 }

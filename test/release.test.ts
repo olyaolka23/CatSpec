@@ -79,4 +79,16 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
       expect(read(`packages/${dir}/LICENSE`), dir).toBe(license);
     }
   });
+
+  it("every package links to the repository, so its npm page leads to the guide and issues", () => {
+    for (const dir of PACKAGES) {
+      const manifest = JSON.parse(read(`packages/${dir}/package.json`)) as {
+        repository: { url: string; directory: string };
+        homepage: string;
+      };
+      expect(manifest.repository.url, dir).toBe("git+https://github.com/olyaolka23/CatSpec.git");
+      expect(manifest.repository.directory, dir).toBe(`packages/${dir}`);
+      expect(manifest.homepage, dir).toMatch(/^https:\/\/github\.com\/olyaolka23\/CatSpec/);
+    }
+  });
 });

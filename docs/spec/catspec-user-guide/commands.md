@@ -96,6 +96,9 @@ Commands:
                                     agents: tools to read specs, check code
                                     against them and change spec locations (e.g.
                                     `claude mcp add catspec -- npx catspec mcp`)
+  guide [page]                      print the user guide of this version:
+                                    without a page, the list of pages (agents
+                                    read it through the MCP tool read_guide)
   help [command]                    display help for command
 ```
 
@@ -546,6 +549,21 @@ Usage: catspec mcp [options]
 start the MCP server on stdio, for AI agents: tools to read specs, check code
 against them and change spec locations (e.g. `claude mcp add catspec -- npx
 catspec mcp`)
+
+Options:
+  -h, --help  display help for command
+```
+
+## catspec guide
+
+```text
+Usage: catspec guide [options] [page]
+
+print the user guide of this version: without a page, the list of pages (agents
+read it through the MCP tool read_guide)
+
+Arguments:
+  page        a page, e.g. quick-start, commands, diagnostics, rules
 
 Options:
   -h, --help  display help for command

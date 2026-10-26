@@ -6,7 +6,7 @@
  * `refactor`; F7 (`agent-check-mode`, `agent-setup`, `mcp-server-core`): `check --in-progress
  * --format agent`, `init --agents` and `mcp`; F8 (`workflow-cli`, `workflow-presets`,
  * `workflow-hook`): `next`, `stage start|finish`, `workflow show|doctor|snippet`, `init --preset`
- * and the CS0703 re-check in `check --staged`.
+ * and the CS0703 re-check in `check --staged`; F9: `uninstall` and `guide`.
  *
  * Exit codes: 0 ok or warnings only, 1 errors found, 2 usage or config error, 3 internal error.
  */
@@ -59,6 +59,7 @@ import {
   type SpecStatus,
   featureDirsText,
 } from "@catspec/core";
+import type { GuidePage } from "@catspec/mcp";
 import { Argument, Command, CommanderError, Option } from "commander";
 
 import {
@@ -75,6 +76,7 @@ import {
 } from "./agent-check.js";
 import { agentsBlock, AgentsSetupError, CLAUDE_MCP_COMMAND, setupAgents } from "./agents-setup.js";
 import { uninstall } from "./uninstall.js";
+import { findGuidePage, guideIndex, loadGuide } from "./guide.js";
 import { bindSymbol } from "./bind.js";
 import { emptyCodebase, loadCodebase } from "./codebase.js";
 import { formatDiff } from "./diff.js";
@@ -1282,11 +1284,31 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
       // Loaded on demand: the MCP SDK isn't needed by the other commands, and the pre-commit hook
       // pays for every module it loads (plan §D11.7).
       const { serveMcp } = await import("@catspec/mcp");
+      let guide: Promise<GuidePage[]> | undefined;
       await serveMcp({
         root,
         ...(opts.config !== undefined && file ? { configFile: file } : {}),
         engine: cliEngine(gitEnv),
+        guide: () => (guide ??= loadGuide()),
       });
+    });
+
+  program
+    .command("guide")
+    .description(
+      "print the user guide of this version: without a page, the list of pages (agents read " +
+        "it through the MCP tool read_guide)",
+    )
+    .argument("[page]", "a page, e.g. quick-start, commands, diagnostics, rules")
+    .action(async (name: string | undefined) => {
+      const pages = await loadGuide();
+      if (name === undefined) {
+        out.stdout.write(guideIndex(pages));
+        return;
+      }
+      const page = findGuidePage(pages, name);
+      if (typeof page === "string") throw new UsageError(page);
+      out.stdout.write(page.text.endsWith("\n") ? page.text : `${page.text}\n`);
     });
 
   program
