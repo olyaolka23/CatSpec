@@ -23,6 +23,9 @@ docs/spec/example-feature/example-greeter.spec.md   # an example machine spec
 Both languages are on by default (`src/**/*.{ts,tsx}` and `src/**/*.cs`); point
 `languages.<lang>.include` in `catspec.yaml` at your sources.
 
+The ADR log, and what to change if you already have ADRs, is explained in
+[Global rules](./rules.md#the-adr-log-that-init-writes).
+
 ## 2. A spec, from draft to implemented
 
 The example spec binds a class `Greeter` with a method `greet`:
