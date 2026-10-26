@@ -32,14 +32,15 @@ checks them on every commit, and lets AI agents verify their own work before the
 
    `init` writes `catspec.yaml`, the ADR log, an example feature in `docs/spec/example-feature/`,
    the pre-commit hook and the agent setup. On Windows PowerShell, use `npx.cmd` and `npm.cmd`.
-2. **Check:** `npx catspec check`. Every problem has a code and a hint, and
-   `npx catspec guide diagnostics` explains each code.
+2. **Connect your AI agent:** `claude mcp add catspec -- npx catspec mcp` for Claude Code; Codex,
+   Cursor, Copilot and other agents in
+   [agent integration](docs/spec/catspec-user-guide/agents.md). Then ask it how to do something
+   with CatSpec: it reads the user guide through the MCP server.
 3. **Write your first spec:** copy `docs/spec/example-feature/example-greeter.spec.md` into
    `docs/spec/<your-feature>/` and bind it to one of your classes
    ([spec format](docs/spec/catspec-user-guide/spec-format.md)).
-4. **Connect your AI agent:** `claude mcp add catspec -- npx catspec mcp` for Claude Code; other
-   agents in [agent integration](docs/spec/catspec-user-guide/agents.md). Then ask it how to do
-   something with CatSpec: it reads the user guide through the MCP server.
+4. **Check:** `npx catspec check`. Every problem has a code and a hint, and
+   `npx catspec guide diagnostics` explains each code.
 5. **Commit.** The pre-commit hook stops commits that break a contract that already passed.
 
 The whole guide is also in your terminal: `npx catspec guide` lists the pages and
@@ -214,6 +215,18 @@ in the project folder:
 | Claude Desktop | `claude_desktop_config.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "/path/to/repo", "mcp"] }` |
 | Cursor | `.cursor/mcp.json` in the repository | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "${workspaceFolder}", "mcp"] }` |
 | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `"catspec": { "command": "npx", "args": ["catspec", "--cwd", "/path/to/repo", "mcp"] }` |
+
+Codex reads `~/.codex/config.toml` and starts the CatSpec installed in the repository with `node`
+(on Windows, Codex can't start `npx`):
+
+```toml
+[mcp_servers.catspec]
+command = "node"
+args = ["/path/to/repo/node_modules/catspec/dist/bin.js", "--cwd", "/path/to/repo", "mcp"]
+```
+
+Then restart Codex. Windows paths and how to see why a server doesn't start:
+[agent integration](docs/spec/catspec-user-guide/agents.md).
 
 The agent gets tools such as `get_spec_context`, `check_compliance`, `next_step`,
 `start_stage` and `finish_stage`.
