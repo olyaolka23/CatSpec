@@ -10,6 +10,7 @@ import {
   CONFIG_FILE,
   customWorkflowYaml,
   detectPreset,
+  findSddSkills,
   globMatcher,
   kebabCase,
   listFiles,
@@ -60,7 +61,8 @@ export async function initRepository(
     result.created.push(file);
   };
 
-  await write(CONFIG_FILE, configTemplate(preset));
+  // The custom preset names only the sdd-* skills the repository has, where it has them.
+  await write(CONFIG_FILE, configTemplate(preset, findSddSkills(root)));
 
   // One ADR log per repository: don't add a second one next to an existing log (CS0107).
   const { config } = await loadConfig(root);
@@ -85,10 +87,12 @@ export async function initRepository(
   return result;
 }
 
+type SddSkills = ReturnType<typeof findSddSkills>;
+
 /** The `workflow:` section for a preset (plan §D17.2, §D17.3). */
-const workflowTemplate = (preset: PresetName): string =>
+const workflowTemplate = (preset: PresetName, found: SddSkills): string =>
   preset === "custom"
-    ? customWorkflowYaml()
+    ? customWorkflowYaml(found?.skills ?? [], found?.skillsDir)
     : `# The SDD workflow CatSpec gates (plan §D17): catspec | openspec | spec-kit | custom.
 workflow:
   preset: ${preset}
@@ -96,13 +100,13 @@ workflow:
   enforce_in_hook: warn  # off | warn | error
 `;
 
-const configTemplate = (preset: PresetName): string => {
+const configTemplate = (preset: PresetName, found: SddSkills): string => {
   const profile = resolveWorkflow(WorkflowSchema.parse({ preset }));
   return `# yaml-language-server: $schema=./node_modules/@catspec/core/schemas/catspec.schema.json
 # CatSpec configuration. Every key is optional and has a default.
 version: 1
 layout: ${profile.layout}
-${workflowTemplate(preset)}specs:
+${workflowTemplate(preset, found)}specs:
   include: [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
   architecture: "docs/architecture/adr/*-adr.md"
 # Both languages are always on; a file's extension picks its language. Point the globs at your

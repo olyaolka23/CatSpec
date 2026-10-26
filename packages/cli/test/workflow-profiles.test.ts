@@ -556,6 +556,36 @@ describe("F8 workflow-profiles", () => {
         expect(await read(dir, "catspec.yaml")).toContain("driver: { skill: sdd-plan }");
         expect((await catspec(dir, ["workflow", "doctor"])).code).toBe(0);
       });
+      // Only some of the sdd-* skills: the other stages are manual, and doctor still passes.
+      const some = {
+        ".claude/skills/sdd-spec/SKILL.md": "# sdd-spec\n",
+        ".claude/skills/sdd-plan/SKILL.md": "# sdd-plan\n",
+      };
+      await inRepo(some, async (dir) => {
+        expect((await catspec(dir, ["init"])).stdout).toContain("proposing workflow preset custom");
+        const config = await read(dir, "catspec.yaml");
+        expect(config).toContain("driver: { skill: sdd-plan }");
+        expect(config).not.toContain("skill: sdd-task }");
+        expect(config).toMatch(/driver: manual {2}# no sdd-task skill found/);
+        const doctor = await catspec(dir, ["workflow", "doctor"]);
+        expect(doctor.code, doctor.stdout).toBe(0);
+      });
+      // Skills shared by all agents in .agents/skills, with a plural task skill.
+      const shared = Object.fromEntries(
+        ["sdd-spec", "sdd-plan", "sdd-tasks", "sdd-close"].map((n) => [
+          `.agents/skills/${n}/SKILL.md`,
+          `# ${n}\n`,
+        ]),
+      );
+      await inRepo(shared, async (dir) => {
+        expect((await catspec(dir, ["init"])).stdout).toContain("proposing workflow preset custom");
+        const config = await read(dir, "catspec.yaml");
+        expect(config).toContain('skills_dir: ".agents/skills"');
+        expect(config).toContain("driver: { skill: sdd-tasks }");
+        expect(config).not.toContain("driver: manual");
+        const doctor = await catspec(dir, ["workflow", "doctor"]);
+        expect(doctor.code, doctor.stdout).toBe(0);
+      });
       await inRepo({ "openspec/project.md": "# Project\n" }, async (dir) => {
         const init = await catspec(dir, ["init", "--preset", "catspec"]);
         expect(init.stdout).not.toContain("proposing");

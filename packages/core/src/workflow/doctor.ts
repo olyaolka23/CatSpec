@@ -88,16 +88,37 @@ export const onPath = (name: string, root: string, env: NodeJS.ProcessEnv = proc
  */
 export const isBatchScript = (path: string): boolean => /\.(cmd|bat)$/i.test(path);
 
-/** The SDD workflow a repository already uses, by what is on disk (plan §D17.3). */
-export function detectPreset(root: string, skillsDir = ".claude/skills"): PresetName | undefined {
-  if (existsSync(join(root, "openspec"))) return "openspec";
-  if (existsSync(join(root, ".specify"))) return "spec-kit";
-  const skills = join(root, skillsDir);
-  if (existsSync(skills)) {
-    const names = readdirSync(skills);
-    if (names.some((n) => n.startsWith("sdd-"))) return "custom";
+/** Where agent skills usually live: Claude Code's folder, then the one shared by all agents. */
+export const SKILL_DIRS = [".claude/skills", ".agents/skills"] as const;
+
+/** The `sdd-*` skill folders of a skills folder, sorted. */
+const sddSkillsIn = (root: string, skillsDir: string): string[] => {
+  const dir = join(root, skillsDir);
+  return existsSync(dir)
+    ? readdirSync(dir)
+        .filter((n) => n.startsWith("sdd-"))
+        .sort()
+    : [];
+};
+
+/** The first of `SKILL_DIRS` with `sdd-*` skills, and those skills. */
+export function findSddSkills(root: string): { skillsDir: string; skills: string[] } | undefined {
+  for (const skillsDir of SKILL_DIRS) {
+    const skills = sddSkillsIn(root, skillsDir);
+    if (skills.length > 0) return { skillsDir, skills };
   }
   return undefined;
+}
+
+/**
+ * The SDD workflow a repository already uses, by what is on disk (plan §D17.3). `sdd-*` skills
+ * are looked for in `skillsDir`, or in each of `SKILL_DIRS` without it.
+ */
+export function detectPreset(root: string, skillsDir?: string): PresetName | undefined {
+  if (existsSync(join(root, "openspec"))) return "openspec";
+  if (existsSync(join(root, ".specify"))) return "spec-kit";
+  const found = skillsDir ? sddSkillsIn(root, skillsDir).length > 0 : findSddSkills(root);
+  return found ? "custom" : undefined;
 }
 
 /** The skill file a `skill:` driver needs. */
@@ -344,32 +365,46 @@ export function hookWorkflowDiagnostics(
   return out;
 }
 
-/** The `custom` preset's stages as YAML, for `catspec init` (plan §D17.2). */
-export const customWorkflowYaml = (): string =>
-  [
+/**
+ * The `custom` preset's stages as YAML, for `catspec init` (plan §D17.2). Each stage uses the
+ * repository's skill of its name (`sdd-task`, or the plural `sdd-tasks`) from `skills`; a stage
+ * without one gets a manual driver, so the new config passes `catspec workflow doctor`.
+ */
+export const customWorkflowYaml = (
+  skills: readonly string[] = SDD_SKILLS,
+  skillsDir = ".claude/skills",
+): string => {
+  const driver = (name: string): string => {
+    const skill = skills.find((s) => s === name || s === `${name}s`);
+    return skill
+      ? `      driver: { skill: ${skill} }`
+      : `      driver: manual  # no ${name} skill found; name your skill here: { skill: <name> }`;
+  };
+  return [
     "workflow:",
     "  preset: custom",
     '  feature_dir: "docs/spec/{feature}"',
-    '  skills_dir: ".claude/skills"',
+    `  skills_dir: "${skillsDir}"`,
     "  stages:",
     "    - id: spec",
     "      per: feature",
-    `      driver: { skill: ${SDD_SKILLS[0]} }`,
+    driver(SDD_SKILLS[0]),
     '      produces: ["{feature_dir}/spec.md", "{feature_dir}/*.spec.md"]',
     "      finish: { gates: [specs_valid, artifacts, contracts_declared] }",
     "    - id: plan",
     "      per: feature",
-    `      driver: { skill: ${SDD_SKILLS[1]} }`,
+    driver(SDD_SKILLS[1]),
     '      produces: ["{feature_dir}/plan.md"]',
     "      finish: { gates: [artifacts, deps_known], status: ready }",
     "    - id: task",
     "      per: spec",
-    `      driver: { skill: ${SDD_SKILLS[2]} }`,
+    driver(SDD_SKILLS[2]),
     "      start: { gates: [deps_ready], status: in-progress }",
     "      finish: { gates: [contracts_pass] }",
     "    - id: close",
     "      per: spec",
-    `      driver: { skill: ${SDD_SKILLS[3]} }`,
+    driver(SDD_SKILLS[3]),
     "      finish: { gates: [contracts_pass, tasks_done, no_drift], status: implemented }",
     "",
   ].join("\n");
+};
