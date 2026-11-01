@@ -4,12 +4,17 @@
  * the same way on each. Listings skip `node_modules`, dot-folders, symbolic links, submodules
  * and nested projects, like `listFiles`.
  */
-import { readFile } from "node:fs/promises";
+import { readFile } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { compareStrings } from "../diagnostics.js";
 import { isListedPath, listFiles, withoutNestedProjects } from "../util.js";
 import type { Git, TreeEntry } from "./git.js";
+
+// The callback API, promisified: `fs/promises` opens a FileHandle per file, which costs more per
+// file than the read itself in a cold run over thousands of files (plan §D11.7).
+const readFileAsync = promisify(readFile);
 
 /** A file of a source: its root-relative POSIX path and, when known, its git blob SHA. */
 export interface SourceEntry {
@@ -37,7 +42,7 @@ export class WorkingTreeProvider implements SourceProvider {
   }
 
   read(path: string): Promise<Buffer | undefined> {
-    return readFile(join(this.root, path)).catch((error: NodeJS.ErrnoException) => {
+    return readFileAsync(join(this.root, path)).catch((error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT" || error.code === "EISDIR" || error.code === "ENOTDIR") {
         return undefined;
       }

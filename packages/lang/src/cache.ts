@@ -4,9 +4,10 @@
  * together with the adapter version that produced them. Outside a git repository the cache lives
  * in memory for the run.
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { readdirSync, readFileSync, writeFile } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
 import { extname, join } from "node:path";
+import { promisify } from "node:util";
 
 import {
   findGitCommonDir,
@@ -89,7 +90,7 @@ export class DiskFactsCache implements FactsCache {
       this.folders.set(folder, created);
     }
     const write = created
-      .then(() => writeFile(file, content))
+      .then(() => writeFileAsync(file, content))
       .then(() => {
         this.names(lang).add(`${safe(facts.blobSha)}.json`);
       })
@@ -123,6 +124,10 @@ export class DiskFactsCache implements FactsCache {
     return join(this.dir, safe(lang), `${safe(blobSha)}.json`);
   }
 }
+
+// The callback API, promisified: `fs/promises` opens a FileHandle per file, which costs more per
+// file than the write itself when a cold run writes thousands of entries.
+const writeFileAsync = promisify(writeFile);
 
 const safe = (segment: string): string => segment.replace(/[^A-Za-z0-9._-]/g, "_");
 
