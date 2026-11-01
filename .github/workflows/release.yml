@@ -75,5 +75,13 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
-      - run: npx changeset tag
+      # `changeset tag` makes annotated tags, which need a committer, and it doesn't fail when git
+      # does: the step checks that the tags are there.
+      - name: Tag the release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npx changeset tag
+          version=$(node -p "require('./packages/catspec/package.json').version")
+          git tag --points-at HEAD | grep -qx "catspec@$version"
       - run: git push origin --tags
