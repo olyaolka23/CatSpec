@@ -3,7 +3,8 @@ name: Release
 # Publishes the packages to npm (PBI `release-packaging`). Started by hand only, after the version
 # PR (`npx changeset version`) is merged. The acceptance sweep must pass on Linux, macOS and
 # Windows, and the `npm-release` environment needs the owner's approval before anything is
-# published (AGENTS.md Rule 3).
+# staged (AGENTS.md Rule 3). npm then publishes a staged package only once the owner approves it
+# with 2FA on npmjs.com (Staged Packages): a token can no longer publish without 2FA.
 on:
   workflow_dispatch:
 
@@ -35,7 +36,7 @@ jobs:
       - run: npm run check:acceptance -- --all
 
   publish:
-    name: Publish to npm
+    name: Stage on npm
     needs: sweep
     runs-on: ubuntu-latest
     environment: npm-release
@@ -49,10 +50,30 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      # Staged publishing needs npm 11.15 or later; Node 22 comes with npm 10.
+      - run: npm install --global npm@11.21.1
       - run: npm ci
       - run: npm run build
-      - run: npx changeset publish
+      # Each package is staged with its provenance, dependencies first. A version npm already
+      # publishes is skipped, and a package that fails doesn't stop the others; the step then fails
+      # and names it.
+      - name: Stage every package
+        run: |
+          failed=""
+          for dir in core lang lang-typescript lang-csharp mcp cli catspec; do
+            id=$(node -p "const p = require('./packages/$dir/package.json'); p.name + '@' + p.version")
+            if npm view "$id" version > /dev/null 2>&1; then
+              echo "$id is already published"
+            elif ! (cd "packages/$dir" && npm stage publish --access public); then
+              failed="$failed $id"
+            fi
+          done
+          if [ -n "$failed" ]; then
+            echo "::error::Not staged:$failed"
+            exit 1
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
-      - run: git push --follow-tags
+      - run: npx changeset tag
+      - run: git push origin --tags

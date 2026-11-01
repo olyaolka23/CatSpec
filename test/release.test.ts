@@ -43,14 +43,17 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
       expect.arrayContaining(["npm test", "npm run bench", "npm run check:acceptance -- --all"]),
     );
 
-    // Publishing waits for the sweep and for the approval of the protected environment.
+    // Publishing waits for the sweep and for the approval of the protected environment. The job
+    // only stages the packages: npm publishes each one once the owner approves it with 2FA.
     const publish = workflow.jobs.publish!;
     expect(publish.needs).toBe("sweep");
     expect(publish.environment).toBe("npm-release");
-    expect(publish.steps.map((s) => s.run)).toContain("npx changeset publish");
-    // Nothing else in the repository publishes.
+    const staging = publish.steps.map((s) => s.run ?? "").join("\n");
+    expect(staging).toContain("npm stage publish");
+    expect(staging).not.toMatch(/npm publish|changeset publish/);
+    // Nothing else in the repository publishes or stages.
     for (const file of ["package.json", ".github/workflows/ci.yml"]) {
-      expect(read(file)).not.toMatch(/npm publish|changeset publish/);
+      expect(read(file)).not.toMatch(/npm publish|npm stage publish|changeset publish/);
     }
 
     // The release notes: `changeset version` moved them into every package's changelog under
