@@ -1,10 +1,9 @@
 name: Release
 
 # Publishes the packages to npm (PBI `release-packaging`). Started by hand only, after the version
-# PR (`npx changeset version`) is merged. The owner runs the acceptance sweep before starting it
-# (`npm test`, `npm run bench`, `npm run check:acceptance -- --all`): this workflow runs no tests,
-# to save Actions minutes. The `npm-release` environment needs the owner's approval before
-# anything is published (AGENTS.md Rule 3).
+# PR (`npx changeset version`) is merged. The acceptance sweep must pass on Linux, macOS and
+# Windows, and the `npm-release` environment needs the owner's approval before anything is
+# published (AGENTS.md Rule 3).
 on:
   workflow_dispatch:
 
@@ -12,8 +11,32 @@ permissions:
   contents: read
 
 jobs:
+  sweep:
+    name: Acceptance sweep · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run bench
+      - run: node packages/cli/dist/bin.js check
+      # Every scenario of every feature has a passing test, and every MVP scenario of the spec is
+      # claimed by a feature.
+      - run: npm run check:acceptance -- --all
+
   publish:
     name: Publish to npm
+    needs: sweep
     runs-on: ubuntu-latest
     environment: npm-release
     permissions:
