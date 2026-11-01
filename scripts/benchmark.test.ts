@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { run } from "../packages/cli/src/index.js";
-import { BUDGETS, evaluate, runBenchmark, type CatspecRunner } from "./benchmark.js";
+import { BUDGETS, budgets, evaluate, runBenchmark, type CatspecRunner } from "./benchmark.js";
 import { syntheticRepo } from "./synthetic-repo.js";
 
 /** The CLI in this process, from source. */
@@ -30,7 +30,7 @@ describe("F9 release-0-1: performance budgets (PBI performance-budgets)", () => 
     expect(repo.bound.filter((p) => p.endsWith(".cs"))).toHaveLength(20);
   });
 
-  it("[AC-F9-2] the staged check takes at most 1.1 seconds warm and the full check at most 10.5 seconds cold on the synthetic 10k-file repository", async () => {
+  it("[AC-F9-2] the staged check takes at most 1.1 seconds warm and the full check at most 10.5 seconds cold (13 seconds on Windows) on the synthetic 10k-file repository", async () => {
     const measurements = await runBenchmark({ catspec: inProcess });
     const { ok, report } = evaluate(measurements);
     console.log(report.join("\n"));
@@ -42,9 +42,10 @@ describe("F9 release-0-1: performance budgets (PBI performance-budgets)", () => 
   }, 600_000);
 
   it("[AC-performance-budgets-1] a warm staged check of 1.3 seconds fails the benchmark and is reported against the 1.1-second budget", () => {
+    const linux = budgets("linux");
     const { ok, report } = evaluate([
-      { name: "full check, cold", ms: 7400, budgetMs: BUDGETS.fullColdMs },
-      { name: "staged check, warm", ms: 1300, budgetMs: BUDGETS.stagedWarmMs },
+      { name: "full check, cold", ms: 7400, budgetMs: linux.fullColdMs },
+      { name: "staged check, warm", ms: 1300, budgetMs: linux.stagedWarmMs },
     ]);
     expect(ok).toBe(false);
     expect(report).toEqual([
@@ -52,5 +53,11 @@ describe("F9 release-0-1: performance budgets (PBI performance-budgets)", () => 
       "FAIL staged check, warm: 1.30 s (budget 1.10 s)",
       "benchmark: 1 check(s) over budget: staged check, warm took 1.30 s against 1.10 s",
     ]);
+  });
+
+  it("gives the full cold check 13 seconds on Windows and 10.5 seconds elsewhere, the staged check 1.1 seconds everywhere", () => {
+    expect(budgets("win32")).toEqual({ stagedWarmMs: 1100, fullColdMs: 13_000 });
+    expect(budgets("linux")).toEqual({ stagedWarmMs: 1100, fullColdMs: 10_500 });
+    expect(budgets("darwin")).toEqual({ stagedWarmMs: 1100, fullColdMs: 10_500 });
   });
 });

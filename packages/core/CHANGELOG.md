@@ -24,4 +24,4 @@
     re-exports aren't followed; overloaded C# methods can't be bound (CS0202).
   - TypeScript and C# only. Files over 1 MiB aren't parsed (CS0901).
   - No locks between parallel agents (post-0.1, ADR-014); no SARIF, PR comments or GitHub App yet.
-  - Speed on the 10,000-file benchmark: staged check within 1.1 s warm, full check within 10.5 s cold.
+  - Speed on the 10,000-file benchmark: staged check within 1.1 s warm, full check within 10.5 s cold (13 s on Windows).

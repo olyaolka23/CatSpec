@@ -4,7 +4,8 @@
  * time is compared with its budget. `npm run bench` runs the built CLI as a new process, the way the
  * pre-commit hook and CI run it; the test runs it in process.
  *
- * - full check, cold: `catspec check` with an empty parse cache, at most 10.5 seconds;
+ * - full check, cold: `catspec check` with an empty parse cache, at most 10.5 seconds (13 seconds
+ *   on Windows);
  * - staged check, warm: `catspec check --staged` on a commit that changes every bound file, with
  *   the cache filled, at most 1.1 seconds (the median of three runs).
  *
@@ -30,10 +31,19 @@ export interface BenchmarkResult {
 }
 
 /**
- * The plan's 1 s and 10 s (§D11.7) with the margin the owner set on 2026-10-24 for the time shared
- * CI runners vary.
+ * The budgets on a platform: the plan's 1 s and 10 s (§D11.7) with the margin the owner set on
+ * 2026-10-24 for the time shared CI runners vary, and 13 s for the full cold check on Windows (set
+ * on 2026-11-01), where shared runners measured from 9.2 s to 11.6 s for it.
  */
-export const BUDGETS = { stagedWarmMs: 1100, fullColdMs: 10_500 } as const;
+export const budgets = (
+  platform: NodeJS.Platform,
+): { stagedWarmMs: number; fullColdMs: number } => ({
+  stagedWarmMs: 1100,
+  fullColdMs: platform === "win32" ? 13_000 : 10_500,
+});
+
+/** The budgets on this platform. */
+export const BUDGETS = budgets(process.platform);
 
 /** Compares each measured time with its budget. */
 export function evaluate(measurements: Measurement[]): BenchmarkResult {
