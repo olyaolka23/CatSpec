@@ -4,10 +4,10 @@
  * together with the adapter version that produced them. Outside a git repository the cache lives
  * in memory for the run.
  */
-import { readdirSync, readFileSync } from "node:fs";
-import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { readdirSync, readFileSync, writeFile } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
 import { extname, join } from "node:path";
-import { pid } from "node:process";
+import { promisify } from "node:util";
 
 import {
   findGitCommonDir,
@@ -49,7 +49,9 @@ export class MemoryFactsCache implements FactsCache {
 /**
  * A cache in a folder, one JSON file per blob. Unreadable or outdated entries are misses, and a
  * failed write is ignored: the cache only saves work. Writes run in the background, so a cold
- * run parses while earlier entries are written; `flush` waits for them.
+ * run parses while earlier entries are written; `flush` waits for them. An entry is written in
+ * place, without a temporary file and a rename (a cold run writes thousands, and each rename is
+ * slow on Windows): an entry read while another process writes it doesn't parse and is a miss.
  */
 export class DiskFactsCache implements FactsCache {
   private readonly folders = new Map<string, Promise<unknown>>();
@@ -79,7 +81,6 @@ export class DiskFactsCache implements FactsCache {
 
   set(lang: string, version: string, facts: FileFacts): void {
     const file = this.file(lang, facts.blobSha);
-    const temp = `${file}.${pid}.tmp`;
     const content = JSON.stringify({ version, facts } satisfies Entry);
     this.written.set(lang, version, facts);
     const folder = join(this.dir, safe(lang));
@@ -89,14 +90,14 @@ export class DiskFactsCache implements FactsCache {
       this.folders.set(folder, created);
     }
     const write = created
-      .then(() => writeFile(temp, content))
-      .then(() => rename(temp, file))
+      .then(() => writeFileAsync(file, content))
       .then(() => {
         this.names(lang).add(`${safe(facts.blobSha)}.json`);
       })
       .catch(() =>
-        // Best effort: another process may hold the file, or the folder may be read-only.
-        rm(temp, { force: true }).catch(() => {}),
+        // Best effort: another process may hold the file, or the folder may be read-only. A
+        // half-written entry would only be a miss, but it is removed.
+        rm(file, { force: true }).catch(() => {}),
       )
       .finally(() => this.pending.delete(write));
     this.pending.add(write);
@@ -123,6 +124,10 @@ export class DiskFactsCache implements FactsCache {
     return join(this.dir, safe(lang), `${safe(blobSha)}.json`);
   }
 }
+
+// The callback API, promisified: `fs/promises` opens a FileHandle per file, which costs more per
+// file than the write itself when a cold run writes thousands of entries.
+const writeFileAsync = promisify(writeFile);
 
 const safe = (segment: string): string => segment.replace(/[^A-Za-z0-9._-]/g, "_");
 

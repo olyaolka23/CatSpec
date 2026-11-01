@@ -53,20 +53,16 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
       expect(read(file)).not.toMatch(/npm publish|changeset publish/);
     }
 
-    // The release notes: a minor bump of every package (0.0.0 → 0.1.0), with the known limits.
-    const notes = read(".changeset/release-0-1.md");
-    const [, header, body] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(
-      notes.replace(/\r\n/g, "\n"),
-    )!;
-    const bumps = parse(header!) as Record<string, string>;
-    const names = PACKAGES.map(
-      (dir) =>
-        JSON.parse(read(`packages/${dir}/package.json`)) as { name: string; version: string },
-    );
-    expect(bumps).toEqual(Object.fromEntries(names.map((p) => [p.name, "minor"])));
-    expect(names.every((p) => p.version === "0.0.0")).toBe(true);
-    expect(body).toContain("Known limits:");
-    expect(body).toMatch(/Syntax only/);
+    // The release notes: `changeset version` moved them into every package's changelog under
+    // 0.1.0, the version of every package, with the known limits.
+    for (const dir of PACKAGES) {
+      const manifest = JSON.parse(read(`packages/${dir}/package.json`)) as { version: string };
+      expect(manifest.version, dir).toBe("0.1.0");
+      const changelog = read(`packages/${dir}/CHANGELOG.md`).replace(/\r\n/g, "\n");
+      const notes = changelog.split(/^## /m).find((section) => section.startsWith("0.1.0\n"));
+      expect(notes, dir).toContain("Known limits:");
+      expect(notes, dir).toMatch(/Syntax only/);
+    }
   });
 
   it("ships every package under the repository's license, Apache-2.0, with the LICENSE file", () => {

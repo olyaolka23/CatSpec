@@ -1,6 +1,6 @@
 {
   "name": "@catspec/lang-typescript",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "TypeScript/TSX language adapter for CatSpec.",
   "license": "Apache-2.0",
   "repository": {
@@ -31,8 +31,8 @@
     "build": "node scripts/build-grammars.js && tsup"
   },
   "dependencies": {
-    "@catspec/core": "0.0.0",
-    "@catspec/lang": "0.0.0"
+    "@catspec/core": "0.1.0",
+    "@catspec/lang": "0.1.0"
   },
   "devDependencies": {
     "tree-sitter-wasms": "0.1.13"

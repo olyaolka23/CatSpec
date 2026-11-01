@@ -692,10 +692,11 @@ Golden round-trip tests guarantee `parse → no-op edit → write` is identity.
 
 - Parse cache: `<git-common-dir>/catspec/cache/<lang>/<blob-sha>.json` (FileFacts minus `bodyTokens`), versioned by adapter+grammar version.
 - Staged mode parses only staged files + files of bindings whose specs or files changed.
-- Budgets (asserted in a benchmark job): staged ≤ 1.1 s warm, full cold ≤ 10.5 s on a 10k-file
-  synthetic repo, on Linux, macOS and Windows. (The first targets were 1 s and 10 s; the owner set
-  1.1 s and 10.5 s on 2026-10-24, after the first 3-OS CI run measured 1.05 s and 10.2 s on shared
-  runners.)
+- Budgets (asserted in a benchmark job): staged ≤ 1.1 s warm, full cold ≤ 10.5 s (13 s on
+  Windows) on a 10k-file synthetic repo, on Linux, macOS and Windows. (The first targets were 1 s
+  and 10 s; the owner set 1.1 s and 10.5 s on 2026-10-24, after the first 3-OS CI run measured
+  1.05 s and 10.2 s on shared runners, and 13 s for the full cold check on Windows on 2026-11-01,
+  after shared Windows runners measured from 9.2 s to 11.6 s for it.)
 
 Implementation notes (F9):
 - The benchmark (`npm run bench`, CI step "Benchmark") generates `scripts/synthetic-repo.ts`:

@@ -325,7 +325,9 @@ describe("F5 git-integration-and-hook", { timeout: HOOK_TIMEOUT }, () => {
         await staged.git.close();
       }
     }, files);
-  }, 120_000);
+    // Writing 2000 files, the rebuild and the commit take most of it: about 30 s on Linux, and up
+    // to 140 s on a slow Windows runner.
+  }, 240_000);
 
   it("[AC-lock-files-1] baseline --rebuild writes byte-identical lock files when nothing changed", async () => {
     await withRepo(async (repo) => {

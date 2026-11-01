@@ -30,7 +30,7 @@ Feature: F9 release-0-1
   Scenario: Performance budgets
     Given the synthetic 10k-file repository
     When the benchmark job runs
-    Then the staged check takes at most 1.1 seconds warm and the full check at most 10.5 seconds cold
+    Then the staged check takes at most 1.1 seconds warm and the full check at most 10.5 seconds cold (13 seconds on Windows)
 
   @AC-F9-3
   Scenario: The whole epic is verified
@@ -123,7 +123,8 @@ Packages and publishes 0.1.0 after the final acceptance sweep.
 ## Implementation notes
 
 - Budgets: 1.1 s staged warm and 10.5 s full cold (owner's decision, 2026-10-24; first targets
-  1 s and 10 s). Benchmark and cache changes: plan §D11.7.
+  1 s and 10 s), and 13 s full cold on Windows (owner's decision, 2026-11-01). Benchmark and cache
+  changes: plan §D11.7.
 - `robustness-fuzzing`: `test/robustness-fuzzing.test.ts` runs 10,000 fast-check inputs (random
   text, random syntax, truncated and cut fixtures) through both adapters; the limit for parsing is
   1 MiB (`MAX_SOURCE_BYTES`, plan §D11.2).
