@@ -33,7 +33,9 @@ export class SymbolTable {
     const add = (symbol: SymbolFact, file: FileFacts): void => {
       const entry = { symbol, file };
       this.entries.push(entry);
-      this.byName.set(symbol.name, [...(this.byName.get(symbol.name) ?? []), entry]);
+      const named = this.byName.get(symbol.name);
+      if (named) named.push(entry);
+      else this.byName.set(symbol.name, [entry]);
       for (const member of symbol.members) add(member, file);
     };
     for (const file of files) {
