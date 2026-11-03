@@ -7,7 +7,7 @@
 **Specs that check the code.** CatSpec links your Markdown specs to real classes and methods,
 checks them on every commit, and lets AI agents verify their own work before they say "done".
 
-> **Version 0.1.** TypeScript and C#, on Linux, macOS and Windows (Node.js 22.12+). Read the
+> **Version 0.2.** TypeScript and C#, on Linux, macOS and Windows (Node.js 22.12+). Read the
 > [user guide](docs/spec/catspec-user-guide/spec.md): [quick start](docs/spec/catspec-user-guide/quick-start.md) ·
 > [spec format](docs/spec/catspec-user-guide/spec-format.md) ·
 > [rules](docs/spec/catspec-user-guide/rules.md) ·
