@@ -1,6 +1,6 @@
 {
   "name": "catspec",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CatSpec: the CLI, MCP server and default language adapters in one install.",
   "license": "Apache-2.0",
   "repository": {
@@ -33,9 +33,9 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@catspec/cli": "0.1.0",
-    "@catspec/mcp": "0.1.0",
-    "@catspec/lang-typescript": "0.1.0",
-    "@catspec/lang-csharp": "0.1.0"
+    "@catspec/cli": "0.2.0",
+    "@catspec/mcp": "0.2.0",
+    "@catspec/lang-typescript": "0.2.0",
+    "@catspec/lang-csharp": "0.2.0"
   }
 }

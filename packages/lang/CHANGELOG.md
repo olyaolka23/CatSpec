@@ -1,5 +1,16 @@
 # @catspec/lang
 
+## 0.2.0
+
+### Minor Changes
+
+- Released with `@catspec/core` 0.2.0, so that every CatSpec package has the same version. No changes of its own.
+
+### Patch Changes
+
+- Updated dependencies
+  - @catspec/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

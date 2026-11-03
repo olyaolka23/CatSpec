@@ -1,5 +1,37 @@
 # @catspec/cli
 
+## 0.2.0
+
+### Minor Changes
+
+- The ADR file is optional (ADR-028).
+
+  - `catspec check` and the pre-commit hook pass in a repository without an ADR file: there are just
+    no repository-wide rules. CS0107 now reports only more than one architecture spec (error) or an
+    architecture spec that isn't staged (warning).
+  - `specs.architecture` in `catspec.yaml` may be a file, a glob or a folder, e.g. `docs/adr`. Your
+    ADR files stay as they are: CatSpec reads only their ids (`0007-use-postgres.md` is ADR-007), so
+    rules can name them. The repository-wide rules go in one file with CatSpec frontmatter. ADR ids
+    compare by number (ADR-7 = ADR-0007).
+  - `catspec init` writes the ADR file only with the new `--with-adr` option, and writes an ADR folder
+    it finds (`docs/adr`, `docs/decisions`, …) to `specs.architecture`; with `--with-adr` it puts
+    `architecture-rules.md` in that folder.
+  - `catspec uninstall --files` never touches your own ADR files.
+  - The `AGENTS.md` block no longer names an ADR folder.
+  - A `specs:` section with only comments in `catspec.yaml` reads as the defaults.
+  - README and user guide: global install (`npm install -g catspec`), what each `init` option is for,
+    and what CatSpec reads from an ADR file, with a rules example.
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @catspec/lang@0.2.0
+  - @catspec/lang-typescript@0.2.0
+  - @catspec/lang-csharp@0.2.0
+  - @catspec/mcp@0.2.0
+  - @catspec/core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
