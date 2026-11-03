@@ -26,7 +26,7 @@ Feature: F1 spec-model
   Scenario: init creates a working layout
     Given an empty git repository
     When I run "catspec init"
-    Then catspec.yaml and docs/architecture/adr/<name>-adr.md exist
+    Then catspec.yaml exists, and no ADR file (it is optional: "catspec init --with-adr" writes one)
     And "catspec check --specs-only" exits 0
     And "catspec init --with-sdd-example" adds docs/spec/<example-feature>/, and the check still exits 0
 
@@ -202,7 +202,7 @@ Finds all specs in the repository, indexes them and checks repo-level rules (uni
 - refs: §D3, §D4, §D6.4, §D12
 - [x] discover specs via `specs.include`; build `SpecSet` (id → spec, file → specs)
 - [x] CS0103 duplicate id; CS0106 spec outside a feature folder (`layout: feature-folders`)
-- [x] architecture spec at `specs.architecture`: CS0107 missing or ambiguous; CS0112 rule referencing an unknown ADR id
+- [x] architecture spec at `specs.architecture`: CS0107 missing or ambiguous; CS0112 rule referencing an unknown ADR id (ADR-028: optional now, CS0107 only when ambiguous or not staged)
 
 ```gherkin
   @AC-spec-loader-1
@@ -280,7 +280,7 @@ The first usable `catspec` command line: `init`, `check --specs-only`, `list`, `
 - depends on: `config-loader`, `dependency-graph`
 - refs: §D3, §D10
 - [x] `commander` CLI; global flags `--cwd --config --format text|json --no-color --quiet --verbose`
-- [x] `catspec init`: `catspec.yaml`, `docs/architecture/adr/<name>-adr.md`; with `--with-sdd-example` also `docs/spec/<example-feature>/` (spec.md, plan.md, one `*.spec.md`)
+- [x] `catspec init`: `catspec.yaml`, `docs/architecture/adr/<name>-adr.md` (only with `--with-adr` since ADR-028); with `--with-sdd-example` also `docs/spec/<example-feature>/` (spec.md, plan.md, one `*.spec.md`)
 - [x] `catspec check --specs-only`, `list [--status] [--ready]`, `show <spec>`, `graph --format mermaid|dot|json`
 
 ```gherkin

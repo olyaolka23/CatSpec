@@ -24,10 +24,11 @@ Options:
   -h, --help                        display help for command
 
 Commands:
-  init [options]                    create catspec.yaml and the ADR log
-                                    docs/architecture/adr/<name>-adr.md;
-                                    --with-sdd-example also writes an example
-                                    feature
+  init [options]                    create catspec.yaml (an existing ADR folder
+                                    is written to specs.architecture);
+                                    --with-adr also writes an architecture spec
+                                    for repository-wide rules, and
+                                    --with-sdd-example an example feature
   check [options] [paths...]        check the code against the specs: bindings,
                                     contracts and rules, by spec status;
                                     --specs-only checks the spec files only,
@@ -66,9 +67,9 @@ Commands:
                                     the Claude Code Stop hook and the AGENTS.md
                                     block; --files also deletes catspec.yaml,
                                     the local cache, and the example feature and
-                                    the ADR log while unchanged (specs and lock
-                                    files are kept); run it before removing the
-                                    package
+                                    the architecture spec while unchanged (specs
+                                    and lock files are kept); run it before
+                                    removing the package
   sync [options]                    find renamed and moved declarations of
                                     bindings and fix the specs' locations
                                     (symbol and file only, never the contract);
@@ -108,12 +109,16 @@ Commands:
 ```text
 Usage: catspec init [options]
 
-create catspec.yaml and the ADR log docs/architecture/adr/<name>-adr.md;
---with-sdd-example also writes an example feature
+create catspec.yaml (an existing ADR folder is written to specs.architecture);
+--with-adr also writes an architecture spec for repository-wide rules, and
+--with-sdd-example an example feature
 
 Options:
-  --name <name>       name of the ADR log (<name>-adr.md); default: the
-                      repository folder name
+  --name <name>       name of the architecture spec --with-adr writes
+                      (<name>-adr.md); default: the repository folder name
+  --with-adr          also write an architecture spec for repository-wide rules:
+                      docs/architecture/adr/<name>-adr.md, or
+                      architecture-rules.md in your ADR folder
   --preset <preset>   the SDD workflow to gate (default: detected from
                       openspec/, .specify/ or sdd-* skills, else catspec)
                       (choices: "catspec", "openspec", "spec-kit", "custom")
@@ -301,8 +306,8 @@ Usage: catspec uninstall [options]
 
 remove what init added: the pre-commit hook, the Claude Code Stop hook and the
 AGENTS.md block; --files also deletes catspec.yaml, the local cache, and the
-example feature and the ADR log while unchanged (specs and lock files are kept);
-run it before removing the package
+example feature and the architecture spec while unchanged (specs and lock files
+are kept); run it before removing the package
 
 Options:
   --files     also delete catspec.yaml, the local cache and init's unchanged
