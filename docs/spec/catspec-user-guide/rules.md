@@ -1,7 +1,7 @@
 # Rule catalogue
 
-Rules are invariants beyond a binding's shape. They live under `rules:` in a spec, or in the ADR
-log's frontmatter for rules over the whole repository. The full design is in
+Rules are invariants beyond a binding's shape. They live under `rules:` in a spec, or in the
+optional architecture spec's frontmatter for rules over the whole repository. The full design is in
 [plan §D6](../reactive-ast-linked-spec-engine/plan.md#d6-rules-invariants).
 
 ## Rule classes
@@ -71,61 +71,68 @@ A missing test is CS0620. With `catspec check --run-tests`, CatSpec runs `tests.
 
 ## Global rules
 
-The ADR log, `docs/architecture/adr/<name>-adr.md` (`type: architecture`), holds the rules that
-apply to the whole repository in its frontmatter and the decisions in its body (`## ADR-NNN:`
-sections). Give each rule the decision it enforces (`adr: ADR-003`); an unknown id is CS0112.
-Global rules are always enforced unless the log is `draft`; in the hook they run on the changed
-files.
+Global rules are optional. Without them, everything else in CatSpec works as usual. They live in
+the frontmatter of one file, the **architecture spec** (`type: architecture`), and apply to every
+source file. CatSpec never reads the text of your decisions, only these rules:
 
-### The ADR log that `init` writes
+```yaml
+---
+catspec: 1
+id: architecture
+type: architecture
+status: implemented   # draft = written down but not enforced yet
+rules:
+  - id: domain-is-pure            # the domain layer never imports infrastructure
+    class: structural
+    adr: ADR-003                  # optional: the decision this rule enforces
+    forbid_import:
+      from: "src/domain/**"
+      to: ["src/infrastructure/**"]
+  - id: no-console                # no console.* calls in shipped code
+    class: structural
+    forbid_call: "console.*"
+    paths: ["src/**"]
+  - id: handlers-in-place         # classes named *Handler live in src/handlers/
+    class: structural
+    naming: { kind: class, name: "*Handler", in_path: "src/handlers/**" }
+---
+```
 
-`catspec init` writes `docs/architecture/adr/<name>-adr.md`, where `<name>` is `--name` or the
-name of the folder you ran it in. It is the one architecture spec of the repository:
+Global rules are enforced unless the architecture spec is `draft`; in the hook they run on the
+changed files. A rule may name the decision it enforces (`adr: ADR-003`); an id that isn't among
+your ADRs is CS0112 (ids compare by number, so ADR-3 and ADR-0003 are the same).
 
-- its frontmatter has `type: architecture` and `rules: []`, where the repository-wide rules go;
-- its body is the decision log, one `## ADR-NNN: <title>` section per decision, starting with
-  ADR-001 "Record architecture decisions".
+`specs.architecture` in `catspec.yaml` says where your ADRs are: a file, a glob or a folder
+(default `docs/architecture/adr/*-adr.md`). Of the files it matches, the one with CatSpec
+frontmatter is the architecture spec; more than one is CS0107. The others are plain ADRs: CatSpec
+reads only their ids, from the number at the start of the file name (`0007-use-postgres.md` is
+ADR-007) or from `ADR-NNN` headings, and never reports errors in them.
 
-It starts as `draft`, so its rules aren't enforced yet. When you add the first rule, set
-`status: implemented` (any status but `draft` enforces them). You can rename the file, as long as
-it stays in `docs/architecture/adr/` and its name ends in `-adr.md`.
+### No ADRs yet
 
-### If you already have ADRs
+`catspec init --with-adr` writes `docs/architecture/adr/<name>-adr.md`, where `<name>` is
+`--name` or the name of the folder you ran it in. Its frontmatter has `rules: []`, where the
+global rules go; its body is a decision log, one `## ADR-NNN: <title>` section per decision,
+starting with ADR-001 "Record architecture decisions". It starts as `draft`: when you add the
+first rule, set `status: implemented`.
 
-CatSpec reads exactly one ADR log: the file that matches `specs.architecture` in `catspec.yaml`
-(default `docs/architecture/adr/*-adr.md`). What to change depends on what you have.
+### ADRs in a folder, one file per decision
 
-- **One file per decision** (`docs/architecture/adr/0007-use-postgres.md`, …): keep them and let
-  `init` add its log next to them. For rules to refer to those decisions, list them in the log as
-  headings that start with their id. A link in the heading is fine:
+Point `specs.architecture` at the folder; `init` does it for you when it finds `docs/adr/`,
+`docs/decisions/`, `docs/architecture/decisions/` or another common folder:
 
-  ```markdown
-  ## [ADR-007: Use Postgres](./0007-use-postgres.md)
-  ```
+```yaml
+specs:
+  architecture: "docs/adr"
+```
 
-  None of your files may end in `-adr.md`, or CatSpec sees two logs (CS0107). If one does, set
-  `specs.architecture` to the exact path of the log, e.g. `docs/architecture/adr/shop-adr.md`.
+Your ADR files stay as they are. Put the global rules in one more file in that folder, with the
+frontmatter above; `catspec init --with-adr` writes it as `architecture-rules.md`.
 
-- **One file with all your decisions**: make it the log. Point `specs.architecture` at it, put
-  the frontmatter below at its top, and delete the log `init` wrote. Give its decisions
-  `## ADR-NNN: <title>` headings so that rules can refer to them.
+### One file with all your decisions
 
-  ```yaml
-  ---
-  catspec: 1
-  id: architecture
-  type: architecture
-  status: implemented
-  rules: []
-  ---
-  ```
-
-- **A file whose name ends in `-adr.md` but has no CatSpec frontmatter**: `init` takes it for the
-  log and doesn't write one, and `check` reports CS0101. Put the frontmatter above at its top, or
-  rename it and run `init` again.
-
-Keep your own numbers as the ids. If you already have an ADR-001, renumber or delete the starter
-decision that `init` wrote, so that one id means one decision.
+Point `specs.architecture` at it and put the frontmatter above at its top. Give its decisions
+`## ADR-NNN: <title>` headings so that rules can refer to them.
 
 ## Waivers
 

@@ -13,7 +13,7 @@ status, `enforcement` settings and waivers can change it (see [the spec format](
 | [CS0104](#cs0104) | error | unknown dependency |
 | [CS0105](#cs0105) | error | dependency cycle |
 | [CS0106](#cs0106) | warning | spec outside a feature folder |
-| [CS0107](#cs0107) | error | architecture spec missing or ambiguous |
+| [CS0107](#cs0107) | error | architecture spec ambiguous or not staged |
 | [CS0108](#cs0108) | warning | lock file without spec |
 | [CS0110](#cs0110) | error | unknown reference |
 | [CS0111](#cs0111) | warning | unenforced prose invariant |
@@ -93,9 +93,9 @@ With `layout: feature-folders`, every `*.spec.md` lives directly in `docs/spec/<
 
 ## CS0107
 
-**architecture spec missing or ambiguous** · error
+**architecture spec ambiguous or not staged** · error
 
-Exactly one file must match `specs.architecture` (default `docs/architecture/adr/*-adr.md`). Create it with `catspec init`, remove the extra matches, or change `specs.architecture` in `catspec.yaml`. In `check --staged`, an ADR log that exists on disk but isn't staged yet is a warning that names the file to stage, so the first commit after `catspec init` isn't blocked.
+The architecture spec is optional. If you have one, it is the one file at `specs.architecture` (default `docs/architecture/adr/*-adr.md`; a file, a glob or a folder) whose frontmatter has `catspec:` or `type: architecture`. More than one such file is an error: keep the repository-wide rules in one file, or narrow `specs.architecture` in `catspec.yaml`. Plain ADR files without CatSpec frontmatter are fine. In `check --staged`, an architecture spec that exists on disk but isn't staged yet is a warning that names the file to stage, so the commit isn't blocked.
 
 ## CS0108
 
@@ -119,7 +119,7 @@ A bullet under a `Contracts` or `Invariants` heading has no `[rule:<id>]` or `[b
 
 **unknown ADR id** · error
 
-A rule's `adr` field names a decision that isn't in the architecture spec's ADR log (a `## ADR-NNN: <title>` heading). Fix the id or add the decision to the log.
+A rule's `adr` field names a decision that isn't among your ADRs: a `## ADR-NNN: <title>` heading of the architecture spec, or a plain ADR file at `specs.architecture` (its file name, such as `0007-use-postgres.md`, or an `ADR-NNN` heading). Ids compare by number, so ADR-7 and ADR-0007 are the same. Fix the id or add the decision. Without any ADRs, `adr` isn't checked.
 
 ## CS0130
 

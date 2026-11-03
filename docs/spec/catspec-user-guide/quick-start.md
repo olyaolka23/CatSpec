@@ -15,7 +15,12 @@ npx catspec init --with-sdd-example   # add --hooks for the pre-commit hook, --a
 
 ```
 catspec.yaml                                   # config; every key is optional
-docs/architecture/adr/<repo>-adr.md            # architecture decisions + repository-wide rules
+```
+
+and, with `--with-adr`, an architecture spec for repository-wide rules (optional):
+
+```
+docs/architecture/adr/<repo>-adr.md            # repository-wide rules + decisions
 ```
 
 and, with `--with-sdd-example`, the example feature used below:
@@ -28,8 +33,8 @@ docs/spec/example-feature/example-greeter.spec.md   # an example machine spec
 Both languages are on by default (`src/**/*.{ts,tsx}` and `src/**/*.cs`); point
 `languages.<lang>.include` in `catspec.yaml` at your sources.
 
-The ADR log, and what to change if you already have ADRs, is explained in
-[Global rules](./rules.md#the-adr-log-that-init-writes).
+Repository-wide rules, and how to point CatSpec at ADRs you already have, are explained in
+[Global rules](./rules.md#global-rules).
 
 ## 2. A spec, from draft to implemented
 

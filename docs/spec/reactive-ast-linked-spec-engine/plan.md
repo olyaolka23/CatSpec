@@ -172,8 +172,8 @@ that go with it, lives in a folder named after its feature (epic).
 <repo>/
   catspec.yaml                          # config (§D4)
   docs/architecture/adr/
-    <name>-adr.md                       # architecture spec, type: architecture (§D6.4):
-                                        #   frontmatter = global rules, body = ADR log
+    <name>-adr.md                       # optional architecture spec, type: architecture (§D6.4,
+                                        #   ADR-028): frontmatter = global rules, body = ADR log
   docs/spec/
     <feature>/                          # kebab-case full feature/epic name, e.g. react-sdd
       analysis.md                       # human docs (optional, opaque to the engine)
@@ -188,7 +188,7 @@ that go with it, lives in a folder named after its feature (epic).
     claims/<spec-id>.json               # post-MVP (§D9)
 ```
 
-- `catspec init` creates this layout, a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), and, with `--with-sdd-example`, an example feature folder
+- `catspec init` creates this layout; with `--with-adr` a starter `<name>-adr.md` (`<name>` = `--name` or the repo folder name, kebab-case), or `architecture-rules.md` in an ADR folder it found (ADR-028); and, with `--with-sdd-example`, an example feature folder
   with `spec.md`, `plan.md` and one `*.spec.md`. `catspec init --agents` also appends
   the layout rules to `AGENTS.md` (created if missing) so coding agents follow them.
 - `catspec check --specs-only` warns (`CS0106`) when a `*.spec.md` is outside `docs/spec/<feature>/`
@@ -210,7 +210,7 @@ workflow:
   enforce_in_hook: warn  # off | warn | error
 specs:
   include: ["docs/spec/*/*.spec.md"]
-  architecture: "docs/architecture/adr/*-adr.md"   # exactly one match, else CS0107
+  architecture: "docs/architecture/adr/*-adr.md"   # optional; a file, glob or folder (ADR-028)
 languages:
   typescript:
     include: ["src/**/*.{ts,tsx}"]
@@ -406,8 +406,9 @@ Queries are compiled at load time; invalid query → `CS0130`.
 
 ### D6.4 Global rules (`docs/architecture/adr/<name>-adr.md`)
 
-The architecture spec is a single file at `docs/architecture/adr/<name>-adr.md`
-(configurable via `specs.architecture`). Its frontmatter holds the global rules;
+The architecture spec is optional (ADR-028). It is a single file at
+`docs/architecture/adr/<name>-adr.md` (configurable via `specs.architecture`, which may also name
+a folder of plain ADR files; CatSpec reads only their ids). Its frontmatter holds the global rules;
 its Markdown body is the project's Architecture Decision Record log (one
 `## ADR-NNN: <title>` section per decision, append-only). Each global rule should
 name the decision it enforces (`adr: ADR-003`); `catspec check --specs-only` reports unknown ADR ids (`CS0112`).
@@ -536,7 +537,7 @@ hook convention:
 
 | Command | Description |
 |---|---|
-| `catspec init [--hooks] [--agents] [--with-sdd-example]` | create `catspec.yaml`, `docs/spec/`, `docs/architecture/adr/<name>-adr.md` and, with `--with-sdd-example`, an example feature folder (§D3); optionally install hooks and add layout rules to `AGENTS.md` |
+| `catspec init [--hooks] [--agents] [--with-adr] [--with-sdd-example]` | create `catspec.yaml`, `docs/spec/`, with `--with-adr` `docs/architecture/adr/<name>-adr.md` (ADR-028) and, with `--with-sdd-example`, an example feature folder (§D3); optionally install hooks and add layout rules to `AGENTS.md` |
 | `catspec check [paths…] [--spec <id>…] [--specs-only] [--staged] [--run-tests]` | the single validation command. No flags: spec validation + contracts + drift for the repo. `--specs-only`: spec files only (schema, ids, DAG, references, queries, layout, ADR ids), no code parsing. `--spec <id>`: only those specs, with the agent-friendly report (expected / found / fix per item, ending in `DONE` or `NOT DONE`; exit 0 = done). `--staged`: read the git index (hook mode). `--in-progress`: only the specs whose status is `in-progress` on the current branch, i.e. the work items the agent is working on (exit 0 when there are none) |
 | `catspec list [--status s] [--ready]` | list specs; `--ready` = deps satisfied |
 | `catspec show <spec-id>` | normalised model + compliance + deps |
@@ -1219,8 +1220,9 @@ Implementation notes (F8):
   folder it found, and uses `sdd-<stage>` or `sdd-<stage>s` for each stage; a stage without a
   skill gets a manual driver. It writes `specs.include` only as a comment, so the default follows
   `feature_dir`.
-- `check --staged` reports CS0107 as a warning, naming the file to stage, when the ADR log exists
-  on disk but isn't staged (right after `catspec init`), so the first commits aren't blocked.
+- `check --staged` reports CS0107 as a warning, naming the file to stage, when the architecture
+  spec exists on disk but isn't staged (right after `catspec init --with-adr`), so the first
+  commits aren't blocked. Without an architecture spec there is no CS0107 at all (ADR-028).
 - The snippet and the MCP prompt of a stage that writes `*.spec.md` also tell the agent what goes
   into it (bindings, rules, `catspec bind` for classes that already exist), so the spec-first flow
   produces the contract without a human writing YAML.

@@ -140,7 +140,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-012: Documentation layout: feature folders and a single ADR log
 
-- **Status:** Accepted; the ADR log location is amended by ADR-017 · **Date:** 2026-10-09
+- **Status:** Accepted; the ADR log location is amended by ADR-017; the product default (one required log) is amended by ADR-028 · **Date:** 2026-10-09
 - **Context:** Spec-driven development needs every agent to find a feature's docs and the
   project's architecture decisions in a predictable place.
 - **Decision:** Each feature's docs live in `docs/spec/<feature>/` (kebab-case full epic name)
@@ -227,7 +227,7 @@ reasoning for ADR-002…ADR-012 is in
 
 ## ADR-017: The ADR log moves to `docs/architecture/adr/`
 
-- **Status:** Accepted · **Date:** 2026-10-09 · **Amends:** ADR-012
+- **Status:** Accepted; for products using CatSpec, amended by ADR-028 (the log is optional) · **Date:** 2026-10-09 · **Amends:** ADR-012
 - **Context:** A separate root `guidelines/` folder split documentation across two top-level
   places. Keeping all documentation under `docs/` is simpler for people and agents to find.
 - **Decision:** The ADR log is `docs/architecture/adr/reactive-ast-adr.md`. CatSpec's product
@@ -389,3 +389,28 @@ reasoning for ADR-002…ADR-012 is in
 - **Consequences:** Every installed version answers from its own guide, offline; the package
   grows by about 65 KB. Page names are now public: renaming a page changes `catspec guide <page>`
   and its resource URI.
+
+## ADR-028: The architecture spec is optional and can live in the team's ADR folder
+
+- **Status:** Accepted · **Date:** 2026-11-03 · **Amends:** ADR-012, ADR-017
+- **Context:** Many repositories have no ADR log and don't want one; their agents read the
+  architecture from `AGENTS.md` or guidelines. CatSpec never reads the decisions' text: it uses
+  only the repository-wide rules in the architecture spec's frontmatter. Yet a missing file was
+  error CS0107, which blocked `catspec check` and every commit. Teams that do have ADRs usually
+  keep one file per decision in their own folder (`docs/adr/0001-….md`), which CatSpec couldn't
+  read.
+- **Decision:** The architecture spec is optional. No file at `specs.architecture` means no
+  repository-wide rules, and no diagnostic. `specs.architecture` may be a file, a glob or a
+  folder. Of the files it matches, the one whose frontmatter has `catspec:` or
+  `type: architecture` is the architecture spec; the others are plain ADRs, read only for their
+  ids (the number at the start of the file name, `0007-….md` = ADR-007, or `ADR-NNN` headings).
+  ADR ids compare by number. CS0107 now means only "more than one architecture spec" (error) or
+  "architecture spec not staged" (warning); CS0112 is checked only when some ADR ids exist.
+  `catspec init` writes the architecture spec only with `--with-adr`; it writes a common ADR
+  folder it finds (`docs/adr`, `docs/decisions`, …) to `specs.architecture`, and with
+  `--with-adr` puts a rules-only `architecture-rules.md` in that folder. The `AGENTS.md` block no
+  longer names an ADR folder.
+- **Consequences:** CatSpec works in a repository without ADRs, and teams keep their ADRs where
+  and as they are. A missing architecture spec is no longer reported, so a mistyped
+  `specs.architecture` silently means no repository-wide rules. CatSpec's own repository keeps
+  its single ADR log (`AGENTS.md` Rule 2).
