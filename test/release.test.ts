@@ -51,6 +51,8 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
     const staging = publish.steps.map((s) => s.run ?? "").join("\n");
     expect(staging).toContain("npm stage publish");
     expect(staging).not.toMatch(/npm publish|changeset publish/);
+    // The release is tagged; `changeset tag` makes annotated tags, which need a committer.
+    expect(staging).toMatch(/git config user\.name[\s\S]*npx changeset tag/);
     // Nothing else in the repository publishes or stages.
     for (const file of ["package.json", ".github/workflows/ci.yml"]) {
       expect(read(file)).not.toMatch(/npm publish|npm stage publish|changeset publish/);
