@@ -571,7 +571,7 @@ describe("hook installer and staged check details", { timeout: HOOK_TIMEOUT }, (
     }
   });
 
-  it("a commit that leaves out the not yet staged ADR log isn't blocked: CS0107 is a warning", async () => {
+  it("a commit that leaves out the not yet staged architecture spec isn't blocked: CS0107 is a warning", async () => {
     await withRepo(
       async (repo) => {
         repo.git("add", "--", "src.ts");
@@ -580,9 +580,11 @@ describe("hook installer and staged check details", { timeout: HOOK_TIMEOUT }, (
         expect(stdout).toContain("CS0107");
         expect(stdout).toContain(`git add ${ADR_LOG}`);
 
-        // Without the log anywhere, it is still an error.
+        // Without an architecture spec anywhere, there is nothing to report (it is optional).
         await rm(join(repo.dir, ADR_LOG));
-        expect((await catspec(repo.dir, ["check", "--staged"])).code).toBe(1);
+        const without = await catspec(repo.dir, ["check", "--staged"]);
+        expect(without.code, without.stdout).toBe(0);
+        expect(without.stdout).not.toContain("CS0107");
       },
       {
         "catspec.yaml": "version: 1\n",

@@ -131,11 +131,14 @@ describe("spec-loader", () => {
     expect(model.adrIds).toEqual(["ADR-001", "ADR-002"]);
   });
 
-  it("reports CS0107 when the architecture spec is missing or ambiguous", async () => {
-    const missing = await load({ "docs/spec/a/a.spec.md": specText("aa") });
-    expect(summary(missing)).toEqual([["CS0107", "", 0]]);
-    expect(missing.diagnostics[0]!.message).toContain("docs/architecture/adr/*-adr.md");
+  it("the architecture spec is optional: no ADR file is no error", async () => {
+    const model = await load({ "docs/spec/a/a.spec.md": specText("aa") });
+    expect(summary(model)).toEqual([]);
+    expect(model.architecture).toBeUndefined();
+    expect(model.adrIds).toEqual([]);
+  });
 
+  it("reports CS0107 when more than one architecture spec matches", async () => {
     const ambiguous = await load({
       "docs/architecture/adr/one-adr.md": adrLogText(),
       "docs/architecture/adr/two-adr.md": adrLogText(),
@@ -144,6 +147,60 @@ describe("spec-loader", () => {
     expect(ambiguous.diagnostics[0]!.message).toContain(
       "one-adr.md, docs/architecture/adr/two-adr.md",
     );
+  });
+
+  it("reads an existing ADR folder: plain ADRs give ids, one file holds the rules", async () => {
+    const config = parseConfig('specs:\n  architecture: "docs/adr/"\n', "catspec.yaml");
+    const rules = [
+      "rules:",
+      "  - id: layers",
+      "    adr: ADR-1",
+      "    class: manual",
+      "    text: Layers.",
+      "  - id: events",
+      "    adr: ADR-0012",
+      "    class: manual",
+      "    text: Events.",
+      "  - id: cache",
+      "    adr: ADR-003",
+      "    class: manual",
+      "    text: Cache.",
+      "",
+    ].join("\n");
+    const model = await load(
+      {
+        // Plain ADRs: no frontmatter, or an ADR tool's frontmatter. Never errors.
+        "docs/adr/0001-record-decisions.md": "# 1. Record decisions\n",
+        "docs/adr/0002-use-postgres.md": "---\nstatus: accepted\n---\n# Use Postgres\n",
+        "docs/adr/legacy/notes.md": "# Notes\n\n## ADR-012: Use events\n",
+        "docs/adr/README.md": "# Decisions\n",
+        // CatSpec's architecture spec, with no decisions of its own.
+        "docs/adr/architecture-rules.md": adrLogText([], rules),
+      },
+      config,
+    );
+    expect(model.architecture?.file).toBe("docs/adr/architecture-rules.md");
+    expect(model.adrIds).toEqual(["ADR-0001", "ADR-0002", "ADR-012"]);
+    // ADR-1 and ADR-0012 are known (ids compare by number); ADR-003 isn't.
+    expect(model.diagnostics.map((d) => [d.code, d.ruleId])).toEqual([["CS0112", "cache"]]);
+    expect(model.diagnostics[0]!.message).toContain("docs/adr/architecture-rules.md");
+  });
+
+  it("plain ADRs alone are fine, and rules in feature specs can name them", async () => {
+    const config = parseConfig('specs:\n  architecture: "docs/decisions"\n', "catspec.yaml");
+    const model = await load(
+      {
+        "docs/decisions/ADR-004-split-billing.md": "# Split billing\n",
+        "docs/spec/a/a.spec.md": specText("aa", {
+          extra: "rules:\n  - id: r\n    adr: ADR-005\n    class: manual\n    text: R.\n",
+        }),
+      },
+      config,
+    );
+    expect(model.architecture).toBeUndefined();
+    expect(model.adrIds).toEqual(["ADR-004"]);
+    expect(model.diagnostics.map((d) => d.code)).toEqual(["CS0112"]);
+    expect(model.diagnostics[0]!.message).toContain('specs.architecture "docs/decisions"');
   });
 
   it("requires type: architecture for the ADR log", async () => {

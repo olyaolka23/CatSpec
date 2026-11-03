@@ -41,7 +41,11 @@ export const ConfigSchema = z
           .string()
           .min(1)
           .default("docs/architecture/adr/*-adr.md")
-          .describe("The architecture spec (ADR log); exactly one file must match (CS0107)."),
+          .describe(
+            "Optional. Your ADRs: a file, a glob or a folder. At most one of these files is the " +
+              "architecture spec (CatSpec frontmatter, repository-wide rules); the others are " +
+              "plain ADRs that rules can refer to (CS0107, CS0112).",
+          ),
       })
       .prefault({}),
     languages: z
@@ -162,6 +166,14 @@ export function parseConfig(text: string, file = CONFIG_FILE): CatspecConfig {
     throw new ConfigError([
       { file, line: 1, column: 1, key: "", message: `the config can't be read: ${reason}` },
     ]);
+  }
+  // A `specs:` section with only comments in it (as `catspec init` writes it) is empty, not null.
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    (value as { specs?: unknown }).specs === null
+  ) {
+    delete (value as { specs?: unknown }).specs;
   }
   const result = ConfigSchema.safeParse(value);
   if (result.success) return withWorkflowDefaults(result.data, value);

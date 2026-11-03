@@ -110,6 +110,11 @@ describe("config-loader", () => {
     expect(loaded.config.layout).toBe("free");
   });
 
+  it("reads a specs: section with only comments in it as the defaults", () => {
+    const config = parseConfig("specs:\n  # architecture: docs/adr\n");
+    expect(config.specs).toEqual(defaultConfig().specs);
+  });
+
   it("stops looking at the git root", async () => {
     const outer = await repo({ "catspec.yaml": "layout: free\n" }, false);
     const inner = join(outer.dir, "inner");

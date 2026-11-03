@@ -9,9 +9,10 @@ import { readFile, rm, rmdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import {
+  architectureMatcher,
   CONFIG_FILE,
   findGitCommonDir,
-  globMatcher,
+  isArchitectureSpecText,
   listFiles,
   loadConfig,
   type Git,
@@ -24,7 +25,7 @@ import {
   withoutStopHook,
 } from "./agents-setup.js";
 import { uninstallHooks } from "./hooks.js";
-import { adrTemplate, exampleFeatureFiles } from "./init.js";
+import { adrTemplate, exampleFeatureFiles, rulesTemplate } from "./init.js";
 
 export interface UninstallStep {
   action: "removed" | "updated" | "kept";
@@ -97,12 +98,15 @@ export async function uninstall(
     const exampleDir = join(root, dirname(Object.keys(exampleFeatureFiles())[0]!));
     if (existsSync(exampleDir) && readdirSync(exampleDir).length === 0) await rmdir(exampleDir);
 
-    const isArchitecture = globMatcher(config.specs.architecture);
+    // Only CatSpec's architecture spec; the team's own ADR files are never touched.
+    const isArchitecture = architectureMatcher(config.specs.architecture);
     for (const file of files.filter((f) => isArchitecture(f))) {
       const text = (await readText(join(root, file)))!;
+      if (!isArchitectureSpecText(text)) continue;
       const name = basename(file).replace(/-adr\.md$/, "");
       const date = /\*\*Date:\*\* (\S+)/.exec(text)?.[1] ?? "";
-      if (text === adrTemplate(name, date)) {
+      const rulesName = /^title: (.*) architecture rules$/m.exec(text)?.[1] ?? "";
+      if (text === adrTemplate(name, date) || text === rulesTemplate(rulesName)) {
         await rm(join(root, file));
         steps.push({ action: "removed", what: file });
       } else {

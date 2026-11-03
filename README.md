@@ -26,29 +26,30 @@ checks them on every commit, and lets AI agents verify their own work before the
 1. **Install and set up** in your repository:
 
    ```bash
-   npm install --save-dev catspec
-   npx catspec init --hooks --agents
+   npm install -g catspec
+   catspec init --hooks --agents --with-adr
    ```
 
-   `init` writes `catspec.yaml`, the ADR log, the pre-commit hook and the agent setup. Add
-   `--with-sdd-example` for an example feature in `docs/spec/example-feature/`. On Windows
-   PowerShell, use `npx.cmd` and `npm.cmd`.
+   `init` always writes `catspec.yaml`. Each option adds one thing (see [`init` options](#init-options)):
+   `--hooks` the git pre-commit check, `--agents` the setup for AI agents, `--with-adr` a file for
+   [repository-wide rules](#repository-wide-rules-optional-adr-file) (optional). On Windows
+   PowerShell, use `catspec.cmd` and `npm.cmd`.
 2. **Connect your AI agent:** `claude mcp add catspec -- npx catspec mcp` for Claude Code; Codex,
    Cursor, Copilot and other agents in
    [agent integration](docs/spec/catspec-user-guide/agents.md). Then ask it how to do something
    with CatSpec: it reads the user guide through the MCP server.
 3. **Write your first spec:** in `docs/spec/<your-feature>/`, write `<spec-id>.spec.md` and bind it
    to one of your classes ([spec format](docs/spec/catspec-user-guide/spec-format.md)).
-   `npx catspec init --with-sdd-example` writes a complete example to copy from.
-4. **Check:** `npx catspec check`. Every problem has a code and a hint, and
-   `npx catspec guide diagnostics` explains each code.
+   `catspec init --with-sdd-example` writes a complete example to copy from.
+4. **Check:** `catspec check`. Every problem has a code and a hint, and
+   `catspec guide diagnostics` explains each code.
 5. **Commit.** The pre-commit hook stops commits that break a contract that already passed.
 
-The whole guide is also in your terminal: `npx catspec guide` lists the pages and
-`npx catspec guide <page>` prints one.
+The whole guide is also in your terminal: `catspec guide` lists the pages and
+`catspec guide <page>` prints one.
 
-**To remove CatSpec**, run `npx catspec uninstall` in the repository *before* `npm uninstall catspec`
-(and `npm uninstall -g catspec` for a global install). npm can't clean up after a package, so the
+**To remove CatSpec**, run `catspec uninstall` in the repository *before* `npm uninstall -g catspec`
+(or `npm uninstall catspec` for a project install). npm can't clean up after a package, so the
 pre-commit hook stays in the repository until `catspec uninstall` removes it. Add `--files` to also
 delete `catspec.yaml` and the example files `init` wrote. If CatSpec is already gone, remove the hook
 by hand: delete `.git/hooks/pre-commit` (or `pre-commit` in the folder `git config core.hooksPath`
@@ -89,20 +90,38 @@ Languages in v0.1: **TypeScript** and **C#**.
 ## Install
 
 ```bash
-npm install --save-dev catspec        # or run without installing: npx catspec <command>
-npx catspec init --hooks --agents
+npm install -g catspec
+catspec init --hooks --agents --with-adr
 ```
 
-`init` creates:
+A global install gives you the `catspec` command in every repository. To pin one version for the
+whole team instead, use `npm install --save-dev catspec` and run the commands as `npx catspec …`.
+
+### `init` options
+
+`catspec init` always writes `catspec.yaml`, the config, and never overwrites a file that exists.
+Run it again any time to add an option you left out.
+
+| Option | What it adds | What it is for |
+|---|---|---|
+| `--hooks` | a git pre-commit hook (`.git/hooks/pre-commit`; works with husky and lefthook too) | runs `catspec check --staged` on every commit and stops a commit that breaks a contract that already passed |
+| `--agents` | a CatSpec block in `AGENTS.md` and a Stop hook in `.claude/settings.json` (your own content is kept) | tells AI agents the workflow, and doesn't let Claude Code finish while its spec still fails (see [Use it with an AI agent](#use-it-with-an-ai-agent)) |
+| `--with-adr` | `docs/architecture/adr/<name>-adr.md`, or `architecture-rules.md` in the ADR folder you already have | optional: a place for rules that CatSpec checks over the whole repository (see [Repository-wide rules](#repository-wide-rules-optional-adr-file)) |
+| `--with-sdd-example` | an example feature in `docs/spec/example-feature/` | a complete spec to read and copy from |
+| `--preset <name>` | the `workflow:` section of `catspec.yaml` | picks the spec-driven workflow CatSpec checks: `catspec`, `openspec`, `spec-kit` or `custom`. Without it, `init` detects it |
+| `--name <name>` | the name of the `--with-adr` file (`<name>-adr.md`) | defaults to the repository folder name |
+
+What you get:
 
 ```
-catspec.yaml                               # config
-docs/architecture/adr/<name>-adr.md      # architecture decisions + repo-wide rules
-docs/spec/<feature>/                       # one folder per feature / epic
-  spec.md  plan.md                         # your human docs
-  <spec-id>.spec.md                        # machine-checkable specs
-.git/hooks/pre-commit                      # with --hooks (works with husky / lefthook too)
-AGENTS.md block + .claude/settings.json    # with --agents (see "Use it with an AI agent")
+catspec.yaml                               # config (always)
+.git/hooks/pre-commit                      # with --hooks
+AGENTS.md block + .claude/settings.json    # with --agents
+docs/architecture/adr/<name>-adr.md        # with --with-adr
+docs/spec/example-feature/                 # with --with-sdd-example
+docs/spec/<feature>/                       # your features, one folder each:
+  spec.md  plan.md                         #   your human docs
+  <spec-id>.spec.md                        #   machine-checkable specs
 ```
 
 If your repo already uses OpenSpec, Spec Kit or `sdd-*` skills, `init` detects it and suggests the
@@ -155,6 +174,65 @@ rules:
 
 For code that already exists, `catspec bind AuthService --spec user-auth-service` writes the
 binding for you.
+
+---
+
+## Repository-wide rules (optional ADR file)
+
+You don't need an ADR file to use CatSpec. Specs, contracts, lock files, the hook, workflows and
+the MCP server all work without one, and your agents keep reading your architecture from
+`AGENTS.md` or your guidelines as before.
+
+CatSpec never reads the text of your decisions. What it can read from an ADR file is **rules in
+its frontmatter**, which it checks over every source file on every `catspec check` and commit.
+Add one if you want rules like these to be enforced, not just written down:
+
+```yaml
+---
+catspec: 1
+id: architecture
+type: architecture
+status: implemented   # draft = written down but not enforced yet
+rules:
+  - id: domain-is-pure            # the domain layer never imports infrastructure
+    class: structural
+    adr: ADR-003                  # optional: the decision this rule enforces
+    forbid_import:
+      from: "src/domain/**"
+      to: ["src/infrastructure/**"]
+  - id: no-console                # no console.* calls in shipped code
+    class: structural
+    forbid_call: "console.*"
+    paths: ["src/**"]
+  - id: handlers-in-place         # classes named *Handler live in src/handlers/
+    class: structural
+    naming: { kind: class, name: "*Handler", in_path: "src/handlers/**" }
+---
+
+# Architecture Decision Records
+
+## ADR-003: The domain layer has no infrastructure dependencies
+```
+
+A rule that one feature needs can live in that feature's `*.spec.md` instead; it is then checked
+only on that feature's code. The [rule catalogue](docs/spec/catspec-user-guide/rules.md) lists
+every rule type.
+
+**To add the file:**
+
+- No ADRs yet: `catspec init --with-adr` writes `docs/architecture/adr/<name>-adr.md` with the
+  frontmatter above and an empty `rules: []`.
+- ADRs in a folder already (`docs/adr/0001-use-postgres.md`, …): point `catspec.yaml` at it.
+  `init` does this for you when it finds `docs/adr/`, `docs/decisions/` or another common folder.
+
+  ```yaml
+  specs:
+    architecture: "docs/adr"   # a folder, a file or a glob
+  ```
+
+  Your ADR files stay as they are: CatSpec only reads their ids (`0007-….md` is ADR-007), so a
+  rule can say `adr: ADR-007`. Put the rules in one file in that folder with the frontmatter
+  above; `catspec init --with-adr` writes it as `docs/adr/architecture-rules.md`.
 
 ---
 

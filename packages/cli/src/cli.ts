@@ -210,12 +210,19 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
   program
     .command("init")
     .description(
-      "create catspec.yaml and the ADR log docs/architecture/adr/<name>-adr.md; " +
-        "--with-sdd-example also writes an example feature",
+      "create catspec.yaml (an existing ADR folder is written to specs.architecture); " +
+        "--with-adr also writes an architecture spec for repository-wide rules, and " +
+        "--with-sdd-example an example feature",
     )
     .option(
       "--name <name>",
-      "name of the ADR log (<name>-adr.md); default: the repository folder name",
+      "name of the architecture spec --with-adr writes (<name>-adr.md); default: the " +
+        "repository folder name",
+    )
+    .option(
+      "--with-adr",
+      "also write an architecture spec for repository-wide rules: " +
+        "docs/architecture/adr/<name>-adr.md, or architecture-rules.md in your ADR folder",
     )
     .addOption(
       new Option(
@@ -242,6 +249,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           hooks?: boolean;
           agents?: boolean;
           withSddExample?: boolean;
+          withAdr?: boolean;
         },
         command: Command,
       ) => {
@@ -252,6 +260,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
           ...(options.name === undefined ? {} : { name: options.name }),
           ...(options.preset === undefined ? {} : { preset: options.preset }),
           withExample: options.withSddExample === true,
+          withAdr: options.withAdr === true,
         });
         const style = styleFor(opts, out);
         // The config in effect: the one just written, or the one that was already there.
@@ -263,6 +272,12 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
               ? [
                   `detected ${PRESET_SIGNS[result.preset]}: proposing workflow preset ${result.preset} ` +
                     "(change workflow.preset in catspec.yaml, or run init with --preset)",
+                ]
+              : []),
+            ...(result.adrFolder
+              ? [
+                  `found ADRs in ${result.adrFolder}/: set specs.architecture to it, so rules can ` +
+                    "name them (adr: ADR-NNN)",
                 ]
               : []),
             ...result.created.map((f) => `${style.green("created")} ${f}`),
@@ -662,7 +677,7 @@ export async function run(argv: readonly string[], io: Partial<CliIo> = {}): Pro
     .description(
       "remove what init added: the pre-commit hook, the Claude Code Stop hook and the AGENTS.md " +
         "block; --files also deletes catspec.yaml, the local cache, and the example feature and " +
-        "the ADR log while unchanged (specs and lock files are kept); run it before removing " +
+        "the architecture spec while unchanged (specs and lock files are kept); run it before removing " +
         "the package",
     )
     .option("--files", "also delete catspec.yaml, the local cache and init's unchanged files")

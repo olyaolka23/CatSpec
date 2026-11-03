@@ -1,19 +1,21 @@
 /**
- * `catspec init` (plan §D3): creates `catspec.yaml` and the ADR log, so `catspec check --specs-only`
- * passes right away, and with `--with-sdd-example` an example feature folder. Existing files are
- * never overwritten.
+ * `catspec init` (plan §D3): creates `catspec.yaml`, so `catspec check --specs-only` passes right
+ * away. The architecture spec is optional (ADR-028): `--with-adr` writes one, and a folder of ADRs
+ * the repository already has is written to `specs.architecture`. `--with-sdd-example` writes an
+ * example feature folder. Existing files are never overwritten.
  */
-import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import {
+  architectureMatcher,
   CONFIG_FILE,
   customWorkflowYaml,
   detectPreset,
   featureDirYaml,
   findSddSkills,
-  globMatcher,
+  isArchitectureSpecText,
   kebabCase,
   listFiles,
   loadConfig,
@@ -33,12 +35,47 @@ export interface InitResult {
   preset: PresetName;
   /** True when the preset was found from what is in the repository (plan §D17.3). */
   detected: boolean;
+  /** The folder of ADRs the repository already had, written to `specs.architecture`. */
+  adrFolder?: string;
 }
+
+/** Folders where repositories commonly keep their ADRs, in the order `init` looks for them. */
+export const ADR_FOLDERS = [
+  "docs/adr",
+  "docs/adrs",
+  "docs/decisions",
+  "docs/architecture/adr",
+  "docs/architecture/decisions",
+  "doc/adr",
+  "doc/architecture/decisions",
+  "architecture/decisions",
+  "adr",
+];
+
+/** The first folder of `ADR_FOLDERS` with a Markdown file in it. */
+export function findAdrFolder(root: string): string | undefined {
+  return ADR_FOLDERS.find((folder) => {
+    try {
+      return readdirSync(join(root, folder)).some((f) => f.toLowerCase().endsWith(".md"));
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** The file name of the architecture spec `--with-adr` writes into a folder of existing ADRs. */
+export const RULES_FILE = "architecture-rules.md";
 
 /** Creates the CatSpec layout in `root`. `name` names the ADR log (`<name>-adr.md`). */
 export async function initRepository(
   root: string,
-  options: { name?: string; date?: string; preset?: PresetName; withExample?: boolean } = {},
+  options: {
+    name?: string;
+    date?: string;
+    preset?: PresetName;
+    withExample?: boolean;
+    withAdr?: boolean;
+  } = {},
 ): Promise<InitResult> {
   const name = kebabCase(options.name ?? basename(root)) || "project";
   const date = options.date ?? new Date().toISOString().slice(0, 10);
@@ -63,21 +100,43 @@ export async function initRepository(
     result.created.push(file);
   };
 
-  // The custom preset names only the sdd-* skills the repository has, where it has them.
-  await write(CONFIG_FILE, configTemplate(preset, findSddSkills(root)));
+  // ADRs the repository already has: CatSpec reads them where they are (ADR-028).
+  const adrFolder = existsSync(join(root, CONFIG_FILE)) ? undefined : findAdrFolder(root);
+  if (adrFolder) result.adrFolder = adrFolder;
 
-  // One ADR log per repository: don't add a second one next to an existing log (CS0107).
-  const { config } = await loadConfig(root);
-  const isArchitecture = globMatcher(config.specs.architecture);
-  const existing = (await listFiles(root)).filter((f) => isArchitecture(f));
-  const adrFile = `docs/architecture/adr/${name}-adr.md`;
-  if (existing.length > 0) {
-    result.skipped.push({
-      file: adrFile,
-      reason: `an ADR log already exists: ${existing.join(", ")}`,
-    });
-  } else {
-    await write(adrFile, adrTemplate(name, date));
+  // The custom preset names only the sdd-* skills the repository has, where it has them.
+  await write(
+    CONFIG_FILE,
+    configTemplate(preset, findSddSkills(root), adrFolder, options.withAdr === true),
+  );
+
+  // The architecture spec is optional: written only with --with-adr, and never a second one
+  // next to an existing one (CS0107).
+  if (options.withAdr) {
+    const { config } = await loadConfig(root);
+    const isArchitecture = architectureMatcher(config.specs.architecture);
+    const existing: string[] = [];
+    for (const file of (await listFiles(root)).filter((f) => isArchitecture(f))) {
+      if (isArchitectureSpecText(await readFile(join(root, file), "utf8"))) existing.push(file);
+    }
+    // Into the ADR folder when `specs.architecture` names one, else at the default path.
+    const configured = config.specs.architecture.replace(/\/+$/, "");
+    const folder =
+      /[*?[\]{}()!]/.test(configured) || /\.md$/i.test(configured) ? undefined : configured;
+    const adrFile = folder ? `${folder}/${RULES_FILE}` : `docs/architecture/adr/${name}-adr.md`;
+    if (!folder && !isArchitecture(adrFile)) {
+      result.skipped.push({
+        file: adrFile,
+        reason: `specs.architecture is "${config.specs.architecture}": create the architecture spec there`,
+      });
+    } else if (existing.length > 0) {
+      result.skipped.push({
+        file: adrFile,
+        reason: `an architecture spec already exists: ${existing.join(", ")}`,
+      });
+    } else {
+      await write(adrFile, folder ? rulesTemplate(name) : adrTemplate(name, date));
+    }
   }
 
   if (!options.withExample) return result;
@@ -112,7 +171,26 @@ ${featureDirYaml(featureDir)}
 `;
 };
 
-const configTemplate = (preset: PresetName, found: SddSkills): string => {
+/** The `specs.architecture` line: the ADR folder found, the file `--with-adr` writes, or a
+ * commented example (the architecture spec is optional, ADR-028). */
+const architectureLine = (adrFolder: string | undefined, withAdr: boolean): string =>
+  adrFolder
+    ? `  # Your ADRs (optional): a file, a glob or a folder. One file here may hold CatSpec's
+  # repository-wide rules (type: architecture); the others are read only for their ADR ids.
+  architecture: "${adrFolder}"`
+    : withAdr
+      ? `  # Your ADRs and the repository-wide rules (optional): a file, a glob or a folder.
+  architecture: "docs/architecture/adr/*-adr.md"`
+      : `  # Optional: where your ADRs are (a file, a glob or a folder), if you want CatSpec to check
+  # repository-wide rules. \`catspec init --with-adr\` writes a starter file.
+  # architecture: "docs/adr"`;
+
+const configTemplate = (
+  preset: PresetName,
+  found: SddSkills,
+  adrFolder?: string,
+  withAdr = false,
+): string => {
   const profile = resolveWorkflow(WorkflowSchema.parse({ preset }));
   return `# yaml-language-server: $schema=./node_modules/@catspec/core/schemas/catspec.schema.json
 # CatSpec configuration. Every key is optional and has a default.
@@ -121,7 +199,7 @@ layout: ${profile.layout}
 ${workflowTemplate(preset, found)}specs:
   # include defaults to the *.spec.md files in each workflow.feature_dir folder:
   # [${profile.specsInclude.map((g) => `"${g}"`).join(", ")}]
-  architecture: "docs/architecture/adr/*-adr.md"
+${architectureLine(adrFolder, withAdr)}
 # Both languages are always on; a file's extension picks its language. Point the globs at your
 # sources, or set \`include: []\` to leave a language out.
 languages:
@@ -162,6 +240,25 @@ to the frontmatter with \`adr: ADR-NNN\`.
 - **Context:** Everyone working on the code, people and agents, needs to know why it is built the way it is.
 - **Decision:** Every architecture decision is recorded in this log.
 - **Consequences:** Decisions are easy to find, and the checkable ones become rules in the frontmatter.
+`;
+
+/** The architecture spec `--with-adr` writes into a folder of existing ADRs: only the rules,
+ * the decisions stay in their own files (also used by `uninstall`). */
+export const rulesTemplate = (name: string): string => `---
+catspec: 1
+id: architecture
+title: ${name} architecture rules
+type: architecture
+status: draft
+# Repository-wide rules, checked over the whole codebase. A rule may name the ADR it enforces
+# (adr: ADR-NNN): the ADR files next to this one, by the number in their file name.
+rules: []
+---
+
+# Architecture rules
+
+CatSpec checks the rules in the frontmatter of this file over the whole codebase. The
+decisions themselves stay in the other files of this folder.
 `;
 
 /** The example feature `init` writes, by path (also used by `uninstall`). */
