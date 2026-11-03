@@ -1,6 +1,6 @@
 {
   "name": "@catspec/mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CatSpec MCP server.",
   "license": "Apache-2.0",
   "repository": {
@@ -30,7 +30,7 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@catspec/core": "0.1.0",
+    "@catspec/core": "0.2.0",
     "@modelcontextprotocol/server": "^2.3.1",
     "zod": "^4.6.5"
   }

@@ -1,6 +1,6 @@
 {
   "name": "@catspec/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Spec model, rule engine, diagnostics and git access for CatSpec.",
   "license": "Apache-2.0",
   "repository": {

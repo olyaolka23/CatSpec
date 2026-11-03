@@ -57,10 +57,15 @@ describe("F9 release-0-1: release (PBI release-packaging)", () => {
     }
 
     // The release notes: `changeset version` moved them into every package's changelog under
-    // 0.1.0, the version of every package, with the known limits.
+    // 0.1.0, with the known limits. Every package has the same version, with its own notes.
+    const version = (JSON.parse(read("packages/catspec/package.json")) as { version: string })
+      .version;
     for (const dir of PACKAGES) {
       const manifest = JSON.parse(read(`packages/${dir}/package.json`)) as { version: string };
-      expect(manifest.version, dir).toBe("0.1.0");
+      expect(manifest.version, dir).toBe(version);
+      expect(read(`packages/${dir}/CHANGELOG.md`), dir).toMatch(
+        new RegExp(`^## ${version.replaceAll(".", "\\.")}$`, "m"),
+      );
       const changelog = read(`packages/${dir}/CHANGELOG.md`).replace(/\r\n/g, "\n");
       const notes = changelog.split(/^## /m).find((section) => section.startsWith("0.1.0\n"));
       expect(notes, dir).toContain("Known limits:");
