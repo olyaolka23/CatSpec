@@ -28,7 +28,16 @@ TypeScript and C#, on Linux, macOS and Windows, with Node.js 22.12 or newer.
 5. **Commit.** The pre-commit hook stops commits that break a contract that already passed.
 
 The whole guide is also in your terminal: `npx catspec guide` lists the pages and
-`npx catspec guide <page>` prints one. To remove CatSpec, run `npx catspec uninstall`.
+`npx catspec guide <page>` prints one.
+
+**To remove CatSpec**, run `npx catspec uninstall` in the repository *before* `npm uninstall catspec`
+(and `npm uninstall -g catspec` for a global install). npm can't clean up after a package, so the
+pre-commit hook stays in the repository until `catspec uninstall` removes it. Add `--files` to also
+delete `catspec.yaml` and the example files `init` wrote. If CatSpec is already gone, remove the hook
+by hand: delete `.git/hooks/pre-commit` (or `pre-commit` in the folder `git config core.hooksPath`
+names) and rename `pre-commit.catspec-backup`, if it is there, back to `pre-commit`. With husky,
+delete the `catspec-managed` block from `.husky/pre-commit`; with lefthook, delete the `catspec`
+command from `lefthook.yml` and run `lefthook install`.
 
 ## Learn more
 
