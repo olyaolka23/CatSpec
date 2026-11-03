@@ -238,7 +238,7 @@
         },
         "architecture": {
           "default": "docs/architecture/adr/*-adr.md",
-          "description": "The architecture spec (ADR log); exactly one file must match (CS0107).",
+          "description": "Optional. Your ADRs: a file, a glob or a folder. At most one of these files is the architecture spec (CatSpec frontmatter, repository-wide rules); the others are plain ADRs that rules can refer to (CS0107, CS0112).",
           "type": "string",
           "minLength": 1
         }

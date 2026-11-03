@@ -5,7 +5,8 @@
  * (CS0108) and ADR ids (CS0112). Specs and lock files are read from a source provider: the
  * working tree, or the git index for `check --staged` (F5).
  */
-import { posix } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, posix } from "node:path";
 
 import { workflowProfile, type CatspecConfig } from "./config.js";
 import { featureFolderOf } from "./workflow/schema.js";
@@ -18,6 +19,7 @@ import {
 import { WorkingTreeProvider, type SourceProvider } from "./git/providers.js";
 import { DependencyGraph } from "./graph.js";
 import { hasLockFile, lockPathOf, parseLock, type LockFile } from "./lock.js";
+import { splitFrontmatter } from "./frontmatter.js";
 import { readSpec, specLocation, type Spec } from "./spec.js";
 import { didYouMean, globMatcher, listFiles, listOf } from "./util.js";
 
@@ -53,9 +55,10 @@ export interface SpecModel {
   config: CatspecConfig;
   specs: SpecSet;
   graph: DependencyGraph;
-  /** The architecture spec (`type: architecture` at `specs.architecture`), if exactly one exists. */
+  /** The architecture spec (`type: architecture` at `specs.architecture`), if exactly one exists:
+   * it is optional (ADR-028). */
   architecture?: Spec;
-  /** ADR ids of the architecture spec's log. */
+  /** ADR ids of the architecture spec's log and of the plain ADR files at `specs.architecture`. */
   adrIds: string[];
   /** Every diagnostic of `catspec check --specs-only`, sorted. */
   diagnostics: Diagnostic[];
@@ -84,7 +87,7 @@ export async function loadSpecModel(
   const options = { unenforcedProse: config.enforcement.unenforced_prose };
 
   const isIncluded = globMatcher(config.specs.include);
-  const isArchitecture = globMatcher(config.specs.architecture);
+  const isArchitecture = architectureMatcher(config.specs.architecture);
   const architectureFiles = files.filter((f) => isArchitecture(f));
   const specFiles = files.filter((f) => isIncluded(f) && !architectureFiles.includes(f));
 
@@ -98,48 +101,50 @@ export async function loadSpecModel(
     return result.spec;
   };
 
-  // The architecture spec: exactly one file at `specs.architecture` (CS0107).
+  // The architecture spec is optional (ADR-028). The files at `specs.architecture` are the
+  // repository's ADRs: at most one of them is CatSpec's architecture spec (CatSpec frontmatter,
+  // the repository-wide rules); the others are plain ADRs, read only for their ADR ids (CS0107).
   let architecture: Spec | undefined;
-  // In the git index (`check --staged`), an ADR log that exists on disk but isn't staged yet,
-  // e.g. right after `catspec init`, is a warning: it doesn't block a commit that leaves it out.
+  const architectureTexts = new Map<string, string>();
+  for (const file of architectureFiles) {
+    architectureTexts.set(file, (await source.read(file))?.toString("utf8") ?? "");
+  }
+  const rulesFiles = architectureFiles.filter((f) =>
+    isArchitectureSpecText(architectureTexts.get(f)!),
+  );
+  // In the git index (`check --staged`), an architecture spec that exists on disk but isn't
+  // staged yet, e.g. right after `catspec init --with-adr`, is a warning: the commit is checked
+  // without its rules.
   const unstagedLog =
-    architectureFiles.length === 0 && source.kind === "index"
-      ? (await listFiles(root)).find((f) => isArchitecture(f))
+    rulesFiles.length === 0 && source.kind === "index"
+      ? await findUnstagedArchitectureSpec(root, isArchitecture)
       : undefined;
   if (unstagedLog) {
     diagnostics.push(
       createDiagnostic("CS0107", {
         severity: "warning",
-        message: `the ADR log ${unstagedLog} isn't staged, so this commit is checked without it`,
+        message: `the architecture spec ${unstagedLog} isn't staged, so this commit is checked without its rules`,
         suggestions: [{ message: `stage it: git add ${unstagedLog}` }],
       }),
     );
-  } else if (architectureFiles.length === 0) {
+  } else if (rulesFiles.length > 1) {
     diagnostics.push(
       createDiagnostic("CS0107", {
-        message: `no architecture spec: no file matches specs.architecture "${config.specs.architecture}"`,
+        specLocation: { file: rulesFiles[0]!, line: 1, column: 1 },
+        message:
+          `more than one architecture spec matches specs.architecture "${config.specs.architecture}": ` +
+          listOf(rulesFiles),
+        actual: rulesFiles,
         suggestions: [
           {
-            message: "run `catspec init` to create one, or set specs.architecture in catspec.yaml",
+            message:
+              "keep the repository-wide rules in one file, or narrow specs.architecture in catspec.yaml",
           },
         ],
       }),
     );
-  } else if (architectureFiles.length > 1) {
-    diagnostics.push(
-      createDiagnostic("CS0107", {
-        specLocation: { file: architectureFiles[0]!, line: 1, column: 1 },
-        message:
-          `more than one architecture spec matches specs.architecture "${config.specs.architecture}": ` +
-          listOf(architectureFiles),
-        actual: architectureFiles,
-        suggestions: [
-          { message: "keep one ADR log, or narrow specs.architecture in catspec.yaml" },
-        ],
-      }),
-    );
-  } else {
-    const spec = await read(architectureFiles[0]!);
+  } else if (rulesFiles.length === 1) {
+    const spec = await read(rulesFiles[0]!);
     if (spec) {
       if (spec.type === "architecture") {
         architecture = spec;
@@ -224,21 +229,31 @@ export async function loadSpecModel(
     }
   }
 
-  // ADR ids referenced by rules must exist in the ADR log (CS0112).
-  const adrIds = architecture?.body.adrIds ?? [];
-  if (architecture) {
+  // ADR ids referenced by rules must exist in the ADR log (CS0112): the `## ADR-NNN` headings of
+  // the architecture spec, and the ids of the plain ADR files next to it. Without any ADRs there
+  // is nothing to check against.
+  const adrIds = [...(architecture?.body.adrIds ?? [])];
+  for (const file of architectureFiles) {
+    if (rulesFiles.includes(file)) continue;
+    for (const id of plainAdrIds(file, architectureTexts.get(file)!)) {
+      if (!adrIds.some((known) => sameAdrId(known, id))) adrIds.push(id);
+    }
+  }
+  const adrLog = architecture?.file ?? `specs.architecture "${config.specs.architecture}"`;
+  if (adrIds.length > 0) {
     for (const spec of specs.byFile.values()) {
       for (const rule of spec.rules) {
-        if (rule.adr === undefined || adrIds.includes(rule.adr)) continue;
-        const close = didYouMean(rule.adr, adrIds);
+        const ruleAdr = rule.adr;
+        if (ruleAdr === undefined || adrIds.some((id) => sameAdrId(id, ruleAdr))) continue;
+        const close = didYouMean(ruleAdr, adrIds);
         diagnostics.push(
           createDiagnostic("CS0112", {
             spec: spec.id,
             ruleId: rule.id,
             specLocation: specLocation(spec.source, ["rules", rule.index, "adr"]),
-            message: `rule "${rule.id}" enforces ${rule.adr}, which is not in the ADR log ${architecture.file}`,
+            message: `rule "${rule.id}" enforces ${ruleAdr}, which is not in the ADR log ${adrLog}`,
             expected: adrIds,
-            actual: rule.adr,
+            actual: ruleAdr,
             ...(close.length > 0
               ? { suggestions: close.map((c) => ({ message: `did you mean ${c}?` })) }
               : {}),
@@ -319,4 +334,53 @@ export async function loadSpecModel(
     lockTexts,
     source,
   };
+}
+
+/**
+ * Matches the files of `specs.architecture` (ADR-028): a glob or a file path as written, or a
+ * folder (no glob characters and no `.md` ending) for every Markdown file in it.
+ */
+export function architectureMatcher(pattern: string): (path: string) => boolean {
+  const clean = pattern.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  if (/[*?[\]{}()!]/.test(clean) || /\.md$/i.test(clean)) return globMatcher(clean);
+  return globMatcher(`${clean}/**/*.md`);
+}
+
+/**
+ * True when a file at `specs.architecture` is meant as CatSpec's architecture spec: its
+ * frontmatter has a `catspec:` key or `type: architecture`. Other files (no frontmatter, or the
+ * frontmatter of an ADR tool) are plain ADRs. A line match, so broken YAML is still reported.
+ */
+export function isArchitectureSpecText(text: string): boolean {
+  const split = splitFrontmatter(text);
+  if ("error" in split) return false;
+  return /^(catspec\s*:|type\s*:\s*["']?architecture["']?\s*(#.*)?$)/m.test(split.frontmatter.text);
+}
+
+/** The ADR ids of a plain ADR file: its file name (`ADR-007-….md`, `0007-….md`) and its
+ * `ADR-NNN` headings. */
+export function plainAdrIds(file: string, text: string): string[] {
+  const ids: string[] = [];
+  const name = /^(?:adr-?)?(\d+)(?=[-_. ])/i.exec(posix.basename(file));
+  if (name) ids.push(`ADR-${name[1]}`);
+  for (const match of text.matchAll(/^#{1,6}[ \t]+\[?(ADR-\d+)\b/gm)) {
+    if (!ids.some((id) => sameAdrId(id, match[1]!))) ids.push(match[1]!);
+  }
+  return ids;
+}
+
+/** ADR ids compare by number: `ADR-7`, `ADR-007` and `ADR-0007` are the same decision. */
+export const sameAdrId = (a: string, b: string): boolean =>
+  Number(a.slice(4)) === Number(b.slice(4)) && /^ADR-\d+$/.test(a) && /^ADR-\d+$/.test(b);
+
+/** An architecture spec on disk that the git index doesn't have yet. */
+async function findUnstagedArchitectureSpec(
+  root: string,
+  isArchitecture: (path: string) => boolean,
+): Promise<string | undefined> {
+  for (const file of (await listFiles(root)).filter((f) => isArchitecture(f))) {
+    const text = await readFile(join(root, file), "utf8").catch(() => "");
+    if (isArchitectureSpecText(text)) return file;
+  }
+  return undefined;
 }

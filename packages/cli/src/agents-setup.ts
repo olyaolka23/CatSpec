@@ -46,8 +46,8 @@ export const agentsBlock = (
     BLOCK_BEGIN,
     "## CatSpec workflow (agents must follow)",
     "",
-    `Specs live in ${profile.featureDirs.map((d) => `\`${d.replaceAll("{feature}", "<feature>")}/<spec-id>.spec.md\``).join(" or ")}; the architecture rules in`,
-    "`docs/architecture/adr/`. For every work item (spec) `<id>` you work on" +
+    `Specs live in ${profile.featureDirs.map((d) => `\`${d.replaceAll("{feature}", "<feature>")}/<spec-id>.spec.md\``).join(" or ")}.`,
+    "For every work item (spec) `<id>` you work on" +
       (perFeature ? " (`<feature>` is its feature folder):" : ":"),
     "",
     `1. Before coding run \`${steps.begin}\`. If it fails, stop and report why.`,

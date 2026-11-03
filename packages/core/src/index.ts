@@ -80,7 +80,15 @@ export * from "./spec-schema.js";
 export * from "./spec-body.js";
 export { readSpec, specLocation, type ReadSpecOptions, type Spec } from "./spec.js";
 export { DependencyGraph } from "./graph.js";
-export { loadSpecModel, SpecSet, type SpecModel } from "./load.js";
+export {
+  architectureMatcher,
+  isArchitectureSpecText,
+  loadSpecModel,
+  plainAdrIds,
+  sameAdrId,
+  SpecSet,
+  type SpecModel,
+} from "./load.js";
 export {
   applyPatch,
   classifyOp,

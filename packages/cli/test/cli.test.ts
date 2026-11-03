@@ -85,12 +85,14 @@ describe("F1 spec-model", () => {
     expect(text).toMatch(/^ {2}feature_dir: "docs\/spec\/\{feature\}"$/m);
     expect(text).toMatch(/^ {2}skills_dir: "\.claude\/skills"/m);
     expect(text).toMatch(/^ {2}# feature_dir: \["docs\/spec\/billing\/\{feature\}", /m);
-    expect(existsSync(join(dir, "docs", "architecture", "adr", `${name}-adr.md`))).toBe(true);
+    // The architecture spec is optional (ADR-028): only with --with-adr.
+    expect(text).toMatch(/^ {2}# architecture: "docs\/adr"$/m);
+    expect(existsSync(join(dir, "docs", "architecture"))).toBe(false);
     expect(existsSync(example)).toBe(false);
 
     const check = checkSpecs();
     expect(check.stderr).toBe("");
-    expect(check.stdout).toContain("0 errors, 0 warnings in 1 spec");
+    expect(check.stdout).toContain("0 errors, 0 warnings in 0 specs");
     expect(check.status).toBe(0);
 
     // The example feature only on request; it passes too.
@@ -101,7 +103,7 @@ describe("F1 spec-model", () => {
     );
     expect(readdirSync(example).sort()).toEqual(["example-greeter.spec.md", "plan.md", "spec.md"]);
     const again = checkSpecs();
-    expect(again.stdout).toContain("0 errors, 0 warnings in 2 specs");
+    expect(again.stdout).toContain("0 errors, 0 warnings in 1 spec");
     expect(again.status).toBe(0);
 
     // Running init again changes nothing; without the flag, a deleted example stays deleted.
@@ -111,6 +113,32 @@ describe("F1 spec-model", () => {
     expect(rerun.stdout).not.toContain("created");
     expect(existsSync(example)).toBe(false);
     expect((await catspec(dir, "check", "--specs-only")).code).toBe(0);
+
+    // --with-adr writes the starter architecture spec, which passes too.
+    const withAdr = await catspec(dir, "init", "--with-adr");
+    expect(withAdr.stdout).toContain(`created docs/architecture/adr/${name}-adr.md`);
+    expect(checkSpecs().stdout).toContain("0 errors, 0 warnings in 1 spec");
+  });
+
+  it("init finds an existing ADR folder, and --with-adr puts the rules file in it", async () => {
+    const dir = await repo({
+      "docs/adr/0001-use-postgres.md": "# 1. Use Postgres\n",
+      "docs/adr/0002-use-events.md": "# 2. Use events\n",
+    });
+    const init = await catspec(dir, "init", "--with-adr");
+    expect(init.code, init.stderr).toBe(0);
+    expect(init.stdout).toContain("found ADRs in docs/adr/");
+    expect(init.stdout).toContain("created docs/adr/architecture-rules.md");
+    expect(readFileSync(join(dir, "catspec.yaml"), "utf8")).toMatch(
+      /^ {2}architecture: "docs\/adr"$/m,
+    );
+    const check = await catspec(dir, "check", "--specs-only");
+    expect(check.code, check.stdout).toBe(0);
+    // Running it again doesn't add a second rules file.
+    const again = await catspec(dir, "init", "--with-adr");
+    expect(again.stdout).toContain(
+      "an architecture spec already exists: docs/adr/architecture-rules.md",
+    );
   });
 
   it("[AC-F1-2] reports a binding kind error at the spec file, line 9, with the allowed kinds", async () => {

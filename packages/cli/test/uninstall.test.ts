@@ -61,7 +61,9 @@ describe("catspec uninstall", () => {
 
   it("--files deletes catspec.yaml, the cache and init's unchanged files, and keeps specs and edited files", async () => {
     await withRepo(async (repo) => {
-      expect((await catspec(repo.dir, ["init", "--agents", "--name", "shop"])).code).toBe(0);
+      expect(
+        (await catspec(repo.dir, ["init", "--agents", "--with-adr", "--name", "shop"])).code,
+      ).toBe(0);
       await repo.write({ "src/greeter.ts": "export class Greeter {}\n" });
       expect((await catspec(repo.dir, ["check"])).code).toBe(0);
       expect(existsSync(join(repo.dir, ".git", "catspec"))).toBe(true);
@@ -94,13 +96,27 @@ describe("catspec uninstall", () => {
 
   it("keeps an ADR log that has the team's decisions", async () => {
     await withRepo(async (repo) => {
-      await catspec(repo.dir, ["init", "--name", "shop"]);
+      await catspec(repo.dir, ["init", "--with-adr", "--name", "shop"]);
       const log = join(repo.dir, "docs/architecture/adr/shop-adr.md");
       await writeFile(log, `${await readFile(log, "utf8")}\n## ADR-002: Use events\n`);
       const result = await catspec(repo.dir, ["uninstall", "--files"]);
       expect(existsSync(log)).toBe(true);
       expect(result.stdout).toContain("kept docs/architecture/adr/shop-adr.md");
     });
+  });
+
+  it("removes the rules file init wrote into the team's ADR folder, and never the team's ADRs", async () => {
+    await withRepo(
+      async (repo) => {
+        expect((await catspec(repo.dir, ["init", "--with-adr"])).code).toBe(0);
+        const result = await catspec(repo.dir, ["uninstall", "--files"]);
+        expect(result.code, result.stdout).toBe(0);
+        expect(existsSync(join(repo.dir, "docs/adr/architecture-rules.md"))).toBe(false);
+        expect(existsSync(join(repo.dir, "docs/adr/0001-use-postgres.md"))).toBe(true);
+        expect(result.stdout).not.toContain("0001-use-postgres.md");
+      },
+      { "docs/adr/0001-use-postgres.md": "# 1. Use Postgres\n" },
+    );
   });
 
   it("the pre-commit hook lets the commit through, and says why, when CatSpec isn't installed", async () => {
