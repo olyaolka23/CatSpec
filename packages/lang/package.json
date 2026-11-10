@@ -2,6 +2,15 @@
   "name": "@catspec/lang",
   "version": "0.2.0",
   "description": "Tree-sitter (WASM) loader, query runner and symbol normaliser for CatSpec.",
+  "keywords": [
+    "catspec",
+    "tree-sitter",
+    "wasm",
+    "ast",
+    "parser",
+    "static-analysis",
+    "ai-tool"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

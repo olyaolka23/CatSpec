@@ -2,6 +2,17 @@
   "name": "@catspec/cli",
   "version": "0.2.0",
   "description": "The catspec command-line interface.",
+  "keywords": [
+    "catspec",
+    "cli",
+    "spec-driven-development",
+    "specification",
+    "architecture",
+    "adr",
+    "git-hook",
+    "linter",
+    "ai-tool"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

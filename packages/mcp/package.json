@@ -2,6 +2,16 @@
   "name": "@catspec/mcp",
   "version": "0.2.0",
   "description": "CatSpec MCP server.",
+  "keywords": [
+    "catspec",
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "ai-tool",
+    "claude-code",
+    "spec-driven-development"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

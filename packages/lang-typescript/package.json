@@ -2,6 +2,15 @@
   "name": "@catspec/lang-typescript",
   "version": "0.2.0",
   "description": "TypeScript/TSX language adapter for CatSpec.",
+  "keywords": [
+    "catspec",
+    "tree-sitter",
+    "typescript",
+    "tsx",
+    "ast",
+    "static-analysis",
+    "ai-tool"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",

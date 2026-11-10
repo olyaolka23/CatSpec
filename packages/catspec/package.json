@@ -2,6 +2,22 @@
   "name": "catspec",
   "version": "0.2.0",
   "description": "CatSpec: the CLI, MCP server and default language adapters in one install.",
+  "keywords": [
+    "catspec",
+    "spec-driven-development",
+    "sdd",
+    "specification",
+    "architecture",
+    "adr",
+    "ai-agents",
+    "ai-tool",
+    "claude-code",
+    "mcp",
+    "linter",
+    "typescript",
+    "csharp",
+    "cli"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
