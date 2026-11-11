@@ -2,6 +2,16 @@
   "name": "@catspec/core",
   "version": "0.2.0",
   "description": "Spec model, rule engine, diagnostics and git access for CatSpec.",
+  "keywords": [
+    "catspec",
+    "spec-driven-development",
+    "specification",
+    "rule-engine",
+    "static-analysis",
+    "architecture",
+    "adr",
+    "ai-tool"
+  ],
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
