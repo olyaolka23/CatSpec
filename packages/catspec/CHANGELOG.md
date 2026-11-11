@@ -1,5 +1,16 @@
 # catspec
 
+## 0.2.1
+
+### Patch Changes
+
+- cbc80c8: Add npm keywords to every package, so CatSpec shows up in npm search.
+- Updated dependencies [cbc80c8]
+  - @catspec/cli@0.2.1
+  - @catspec/lang-typescript@0.2.1
+  - @catspec/lang-csharp@0.2.1
+  - @catspec/mcp@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,5 +1,11 @@
 # @catspec/core
 
+## 0.2.1
+
+### Patch Changes
+
+- cbc80c8: Add npm keywords to every package, so CatSpec shows up in npm search.
+
 ## 0.2.0
 
 ### Minor Changes

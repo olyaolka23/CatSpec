@@ -1,6 +1,6 @@
 {
   "name": "@catspec/cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The catspec command-line interface.",
   "keywords": [
     "catspec",
@@ -50,11 +50,11 @@
     "build": "node scripts/copy-guide.js && tsup"
   },
   "dependencies": {
-    "@catspec/core": "0.2.0",
-    "@catspec/lang": "0.2.0",
-    "@catspec/lang-csharp": "0.2.0",
-    "@catspec/lang-typescript": "0.2.0",
-    "@catspec/mcp": "0.2.0",
+    "@catspec/core": "0.2.1",
+    "@catspec/lang": "0.2.1",
+    "@catspec/lang-csharp": "0.2.1",
+    "@catspec/lang-typescript": "0.2.1",
+    "@catspec/mcp": "0.2.1",
     "commander": "^15.0.0"
   }
 }
